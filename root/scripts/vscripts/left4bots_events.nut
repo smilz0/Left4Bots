@@ -477,6 +477,7 @@ HooksHub.SetInterceptChat("L4B", ::Left4Bots.InterceptChat);
 
 HooksHub.SetAllowTakeDamage("L4B", ::Left4Bots.AllowTakeDamage);
 
+/*
 ::Left4Bots.AllowBash <- function (basher, bashee)
 {
 	local ret = Left4Bots.OnBash(basher, bashee);
@@ -490,6 +491,6 @@ HooksHub.SetAllowTakeDamage("L4B", ::Left4Bots.AllowTakeDamage);
 }
 
 HooksHub.SetAllowBash("L4B", ::Left4Bots.AllowBash);
-
+*/
 
 __CollectEventCallbacks(::Left4Bots.Events, "OnGameEvent_", "GameEventCallbacks", RegisterScriptGameEventListener);
