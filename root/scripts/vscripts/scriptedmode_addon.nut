@@ -10,7 +10,7 @@ function ScriptMode_Init( modename, mapname )
 	local bScriptedModeValid = true;
 	try
 	{
-		// There are some addons (like Dynamic Light) that load themselves from sm_utilities.nut and are loaded here in the base ScriptMode_Init
+		// There are some addons that load themselves from sm_utilities.nut and are loaded here in the base ScriptMode_Init
 		// I put this in a try/catch so if these addons cause errors here, my addon will still load.
 		bScriptedModeValid = Left4Bots_ScriptMode_Init( modename, mapname );
 	}

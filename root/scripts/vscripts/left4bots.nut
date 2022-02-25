@@ -94,6 +94,7 @@ if (!("BOT_THINK_INTERVAL" in getconsttable()))
 			rock_shoot_range = 700
 			scavenge_max_bots = 2
 			scavenge_pour = 1
+			should_hurry = 1
 			show_commands = 1
 			sorry_chance = 80
 			spit_block_nav = 1
@@ -2803,6 +2804,26 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 						local value = args[2].tointeger();
 						::Left4Bots.Settings[arg1] <- value;
 						Left4Utils.SaveSettingsToFile("left4bots/cfg/settings.txt", ::Left4Bots.Settings, Left4Bots.Log);
+						
+						if (arg1 == "should_hurry")
+						{
+							if (value)
+							{
+								DirectorScript.GetDirectorOptions().cm_ShouldHurry <- 1;
+	
+								Left4Bots.Log(LOG_LEVEL_DEBUG, "cm_ShouldHurry = 1");
+							}
+							else
+							{
+								DirectorScript.GetDirectorOptions().cm_ShouldHurry <- 0;
+								
+								//if ("cm_ShouldHurry" in DirectorScript.GetDirectorOptions())
+								//	delete DirectorScript.GetDirectorOptions().cm_ShouldHurry;
+								
+								Left4Bots.Log(LOG_LEVEL_DEBUG, "cm_ShouldHurry = 0");
+							}
+						}
+						
 						ClientPrint(player, 3, "\x05 Changed value for " + arg1 + " to: " + value);
 					}
 					catch(exception)
@@ -2962,6 +2983,23 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			}
 		}
 		return ret;
+	}
+
+	::Left4Bots.DoHeal <- function (params)
+	{
+		local bot = params["bot"];
+		if (!bot || !bot.IsValid())
+			return;
+		
+		local aw = bot.GetActiveWeapon();
+		if (aw && aw.GetClassname() == "weapon_first_aid_kit")
+		{
+			Left4Bots.Log(LOG_LEVEL_DEBUG, "Bot " + bot.GetPlayerName() + " HEAL");
+			
+			Left4Bots.BotPressButton(bot, BUTTON_ATTACK, BUTTON_HOLDTIME_HEAL, null, 0, 0, true);
+		}
+		else
+			Left4Bots.Log(LOG_LEVEL_DEBUG, "Bot " + bot.GetPlayerName() + " HEAL aborted!");
 	}
 	
 	::Left4Bots.BotOrder <- function (order, who, subject = null, botdest = null, param = null)
@@ -3330,7 +3368,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			if (!botdest || !botdest.IsValid() || botdest.GetPlayerUserId() == subject.GetPlayerUserId())
 			{
 				subject.SwitchToItem("weapon_first_aid_kit");
-				Left4Timers.AddTimer(null, 1.2, @(params) Left4Bots.BotPressButton(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = subject, button = BUTTON_ATTACK, holdTime = BUTTON_HOLDTIME_HEAL, destination = null, deltaPitch = 0, deltaYaw = 0, lockLook = true });
+				//Left4Timers.AddTimer(null, 1.2, @(params) Left4Bots.BotPressButton(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = subject, button = BUTTON_ATTACK, holdTime = BUTTON_HOLDTIME_HEAL, destination = null, deltaPitch = 0, deltaYaw = 0, lockLook = true });
+				Left4Timers.AddTimer(null, 1.2, Left4Bots.DoHeal, { bot = subject });
 			}
 			else
 			{
