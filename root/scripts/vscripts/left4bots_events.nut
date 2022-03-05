@@ -391,6 +391,20 @@ long	type	damage type
 	Left4Bots.OnInfectedHurt(attacker, infected, damage, dmgType);
 }
 
+::Left4Bots.Events.OnGameEvent_weapon_drop <- function (params)
+{
+	local player = null;
+	local weapon = null;
+	
+	if ("userid" in params)
+		player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+		
+	if ("propid" in params)
+		weapon = EntIndexToHScript(params["propid"]);
+	
+	Left4Bots.OnWeaponDrop(player, weapon);
+}
+
 ::Left4Bots.Events.OnGameEvent_server_pre_shutdown <- function (params)
 {
 	local reason = params["reason"];

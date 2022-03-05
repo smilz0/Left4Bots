@@ -74,11 +74,12 @@ if (!("BOT_THINK_INTERVAL" in getconsttable()))
 			jockey_redirect_damage = 40
 			keep_holdind_position = -1
 			keep_holding_position = 0
+			kill_empty_chainsaw = 0
 			laugh_chance = 25
 			load_convars = 1
 			loglevel = 3
-			medkits_bots_give = 1
 			max_chainsaws = 0
+			medkits_bots_give = 1
 			min_start_health = 50
 			nades_bots_give = 1
 			nades_give = 1 // TODO: Move back to L4F?
@@ -2803,7 +2804,12 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 					{
 						local value = args[2].tointeger();
 						::Left4Bots.Settings[arg1] <- value;
-						Left4Utils.SaveSettingsToFile("left4bots/cfg/settings.txt", ::Left4Bots.Settings, Left4Bots.Log);
+						
+						local trueSettings = clone ::Left4Bots.Settings;
+						foreach (key, val in ::Left4Bots.OnTankSettingsBak)
+							trueSettings[key] <- val;
+						
+						Left4Utils.SaveSettingsToFile("left4bots/cfg/settings.txt", trueSettings, Left4Bots.Log);
 						
 						if (arg1 == "should_hurry")
 						{
@@ -3835,6 +3841,23 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			NetProps.SetPropFloat(infected, "m_wanderrage", 1.0);
 			Left4Utils.BotCmdAttack(infected, attacker);
 		}
+	}
+	
+	::Left4Bots.OnWeaponDrop <- function (player, weapon)
+	{
+		local p = "";
+		local w = "";
+		
+		if (player && player.IsValid())
+			p = player.GetPlayerName();
+		
+		if (weapon && weapon.IsValid())
+			w = weapon.GetClassname();
+		
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "OnWeaponDrop - " + p + " - " + w);
+		
+		if (Left4Bots.Settings.kill_empty_chainsaw && w == "weapon_chainsaw" && NetProps.GetPropInt(weapon, "m_iClip1") <= 0)
+			weapon.Kill();
 	}
 	
 	::Left4Bots.OnConcept <- function (concept, query)
