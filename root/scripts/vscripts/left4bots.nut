@@ -2805,6 +2805,9 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 						local value = args[2].tointeger();
 						::Left4Bots.Settings[arg1] <- value;
 						
+						if (arg1 in ::Left4Bots.OnTankSettingsBak)
+							::Left4Bots.OnTankSettingsBak[arg1] <- value;
+						
 						local trueSettings = clone ::Left4Bots.Settings;
 						foreach (key, val in ::Left4Bots.OnTankSettingsBak)
 							trueSettings[key] <- val;
