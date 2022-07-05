@@ -67,6 +67,7 @@ if (!("BOT_THINK_INTERVAL" in getconsttable()))
 			close_saferoom_door = 1
 			deploy_upgrades = 1
 			force_heal = 1
+			gg_chance = 80
 			horde_nades_chance = 5
 			horde_nades_maxaltdiff = 150
 			horde_nades_radius = 350
@@ -93,6 +94,7 @@ if (!("BOT_THINK_INTERVAL" in getconsttable()))
 			pills_bots_give = 1
 			play_sounds = 1
 			rock_shoot_range = 700
+			scavenge_campaign_autostart = 0
 			scavenge_max_bots = 2
 			scavenge_pour = 1
 			should_hurry = 1
@@ -113,6 +115,7 @@ if (!("BOT_THINK_INTERVAL" in getconsttable()))
 			upgrades_bots_give = 1
 			user_can_command_bots = 0
 			vocalizer_commands = 1
+			youwelcome_chance = 90
 		}
 		Admins = {}
 		OnlineAdmins = []
@@ -1321,6 +1324,29 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "OnServerPreShutdown - reason: " + reason);
 		
 		Left4Bots.ClearPipeBombs();
+	}
+
+	::Left4Bots.OnFinaleWin <- function ()
+	{
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "OnFinaleWin");
+		
+		foreach (id, bot in ::Left4Bots.Bots)
+		{
+			if (bot && bot.IsValid() && !bot.IsIncapacitated() && !bot.IsDead() && !bot.IsDying() && RandomInt(1, 100) <= Left4Bots.Settings.gg_chance)
+				Left4Timers.AddTimer(null, RandomFloat(2.0, 5.0), Left4Bots.SayGG, { bot = bot });
+		}
+	}
+
+	::Left4Bots.SayGG <- function (params)
+	{
+		local bot = params["bot"];
+		if (bot && bot.IsValid())
+		{
+			if (RandomInt(1, 100) <= 30)
+				Say(bot, "GG", false);
+			else
+				Say(bot, "gg", false);
+		}
 	}
 
 	::Left4Bots.ClearPipeBombs <- function ()
@@ -4071,7 +4097,7 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		{
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "FinaleTriggered");
 			
-			if (!Left4Bots.ScavengeEnabled && Left4Bots.Survivors.len() == Left4Bots.Bots.len() && Left4Bots.ScavengeAllowed)
+			if (!Left4Bots.ScavengeEnabled && (Left4Bots.Settings.scavenge_campaign_autostart || Left4Bots.Survivors.len() == Left4Bots.Bots.len()) && Left4Bots.ScavengeAllowed)
 				Left4Bots.ScavengeEnabled = true;
 		}
 		
@@ -4144,6 +4170,12 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 						DoEntFire("!self", "SpeakResponseConcept", "PlayerLaugh", RandomFloat(0.5, 2), null, bot);
 				}
 			}
+		}
+		
+		if (concept == "PlayerThanks")
+		{
+			if (subject && IsPlayerABot(subject) && !IsPlayerABot(who) && RandomInt(1, 100) <= Left4Bots.Settings.youwelcome_chance)
+				DoEntFire("!self", "SpeakResponseConcept", "PlayerYouAreWelcome", RandomFloat(1.2, 2.3), null, subject);
 		}
 		
 		if (concept == "iMT_PlayerNiceShot")

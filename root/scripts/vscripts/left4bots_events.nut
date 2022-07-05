@@ -412,6 +412,11 @@ long	type	damage type
 	Left4Bots.OnServerPreShutdown(reason);
 }
 
+::Left4Bots.Events.OnGameEvent_finale_win <- function (params)
+{
+	Left4Bots.OnFinaleWin();
+}
+
 ::Left4Bots.InterceptChat <- function (msg, speaker)
 {
 	// Removing the ending \r\n
