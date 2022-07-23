@@ -67,7 +67,7 @@ if (!("BOT_THINK_INTERVAL" in getconsttable()))
 			close_saferoom_door = 1
 			deploy_upgrades = 1
 			force_heal = 1
-			gg_chance = 80
+			gg_chance = 70
 			horde_nades_chance = 5
 			horde_nades_maxaltdiff = 150
 			horde_nades_radius = 350
@@ -82,6 +82,7 @@ if (!("BOT_THINK_INTERVAL" in getconsttable()))
 			max_chainsaws = 0
 			medkits_bots_give = 1
 			min_start_health = 50
+			meds_give = 1
 			nades_bots_give = 1
 			nades_give = 1 // TODO: Move back to L4F?
 			pickup_animation = 1
@@ -94,7 +95,7 @@ if (!("BOT_THINK_INTERVAL" in getconsttable()))
 			pills_bots_give = 1
 			play_sounds = 1
 			rock_shoot_range = 700
-			scavenge_campaign_autostart = 0
+			scavenge_campaign_autostart = 1
 			scavenge_max_bots = 2
 			scavenge_pour = 1
 			should_hurry = 1
@@ -162,6 +163,7 @@ if (!("BOT_THINK_INTERVAL" in getconsttable()))
 		OnTankSettingsBak = {}
 		OnTankCvars = {}
 		OnTankCvarsBak = {}
+		HoldItems = { weapon_gascan = 0, weapon_gnome = 0, weapon_cola_bottles = 0, weapon_propanetank = 0, weapon_oxygentank = 0, weapon_fireworkcrate = 0 }
 	}
 
 	::Left4Bots.Log <- function (level, text)
@@ -184,14 +186,11 @@ if (!("BOT_THINK_INTERVAL" in getconsttable()))
 	::Left4Bots.LoadVocalizerOrdersFromFile <- function (fileName)
 	{
 		local ret = {};
-		local fileContents = FileToString(fileName);
-		if (fileContents == null)
-		{
-			Left4Bots.Log(LOG_LEVEL_WARN, "Vocalizer mapping file does not exist: " + fileName);
+		
+		local mappings = Left4Utils.FileToStringList(fileName);
+		if (!mappings)
 			return ret;
-		}
 
-		local mappings = split(fileContents, "\r\n");
 		foreach (mapping in mappings)
 		{
 			//Left4Bots.Log(LOG_LEVEL_DEBUG, mapping);
@@ -233,11 +232,10 @@ if (!("BOT_THINK_INTERVAL" in getconsttable()))
 
 	::Left4Bots.IsScavengeAllowedMap <- function (fileName, mapName)
 	{
-		local fileContents = FileToString(fileName);
-		if (fileContents == null)
+		local lines = Left4Utils.FileToStringList(fileName);
+		if (!lines)
 			return true;
-
-		local lines = split(fileContents, "\r\n");
+		
 		foreach (line in lines)
 		{
 			//Left4Bots.Log(LOG_LEVEL_DEBUG, line);
@@ -260,11 +258,10 @@ if (!("BOT_THINK_INTERVAL" in getconsttable()))
 	{
 		local ret = [];
 		
-		local fileContents = FileToString(fileName);
-		if (!fileContents)
+		local items = Left4Utils.FileToStringList(fileName);
+		if (!items)
 			return ret;
-		
-		local items = split(fileContents, "\r\n");
+
 		foreach (item in items)
 		{
 			item = Left4Utils.StripComments(item);
@@ -345,11 +342,7 @@ if (!("BOT_THINK_INTERVAL" in getconsttable()))
 				"PlayerAnswerLostCall = give"
 			];
 
-			local defaultMappingsFileContent = "";
-			foreach (line in defaultMappingValues)
-				defaultMappingsFileContent = defaultMappingsFileContent + line + "\n";
-
-			StringToFile("left4bots/cfg/vocalizer.txt", defaultMappingsFileContent);
+			Left4Utils.StringListToFile("left4bots/cfg/vocalizer.txt", defaultMappingValues, false);
 				
 			Left4Bots.Log(LOG_LEVEL_INFO, "Vocalizer orders mapping file was not found and has been recreated");
 		}
@@ -415,11 +408,7 @@ z_tank_incapacitated_decay_rate          : 1        : , "sv", "cheat"  : How muc
 z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health Tank starts with in death throes.
 */
 
-			local defaultConvarsFileContent = "";
-			foreach (line in defaultConvarValues)
-				defaultConvarsFileContent = defaultConvarsFileContent + line + "\n";
-
-			StringToFile("left4bots/cfg/convars.txt", defaultConvarsFileContent);
+			Left4Utils.StringListToFile("left4bots/cfg/convars.txt", defaultConvarValues, false);
 				
 			Left4Bots.Log(LOG_LEVEL_INFO, "Convars file was not found and has been recreated");
 		}
@@ -456,12 +445,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 				"QE2_ep5"
 			];
 
-			local defaultNoScavengeFileContent = "";
-			foreach (line in defaultNoScavengeMaps)
-				defaultNoScavengeFileContent = defaultNoScavengeFileContent + line + "\n";
+			Left4Utils.StringListToFile("left4bots/cfg/noscavenge.txt", defaultNoScavengeMaps, true);
 
-			StringToFile("left4bots/cfg/noscavenge.txt", defaultNoScavengeFileContent);
-				
 			Left4Bots.Log(LOG_LEVEL_INFO, "Noscavenge file was not found and has been recreated");
 		}
 		Left4Bots.ScavengeAllowed = Left4Bots.IsScavengeAllowedMap("left4bots/cfg/noscavenge.txt", Left4Bots.MapName);
@@ -562,11 +547,9 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 	{
 		Left4Bots.OnTankSettings.clear();
 		
-		local fileContents = FileToString(fileName);
-		if (!fileContents)
+		local settings = Left4Utils.FileToStringList(fileName);
+		if (!settings)
 			return false;
-		
-		local settings = split(fileContents, "\r\n");
 		
 		foreach (setting in settings)
 		{
@@ -595,14 +578,11 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		Left4Bots.OnTankCvars.clear();
 		
 		local count = 0;
-		local fileContents = FileToString(fileName);
-		if (fileContents == null)
-		{
-			Left4Bots.Log(LOG_LEVEL_WARN, "OnTank Cvars file does not exist: " + fileName);
+		
+		local cvars = Left4Utils.FileToStringList(fileName);
+		if (!cvars)
 			return count;
-		}
-
-		local cvars = split(fileContents, "\r\n");
+		
 		foreach (cvar in cvars)
 		{
 			cvar = Left4Utils.StringReplace(cvar, "\\t", "");
@@ -1276,6 +1256,18 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 
 	::Left4Bots.AddonStop <- function ()
 	{
+		// Server will crash without this
+		foreach (id, bot in ::Left4Bots.Bots)
+		{
+			if (bot.IsValid())
+			{
+				Left4Bots.HoldItemStop(bot);
+				
+				local scope = bot.GetScriptScope();
+				scope.HoldItem <- null;
+			}
+		}
+		
 		//Convars.SetValue("sb_all_bot_game", 0); // Apparently with sb_all_bot_game 1, if you start the windows server and do changelevel without people connected, the server crashes.
 		// too bad, this ^ doesn't fix it.
 		
@@ -2631,6 +2623,30 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		if (!IsPlayerABot(player))
 			return;
 
+		local aw = player.GetActiveWeapon();
+		if (aw && aw.IsValid() && aw.GetClassname() in ::Left4Bots.HoldItems)
+		{
+			local scope = player.GetScriptScope();
+			if ("LastUseTS" in scope && (Time() - scope.LastUseTS) <= 0.5)
+			{
+				scope.HoldItem <- aw;
+				
+				if (!Left4Utils.IsButtonDisabled(player, BUTTON_ATTACK))
+				{
+					Left4Utils.PlayerDisableButton(player, BUTTON_ATTACK | BUTTON_USE);
+					
+					local w = Left4Utils.GetInventoryItemInSlot(player, INV_SLOT_PRIMARY);
+					if (w)
+						NetProps.SetPropEntity(w, "m_hOwner", null); // This prevents the bot from switching to this weapon (and dropping the held item)
+					w = Left4Utils.GetInventoryItemInSlot(player, INV_SLOT_SECONDARY);
+					if (w)
+						NetProps.SetPropEntity(w, "m_hOwner", null);
+					
+					Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.OnItemPickup - " + player.GetPlayerName() + " started holding " + aw.GetClassname());
+				}
+			}
+		}
+		
 		if (item == "pain_pills" || item == "adrenaline")
 		{
 			Left4Timers.AddTimer(null, 1, @(params) Left4Bots.CheckBotPickup(params.bot, params.item), { bot = player, item = "weapon_" + item });
@@ -2648,6 +2664,69 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			
 			return;
 		}
+	}
+	
+	::Left4Bots.OnWeaponDrop <- function (player, weapon)
+	{
+		local p = "";
+		local w = "";
+		
+		if (player && player.IsValid())
+		{
+			p = player.GetPlayerName();
+			
+			if (IsPlayerABot(player) && weapon && weapon.IsValid())
+			{
+				local scope = player.GetScriptScope();
+				if ("HoldItem" in scope && weapon == scope.HoldItem)
+				{
+					Left4Bots.HoldItemStop(player);
+					
+					Left4Timers.AddTimer(null, 0.5, Left4Bots.RePickupHoldItem, { player = player, weapon = weapon });
+					//DoEntFire("!self", "Use", "", 0.1, player, weapon);
+					
+					Left4Bots.Log(LOG_LEVEL_DEBUG, "OnWeaponDrop - " + p + " re-pickup " + weapon.GetClassname());
+				}
+			}
+		}
+		
+		if (weapon && weapon.IsValid())
+			w = weapon.GetClassname();
+		
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "OnWeaponDrop - " + p + " - " + w);
+		
+		if (Left4Bots.Settings.kill_empty_chainsaw && w == "weapon_chainsaw" && NetProps.GetPropInt(weapon, "m_iClip1") <= 0)
+			weapon.Kill();
+	}
+	
+	::Left4Bots.RePickupHoldItem <- function (params)
+	{
+		local player = params["player"];
+		if (!player || !player.IsValid() || !IsPlayerABot(player))
+			return;
+		
+		local weapon = params["weapon"];
+		if (!weapon || !weapon.IsValid() || NetProps.GetPropInt(weapon, "m_hOwner") > 0)
+			return;
+		
+		if (Left4Utils.IsPlayerHeld(player) || player.IsIncapacitated() || player.IsDead() || player.IsDying())
+			return;
+		
+		local aw = player.GetActiveWeapon();
+		if (aw && aw.IsValid())
+		{
+			local wSlot = Left4Utils.FindSlotForItemClass(player, aw.GetClassname());
+			if (wSlot != INV_SLOT_PRIMARY && wSlot != INV_SLOT_SECONDARY)
+			{
+				Left4Timers.AddTimer(null, 0.5, Left4Bots.RePickupHoldItem, { player = player, weapon = weapon }); // Retry later
+				return;
+			}
+		}
+		
+		local scope = player.GetScriptScope();
+		scope.LastUseTS <- Time();
+		
+		DoEntFire("!self", "Use", "", 0, player, weapon);
 	}
 	
 	::Left4Bots.OnPlayerSay <- function (player, text, args, params)
@@ -2959,21 +3038,6 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		}
 		
 		return ret;
-	}
-	
-	::Left4Bots.FindSlotForItemClass <- function (player, itemClass)
-	{
-		local inv = {};
-		GetInvTable(player, inv);
-		
-		for (local i = 0; i < 5; i++)
-		{
-			local slot = "slot" + i;
-			if ((slot in inv) && inv[slot] && inv[slot].GetClassname() == itemClass)
-				return slot;
-		}
-		
-		return null;
 	}
 	
 	::Left4Bots.FindNearestUsable <- function (orig, radius)
@@ -3336,6 +3400,11 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			{
 				if (bot.IsValid())
 				{
+					Left4Bots.HoldItemStop(bot);
+					
+					local scope = bot.GetScriptScope();
+					scope.HoldItem <- null;
+					
 					Left4Bots.BotReset(bot, true); // Added to stop any pending attack command (TODO: check if it causes problems)
 					
 					local uEnt = NetProps.GetPropEntity(bot, "m_hUseEntity");
@@ -3459,7 +3528,7 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			{
 				local heldClass = held.GetClassname();
 				local heldSkin = NetProps.GetPropInt(held, "m_nSkin");
-				local slot = Left4Bots.FindSlotForItemClass(who, heldClass);
+				local slot = Left4Utils.FindSlotForItemClass(who, heldClass);
 				
 				if (slot && slot != INV_SLOT_PRIMARY && slot != INV_SLOT_SECONDARY)
 				{
@@ -3870,23 +3939,6 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			NetProps.SetPropFloat(infected, "m_wanderrage", 1.0);
 			Left4Utils.BotCmdAttack(infected, attacker);
 		}
-	}
-	
-	::Left4Bots.OnWeaponDrop <- function (player, weapon)
-	{
-		local p = "";
-		local w = "";
-		
-		if (player && player.IsValid())
-			p = player.GetPlayerName();
-		
-		if (weapon && weapon.IsValid())
-			w = weapon.GetClassname();
-		
-		Left4Bots.Log(LOG_LEVEL_DEBUG, "OnWeaponDrop - " + p + " - " + w);
-		
-		if (Left4Bots.Settings.kill_empty_chainsaw && w == "weapon_chainsaw" && NetProps.GetPropInt(weapon, "m_iClip1") <= 0)
-			weapon.Kill();
 	}
 	
 	::Left4Bots.OnConcept <- function (concept, query)
@@ -4689,6 +4741,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		scope.TargetTank <- null;
 		scope.TargetPos <- null;
 		scope.Chainsaw <- false;
+		scope.HoldItem <- null;
+		scope.LastUseTS <- 0;
 		
 		scope["L4B_BotThink"] <- ::Left4Bots.L4B_BotThink;
 		scope["BotThink_PickupItems"] <- ::Left4Bots.BotThink_PickupItems;
@@ -5297,7 +5351,7 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 						
 						Left4Bots.BtnStatus_Shove[surv.GetPlayerUserId()] <- true;
 
-						if (Left4Bots.Settings.nades_give)
+						if (Left4Bots.Settings.nades_give || Left4Bots.Settings.meds_give)
 							Left4Timers.AddTimer(null, 0.0, Left4Bots.OnShovePressed, { player = surv });
 					}
 				}
@@ -5319,10 +5373,10 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		if (!attackerItem || !attackerItem.IsValid())
 			return;
 		
-		local throwable = Left4Utils.GetInventoryItemInSlot(attacker, INV_SLOT_THROW);
-		if (!throwable || !throwable.IsValid() || throwable.GetEntityIndex() != attackerItem.GetEntityIndex())
+		local slot = Left4Utils.FindSlotForItemClass(attacker, attackerItem.GetClassname());
+		if (!(slot == INV_SLOT_THROW && Left4Bots.Settings.nades_give) && !(slot == INV_SLOT_PILLS && Left4Bots.Settings.meds_give))
 			return;
-
+		
 		local attackerItemClass = attackerItem.GetClassname();
 		local attackerItemSkin = NetProps.GetPropInt(attackerItem, "m_nSkin");
 		
@@ -5334,8 +5388,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.OnShovePressed - attacker: " + attacker.GetPlayerName() + " - victim: " + victim.GetPlayerName() + " - weapon: " + attackerItemClass + " - skin: " + attackerItemSkin);
 		
-		local victimItem = Left4Utils.GetInventoryItemInSlot(victim, INV_SLOT_THROW);
-		if (!victimItem)
+		local victimItem = Left4Utils.GetInventoryItemInSlot(victim, slot);
+		if (!victimItem && slot == INV_SLOT_THROW)
 		{
 			DoEntFire("!self", "SpeakResponseConcept", "PlayerAlertGiveItem", 0, null, attacker);
 			
@@ -5350,7 +5404,7 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			if (IsPlayerABot(victim))
 				Left4Bots.LastGiveItemTime = Time();
 		}
-		else if (IsPlayerABot(victim))
+		else if (victimItem && IsPlayerABot(victim))
 		{
 			// Swap
 			local victimItemClass = victimItem.GetClassname();
@@ -5373,6 +5427,30 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 				Left4Timers.AddTimer(null, 0.1, Left4Bots.SwapNades, { player1 = attacker, weapon1 = victimItem, player2 = victim, weapon2 = attackerItem });
 			}
 		}
+	}
+	
+	::Left4Bots.HoldItemStop <- function (bot)
+	{
+		if (Left4Utils.IsButtonDisabled(bot, BUTTON_ATTACK))
+		{
+			Left4Utils.PlayerEnableButton(bot, BUTTON_ATTACK | BUTTON_USE);
+			
+			local w = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_PRIMARY);
+			if (w)
+				NetProps.SetPropEntity(w, "m_hOwner", bot);
+			w = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_SECONDARY);
+			if (w)
+				NetProps.SetPropEntity(w, "m_hOwner", bot);
+		}
+		
+		Left4Bots.DropHoldItem(bot);
+	}
+	
+	::Left4Bots.DropHoldItem <- function (bot)
+	{
+		local aw = bot.GetActiveWeapon();
+		if (aw && aw.IsValid() && aw.GetClassname() in ::Left4Bots.HoldItems)
+			Left4Bots.BotPressButton(bot, BUTTON_USE, BUTTON_HOLDTIME_TAP);
 	}
 	
 	// Runs in the scope of the bot entity
@@ -5666,6 +5744,14 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		// TODO: should i move the tank's rock shoot logic here?
 		//Left4Bots.Settings.rock_shoot_range
 		
+		if (HoldItem && (!HoldItem.IsValid() || (NetProps.GetPropInt(HoldItem, "m_hOwner") > 0 && NetProps.GetPropEntity(HoldItem, "m_hOwner") != self)))
+		{
+			Left4Bots.Log(LOG_LEVEL_DEBUG, self.GetPlayerName() + " HoldItem no longer valid");
+				
+			Left4Bots.HoldItemStop(self);
+			HoldItem = null;
+		}
+		
 		return null;
 	}
 	
@@ -5825,6 +5911,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 				
 				Left4Bots.Log(LOG_LEVEL_DEBUG, self.GetPlayerName() + " is in pause");
 				
+				Left4Bots.DropHoldItem(self);
+				
 				return null;
 			}
 			
@@ -5854,6 +5942,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			Pause = true;
 			
 			Left4Bots.Log(LOG_LEVEL_DEBUG, self.GetPlayerName() + " is in pause");
+			
+			Left4Bots.DropHoldItem(self);
 			
 			return false;
 		}
@@ -6013,6 +6103,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 				
 				Left4Bots.Log(LOG_LEVEL_DEBUG, self.GetPlayerName() + " is in pause");
 				
+				Left4Bots.DropHoldItem(self);
+				
 				return null;
 			}
 			
@@ -6048,6 +6140,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			
 			Left4Bots.Log(LOG_LEVEL_DEBUG, self.GetPlayerName() + " is in pause");
 			
+			Left4Bots.DropHoldItem(self);
+			
 			return false;
 		}
 		
@@ -6060,6 +6154,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 				if ((self.GetOrigin() - MovePos).Length() <= 80)
 				{
 					// i'm close enough, use it
+					
+					LastUseTS = Time();
 					
 					if (lookatPos)
 						Left4Bots.BotPressButton(self, BUTTON_USE, BUTTON_HOLDTIME_TAP, lookatPos, 0, 0, true);
@@ -6114,7 +6210,7 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			
 			return null; // keep moving
 		}
-		if (orderType == "heal")
+		else if (orderType == "heal")
 		{
 			if (!Left4Utils.HasMedkit(self))
 			{
@@ -6241,7 +6337,7 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			{
 				// it's probably a generator or the train door
 				
-				local hold = BUTTON_HOLDTIME_GENERATOR;
+				local hold = NetProps.GetPropInt(GoToEnt, "m_nUseTime") + 0.2;
 				if (holdTime)
 					hold = holdTime + 0.2;
 				
