@@ -66,6 +66,7 @@ if (!("BOT_THINK_INTERVAL" in getconsttable()))
 			close_saferoom_delay = 0.9
 			close_saferoom_door = 1
 			deploy_upgrades = 1
+			die_humans_alive = 1
 			force_heal = 1
 			gg_chance = 70
 			horde_nades_chance = 5
@@ -116,6 +117,7 @@ if (!("BOT_THINK_INTERVAL" in getconsttable()))
 			upgrades_bots_give = 1
 			user_can_command_bots = 0
 			vocalizer_commands = 1
+			wait_crouch = 0
 			youwelcome_chance = 90
 		}
 		Admins = {}
@@ -339,7 +341,8 @@ if (!("BOT_THINK_INTERVAL" in getconsttable()))
 				"PlayerEmphaticGo = use",
 				"PlayerHurryUp = canceldefib",
 				"AskForHealth2 = healme",
-				"PlayerAnswerLostCall = give"
+				"PlayerAnswerLostCall = give",
+				"PlayerYellRun = goto"
 			];
 
 			Left4Utils.StringListToFile("left4bots/cfg/vocalizer.txt", defaultMappingValues, false);
@@ -1260,12 +1263,7 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		foreach (id, bot in ::Left4Bots.Bots)
 		{
 			if (bot.IsValid())
-			{
 				Left4Bots.HoldItemStop(bot);
-				
-				local scope = bot.GetScriptScope();
-				scope.HoldItem <- null;
-			}
 		}
 		
 		//Convars.SetValue("sb_all_bot_game", 0); // Apparently with sb_all_bot_game 1, if you start the windows server and do changelevel without people connected, the server crashes.
@@ -1615,7 +1613,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 				
 				attacker.DropItem(attackerItemClass);
 
-				victim.GiveItemWithSkin(attackerItemClass, attackerItemSkin);
+				//victim.GiveItemWithSkin(attackerItemClass, attackerItemSkin);
+				Left4Utils.GiveItemWithSkin(victim, attackerItemClass, attackerItemSkin);
 				
 				Left4Timers.AddTimer(null, 0.1, Left4Bots.GiveNade, { player1 = attacker, player2 = victim, weapon = attackerItem });
 				
@@ -1639,8 +1638,10 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 					attacker.DropItem(attackerItemClass);
 					victim.DropItem(victimItemClass);
 					
-					attacker.GiveItemWithSkin(victimItemClass, victimItemSkin);
-					victim.GiveItemWithSkin(attackerItemClass, attackerItemSkin);
+					//attacker.GiveItemWithSkin(victimItemClass, victimItemSkin);
+					Left4Utils.GiveItemWithSkin(attacker, victimItemClass, victimItemSkin);
+					//victim.GiveItemWithSkin(attackerItemClass, attackerItemSkin);
+					Left4Utils.GiveItemWithSkin(victim, attackerItemClass, attackerItemSkin);
 					
 					Left4Timers.AddTimer(null, 0.1, Left4Bots.SwapNades, { player1 = attacker, weapon1 = victimItem, player2 = victim, weapon2 = attackerItem });
 				}
@@ -1802,6 +1803,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			{
 				Convars.SetValue("sb_hold_position", 0);
 				Convars.SetValue("sb_enforce_proximity_range", Left4Bots.Old_sb_enforce_proximity_range);
+				if (Left4Bots.Settings.wait_crouch)
+					Convars.SetValue("sb_crouch", 0);
 			}
 			
 			if (IsPlayerABot(player))
@@ -1819,6 +1822,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			{
 				Convars.SetValue("sb_hold_position", 0);
 				Convars.SetValue("sb_enforce_proximity_range", Left4Bots.Old_sb_enforce_proximity_range);
+				if (Left4Bots.Settings.wait_crouch)
+					Convars.SetValue("sb_crouch", 0);
 			}
 			
 			if (IsPlayerABot(player))
@@ -1936,6 +1941,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			{
 				Convars.SetValue("sb_hold_position", 0);
 				Convars.SetValue("sb_enforce_proximity_range", Left4Bots.Old_sb_enforce_proximity_range);
+				if (Left4Bots.Settings.wait_crouch)
+					Convars.SetValue("sb_crouch", 0);
 			}
 			
 			if (Left4Bots.Bots.len() == Left4Bots.Survivors.len())
@@ -2062,6 +2069,12 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 				
 				if (Left4Bots.ScavengeAllowed)
 					Left4Bots.ScavengeEnabled = true;
+				
+				foreach (id, bot in ::Left4Bots.Bots)
+				{
+					if (bot.IsValid())
+						Left4Bots.HoldItemStop(bot);
+				}
 			}
 
 			// TODO
@@ -2112,6 +2125,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 				// Stop holding position if one or more bots are being hit by the spitter's spit
 				Convars.SetValue("sb_hold_position", 0);
 				Convars.SetValue("sb_enforce_proximity_range", Left4Bots.Old_sb_enforce_proximity_range);
+				if (Left4Bots.Settings.wait_crouch)
+					Convars.SetValue("sb_crouch", 0);
 			}
 			
 			if (attacker && attacker.GetClassname() == "infected")
@@ -2189,11 +2204,19 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		{
 			Convars.SetValue("sb_hold_position", 0); // Apparently there are no more human players, no reason to stand still
 			Convars.SetValue("sb_enforce_proximity_range", Left4Bots.Old_sb_enforce_proximity_range);
+			if (Left4Bots.Settings.wait_crouch)
+				Convars.SetValue("sb_crouch", 0);
 			
 			if (Left4Bots.ScavengeAllowed)
 				Left4Bots.ScavengeEnabled = true;
 			
 			// TODO: Add the same bot automation logics of the OnPlayerDeath ?
+			
+			foreach (id, bot in ::Left4Bots.Bots)
+			{
+				if (bot.IsValid())
+					Left4Bots.HoldItemStop(bot);
+			}
 		}
 	}
 	
@@ -2271,6 +2294,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		{
 			Convars.SetValue("sb_hold_position", 0);
 			Convars.SetValue("sb_enforce_proximity_range", Left4Bots.Old_sb_enforce_proximity_range);
+			if (Left4Bots.Settings.wait_crouch)
+				Convars.SetValue("sb_crouch", 0);
 		}
 		
 		foreach (id, bot in ::Left4Bots.Bots)
@@ -2420,6 +2445,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			// Stop holding position if one or more bots are are going to be hit by the tank's rock
 			Convars.SetValue("sb_hold_position", 0);
 			Convars.SetValue("sb_enforce_proximity_range", Left4Bots.Old_sb_enforce_proximity_range);
+			if (Left4Bots.Settings.wait_crouch)
+				Convars.SetValue("sb_crouch", 0);
 		}
 		
 		Left4Bots.Log(LOG_LEVEL_DEBUG, bot.GetPlayerName() + " dodging rock");
@@ -2616,6 +2643,26 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			Left4Bots.BotSwitchToAnotherWeapon(bot);
 	}
 
+	::Left4Bots.HoldItemThink <- function ()
+	{
+		if (NetProps.GetPropInt(self, "m_hOwner") <= 0)
+		{
+			//printl("HoldItemModel: " + HoldItemModel);
+			
+			local ent = null;
+			while (ent = Entities.FindByModel(ent, HoldItemModel))
+			{
+				if (ent.GetClassname() == "prop_physics" && (ent.GetOrigin() - self.GetOrigin()).Length() <= 70 && NetProps.GetPropInt(ent, "m_hOwner") <= 0)
+				{
+					Left4Bots.OnWeaponDrop(HoldItemOwner, self, ent);
+					break;
+				}
+			}
+		}
+		
+		return 0.001
+	}
+
 	::Left4Bots.OnItemPickup <- function (player, item, params)
 	{
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.OnItemPickup - player: " + player.GetPlayerName() + " - " + item);
@@ -2624,26 +2671,45 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			return;
 
 		local aw = player.GetActiveWeapon();
-		if (aw && aw.IsValid() && aw.GetClassname() in ::Left4Bots.HoldItems)
+		if (aw && aw.IsValid() && (aw.GetClassname() in ::Left4Bots.HoldItems))
 		{
 			local scope = player.GetScriptScope();
 			if ("LastUseTS" in scope && (Time() - scope.LastUseTS) <= 0.5)
 			{
 				scope.HoldItem <- aw;
-				
+					
 				if (!Left4Utils.IsButtonDisabled(player, BUTTON_ATTACK))
 				{
 					Left4Utils.PlayerDisableButton(player, BUTTON_ATTACK | BUTTON_USE);
-					
+						
 					local w = Left4Utils.GetInventoryItemInSlot(player, INV_SLOT_PRIMARY);
 					if (w)
 						NetProps.SetPropEntity(w, "m_hOwner", null); // This prevents the bot from switching to this weapon (and dropping the held item)
 					w = Left4Utils.GetInventoryItemInSlot(player, INV_SLOT_SECONDARY);
 					if (w)
 						NetProps.SetPropEntity(w, "m_hOwner", null);
-					
+						
 					Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.OnItemPickup - " + player.GetPlayerName() + " started holding " + aw.GetClassname());
 				}
+				
+				local model = "";
+				if (aw.GetClassname() == "weapon_gnome")
+					model = "models/props_junk/gnome.mdl";
+				//else if (aw.GetClassname() == "weapon_gascan")
+				//	model = "models/props_junk/gascan001a.mdl";
+				else if (aw.GetClassname() == "weapon_propanetank")
+					model = "models/props_junk/propanecanister001a.mdl";
+				else if (aw.GetClassname() == "weapon_oxygentank")
+					model = "models/props_equipment/oxygentank01.mdl";
+				else if (aw.GetClassname() == "weapon_fireworkcrate")
+					model = "models/props_junk/explosive_box001.mdl";
+				
+				aw.ValidateScriptScope();
+				local wScope = aw.GetScriptScope();
+				wScope["HoldItemOwner"] <- player;
+				wScope["HoldItemModel"] <- model;
+				wScope["HoldItemThink"] <- ::Left4Bots.HoldItemThink;
+				AddThinkToEnt(aw, "HoldItemThink");
 			}
 		}
 		
@@ -2666,34 +2732,34 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		}
 	}
 	
-	::Left4Bots.OnWeaponDrop <- function (player, weapon)
+	::Left4Bots.OnWeaponDrop <- function (player, weapon, new_repick = null)
 	{
 		local p = "";
 		local w = "";
 		
 		if (player && player.IsValid())
-		{
 			p = player.GetPlayerName();
-			
-			if (IsPlayerABot(player) && weapon && weapon.IsValid())
-			{
-				local scope = player.GetScriptScope();
-				if ("HoldItem" in scope && weapon == scope.HoldItem)
-				{
-					Left4Bots.HoldItemStop(player);
-					
-					Left4Timers.AddTimer(null, 0.5, Left4Bots.RePickupHoldItem, { player = player, weapon = weapon });
-					//DoEntFire("!self", "Use", "", 0.1, player, weapon);
-					
-					Left4Bots.Log(LOG_LEVEL_DEBUG, "OnWeaponDrop - " + p + " re-pickup " + weapon.GetClassname());
-				}
-			}
-		}
 		
 		if (weapon && weapon.IsValid())
 			w = weapon.GetClassname();
 		
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "OnWeaponDrop - " + p + " - " + w);
+		
+		if (p != "")
+		{
+			local scope = player.GetScriptScope();
+			if (("HoldItem" in scope) && scope.HoldItem && scope.HoldItem == weapon)
+			{
+				if (new_repick)
+					Left4Timers.AddTimer(null, 0.5, Left4Bots.RePickupHoldItem, { player = player, weapon = new_repick });
+				else
+					Left4Timers.AddTimer(null, 0.5, Left4Bots.RePickupHoldItem, { player = player, weapon = weapon });
+				
+				Left4Bots.Log(LOG_LEVEL_DEBUG, "OnWeaponDrop - " + p + " re-pickup " + w);
+				
+				Left4Bots.HoldItemStop(player);
+			}
+		}
 		
 		if (Left4Bots.Settings.kill_empty_chainsaw && w == "weapon_chainsaw" && NetProps.GetPropInt(weapon, "m_iClip1") <= 0)
 			weapon.Kill();
@@ -2772,6 +2838,40 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 				
 				return true;
 			}
+			else if (arg1 == "use")
+			{
+				local holdTime = null;
+				if (args.len() > 2)
+				{
+					try
+					{
+						holdTime = args[2].tointeger();
+					}
+					catch(exception)
+					{
+						holdTime = null;
+					}
+				}
+				
+				foreach (id, bot in ::Left4Bots.Bots)
+					Left4Bots.BotOrder("use", player, null, bot, holdTime);
+				
+				return true;
+			}
+			else if (arg1 == "deploy")
+			{
+				foreach (id, bot in ::Left4Bots.Bots)
+					Left4Bots.BotOrder("deploy", player, bot);
+				
+				return true;
+			}
+			else if (arg1 == "goto")
+			{
+				foreach (id, bot in ::Left4Bots.Bots)
+					Left4Bots.BotOrder("goto", player, null, bot);
+				
+				return true;
+			}
 			else if (arg1 == "attack")
 			{
 				//foreach (id, bot in ::Left4Bots.Bots)
@@ -2780,7 +2880,7 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 				
 				return true;
 			}
-			else if (arg1 == "die" && Left4Bots.IsOnlineAdmin(player))
+			else if (arg1 == "die" && Left4Bots.IsOnlineAdmin(player) && (Left4Bots.Settings.die_humans_alive || Left4Bots.Survivors.len() == Left4Bots.Bots.len()))
 			{
 				foreach (id, bot in ::Left4Bots.Bots)
 				{
@@ -2890,6 +2990,12 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 				
 				return true;
 			}
+		}
+		else if (arg1 == "goto")
+		{
+			local bot = Left4Bots.GetBotByName(arg0);
+			if (bot != null)
+				return Left4Bots.BotOrder("goto", player, null, bot);
 		}
 		else if (arg1 == "attack")
 		{
@@ -3352,6 +3458,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 					
 				Convars.SetValue("sb_hold_position", 1);
 				Convars.SetValue("sb_enforce_proximity_range", PROXIMITY_RANGE_MAX);
+				if (Left4Bots.Settings.wait_crouch)
+					Convars.SetValue("sb_crouch", 1);
 				
 				foreach (id, bot in ::Left4Bots.Bots)
 				{
@@ -3388,6 +3496,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 					
 				Convars.SetValue("sb_hold_position", 0);
 				Convars.SetValue("sb_enforce_proximity_range", Left4Bots.Old_sb_enforce_proximity_range);
+				if (Left4Bots.Settings.wait_crouch)
+					Convars.SetValue("sb_crouch", 0);
 				
 				foreach (id, bot in ::Left4Bots.Bots)
 				{
@@ -3401,9 +3511,6 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 				if (bot.IsValid())
 				{
 					Left4Bots.HoldItemStop(bot);
-					
-					local scope = bot.GetScriptScope();
-					scope.HoldItem <- null;
 					
 					Left4Bots.BotReset(bot, true); // Added to stop any pending attack command (TODO: check if it causes problems)
 					
@@ -3548,8 +3655,10 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 							who.DropItem(heldClass);
 							subject.DropItem(swapClass);
 							
-							who.GiveItemWithSkin(swapClass, swapSkin);
-							subject.GiveItemWithSkin(heldClass, heldSkin);
+							//who.GiveItemWithSkin(swapClass, swapSkin);
+							Left4Utils.GiveItemWithSkin(who, swapClass, swapSkin);
+							//subject.GiveItemWithSkin(heldClass, heldSkin);
+							Left4Utils.GiveItemWithSkin(subject, heldClass, heldSkin);
 							
 							Left4Timers.AddTimer(null, 0.1, Left4Bots.SwapNades, { player1 = who, weapon1 = spawpItem, player2 = subject, weapon2 = held });
 						}
@@ -3596,7 +3705,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 								
 					subject.DropItem(itemClass);
 								
-					who.GiveItemWithSkin(itemClass, itemSkin);
+					//who.GiveItemWithSkin(itemClass, itemSkin);
+					Left4Utils.GiveItemWithSkin(who, itemClass, itemSkin);
 								
 					Left4Timers.AddTimer(null, 0.1, Left4Bots.GiveNade, { player1 = subject, player2 = who, weapon = item });						
 				}
@@ -3615,7 +3725,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 								
 						subject.DropItem(itemClass);
 								
-						who.GiveItemWithSkin(itemClass, itemSkin);
+						//who.GiveItemWithSkin(itemClass, itemSkin);
+						Left4Utils.GiveItemWithSkin(who, itemClass, itemSkin);
 								
 						Left4Timers.AddTimer(null, 0.1, Left4Bots.GiveNade, { player1 = subject, player2 = who, weapon = item });						
 					}
@@ -3634,7 +3745,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 					
 					subject.DropItem(itemClass);
 					
-					who.GiveItemWithSkin(itemClass, itemSkin);
+					//who.GiveItemWithSkin(itemClass, itemSkin);
+					Left4Utils.GiveItemWithSkin(who, itemClass, itemSkin);
 					
 					Left4Timers.AddTimer(null, 0.1, Left4Bots.GiveNade, { player1 = subject, player2 = who, weapon = item });
 				}
@@ -3715,6 +3827,27 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 							Left4Bots.Log(LOG_LEVEL_DEBUG, "Manual order added, new count: " + Left4Bots.ManualOrders.len());
 						}
 					}
+				}
+			}
+			
+			return true;
+		}
+		else if (order == "goto")
+		{
+			local pos = Left4Utils.GetLookingPosition(who, TRACE_MASK_NPC_SOLID);
+			if (pos)
+			{
+				if (botdest == null)
+					Left4Bots.ManualOrderEnd(who, Entities.FindByClassname(null, "worldspawn"), pos, "goto", false, Left4Bots.RandomYesAnswer(), param);
+				else if (botdest.IsValid())
+				{
+					Left4Bots.ManualOrders[botdest.GetPlayerUserId()] <- { from = who, stime = Time(), dest = Entities.FindByClassname(null, "worldspawn"), pos = pos, ordertype = "goto", canpause = false };
+						
+					DoEntFire("!self", "SpeakResponseConcept", Left4Bots.RandomYesAnswer(), 0, null, botdest);
+						
+					Left4Bots.Log(LOG_LEVEL_INFO, "Manual order from " + who.GetPlayerName() + " to bot " + botdest.GetPlayerName() + " - destination: " + pos);
+
+					Left4Bots.Log(LOG_LEVEL_DEBUG, "Manual order added, new count: " + Left4Bots.ManualOrders.len());
 				}
 			}
 			
@@ -4056,6 +4189,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			{
 				Convars.SetValue("sb_hold_position", 0); // stop holding position, tank is coming!
 				Convars.SetValue("sb_enforce_proximity_range", Left4Bots.Old_sb_enforce_proximity_range);
+				if (Left4Bots.Settings.wait_crouch)
+					Convars.SetValue("sb_crouch", 0);
 			}
 		}
 		
@@ -4410,6 +4545,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			// Stop holding position if one or more bots are are going to be hit by the spitter's spit
 			Convars.SetValue("sb_hold_position", 0);
 			Convars.SetValue("sb_enforce_proximity_range", Left4Bots.Old_sb_enforce_proximity_range);
+			if (Left4Bots.Settings.wait_crouch)
+				Convars.SetValue("sb_crouch", 0);
 		}
 		
 		Left4Utils.BotCmdMove(bot, p2);
@@ -5397,7 +5534,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			
 			attacker.DropItem(attackerItemClass);
 
-			victim.GiveItemWithSkin(attackerItemClass, attackerItemSkin);
+			//victim.GiveItemWithSkin(attackerItemClass, attackerItemSkin);
+			Left4Utils.GiveItemWithSkin(victim, attackerItemClass, attackerItemSkin);
 			
 			Left4Timers.AddTimer(null, 0.1, Left4Bots.GiveNade, { player1 = attacker, player2 = victim, weapon = attackerItem });
 			
@@ -5421,8 +5559,10 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 				attacker.DropItem(attackerItemClass);
 				victim.DropItem(victimItemClass);
 				
-				attacker.GiveItemWithSkin(victimItemClass, victimItemSkin);
-				victim.GiveItemWithSkin(attackerItemClass, attackerItemSkin);
+				//attacker.GiveItemWithSkin(victimItemClass, victimItemSkin);
+				Left4Utils.GiveItemWithSkin(attacker, victimItemClass, victimItemSkin);
+				//victim.GiveItemWithSkin(attackerItemClass, attackerItemSkin);
+				Left4Utils.GiveItemWithSkin(victim, attackerItemClass, attackerItemSkin);
 				
 				Left4Timers.AddTimer(null, 0.1, Left4Bots.SwapNades, { player1 = attacker, weapon1 = victimItem, player2 = victim, weapon2 = attackerItem });
 			}
@@ -5444,6 +5584,10 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		}
 		
 		Left4Bots.DropHoldItem(bot);
+		
+		local scope = bot.GetScriptScope();
+		if (scope)
+			scope.HoldItem <- null;
 	}
 	
 	::Left4Bots.DropHoldItem <- function (bot)
@@ -5601,7 +5745,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 
 				self.DropItem(itemClass);
 
-				humanSurv.GiveItemWithSkin(itemClass, itemSkin);
+				//humanSurv.GiveItemWithSkin(itemClass, itemSkin);
+				Left4Utils.GiveItemWithSkin(humanSurv, itemClass, itemSkin);
 
 				Left4Timers.AddTimer(null, 0.1, Left4Bots.GiveNade, { player1 = self, player2 = humanSurv, weapon = item });
 			}
@@ -5625,7 +5770,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 							
 						self.DropItem(itemClass);
 							
-						humanSurv.GiveItemWithSkin(itemClass, itemSkin);
+						//humanSurv.GiveItemWithSkin(itemClass, itemSkin);
+						Left4Utils.GiveItemWithSkin(humanSurv, itemClass, itemSkin);
 							
 						Left4Timers.AddTimer(null, 0.1, Left4Bots.GiveNade, { player1 = self, player2 = humanSurv, weapon = item });
 					}
@@ -5657,7 +5803,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 				
 				self.DropItem(itemClass);
 				
-				humanSurv.GiveItemWithSkin(itemClass, itemSkin);
+				//humanSurv.GiveItemWithSkin(itemClass, itemSkin);
+				Left4Utils.GiveItemWithSkin(humanSurv, itemClass, itemSkin);
 				
 				Left4Timers.AddTimer(null, 0.1, Left4Bots.GiveNade, { player1 = self, player2 = humanSurv, weapon = item });
 				
@@ -5747,9 +5894,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		if (HoldItem && (!HoldItem.IsValid() || (NetProps.GetPropInt(HoldItem, "m_hOwner") > 0 && NetProps.GetPropEntity(HoldItem, "m_hOwner") != self)))
 		{
 			Left4Bots.Log(LOG_LEVEL_DEBUG, self.GetPlayerName() + " HoldItem no longer valid");
-				
+
 			Left4Bots.HoldItemStop(self);
-			HoldItem = null;
 		}
 		
 		return null;
@@ -6203,6 +6349,22 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 					
 					return false;
 				}
+			}
+
+			if (!MoveTo(MovePos))
+				return false;
+			
+			return null; // keep moving
+		}
+		if (orderType == "goto")
+		{
+			if ((self.GetOrigin() - MovePos).Length() <= 40)
+			{
+				// i'm close enough, stop here
+				
+				Left4Bots.ManualOrderComplete(self.GetPlayerUserId());
+				
+				return false;
 			}
 
 			if (!MoveTo(MovePos))
