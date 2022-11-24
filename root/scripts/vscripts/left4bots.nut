@@ -69,6 +69,7 @@ if (!("BOT_THINK_INTERVAL" in getconsttable()))
 			die_humans_alive = 1
 			force_heal = 1
 			gg_chance = 70
+			hold_items = 1
 			horde_nades_chance = 5
 			horde_nades_maxaltdiff = 150
 			horde_nades_radius = 350
@@ -1259,6 +1260,9 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 
 	::Left4Bots.AddonStop <- function ()
 	{
+		if (Left4Bots.BtnListener)
+			Left4Bots.BtnListener.Kill();
+		
 		// Server will crash without this
 		foreach (id, bot in ::Left4Bots.Bots)
 		{
@@ -2670,46 +2674,49 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		if (!IsPlayerABot(player))
 			return;
 
-		local aw = player.GetActiveWeapon();
-		if (aw && aw.IsValid() && (aw.GetClassname() in ::Left4Bots.HoldItems))
+		if (::Left4Bots.Settings.hold_items)
 		{
-			local scope = player.GetScriptScope();
-			if ("LastUseTS" in scope && (Time() - scope.LastUseTS) <= 0.5)
+			local aw = player.GetActiveWeapon();
+			if (aw && aw.IsValid() && (aw.GetClassname() in ::Left4Bots.HoldItems))
 			{
-				scope.HoldItem <- aw;
-					
-				if (!Left4Utils.IsButtonDisabled(player, BUTTON_ATTACK))
+				local scope = player.GetScriptScope();
+				if ("LastUseTS" in scope && (Time() - scope.LastUseTS) <= 0.5)
 				{
-					Left4Utils.PlayerDisableButton(player, BUTTON_ATTACK | BUTTON_USE);
+					scope.HoldItem <- aw;
 						
-					local w = Left4Utils.GetInventoryItemInSlot(player, INV_SLOT_PRIMARY);
-					if (w)
-						NetProps.SetPropEntity(w, "m_hOwner", null); // This prevents the bot from switching to this weapon (and dropping the held item)
-					w = Left4Utils.GetInventoryItemInSlot(player, INV_SLOT_SECONDARY);
-					if (w)
-						NetProps.SetPropEntity(w, "m_hOwner", null);
-						
-					Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.OnItemPickup - " + player.GetPlayerName() + " started holding " + aw.GetClassname());
+					if (!Left4Utils.IsButtonDisabled(player, BUTTON_ATTACK))
+					{
+						Left4Utils.PlayerDisableButton(player, BUTTON_ATTACK | BUTTON_USE);
+							
+						local w = Left4Utils.GetInventoryItemInSlot(player, INV_SLOT_PRIMARY);
+						if (w)
+							NetProps.SetPropEntity(w, "m_hOwner", null); // This prevents the bot from switching to this weapon (and dropping the held item)
+						w = Left4Utils.GetInventoryItemInSlot(player, INV_SLOT_SECONDARY);
+						if (w)
+							NetProps.SetPropEntity(w, "m_hOwner", null);
+							
+						Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.OnItemPickup - " + player.GetPlayerName() + " started holding " + aw.GetClassname());
+					}
+					
+					local model = "";
+					if (aw.GetClassname() == "weapon_gnome")
+						model = "models/props_junk/gnome.mdl";
+					//else if (aw.GetClassname() == "weapon_gascan")
+					//	model = "models/props_junk/gascan001a.mdl";
+					else if (aw.GetClassname() == "weapon_propanetank")
+						model = "models/props_junk/propanecanister001a.mdl";
+					else if (aw.GetClassname() == "weapon_oxygentank")
+						model = "models/props_equipment/oxygentank01.mdl";
+					else if (aw.GetClassname() == "weapon_fireworkcrate")
+						model = "models/props_junk/explosive_box001.mdl";
+					
+					aw.ValidateScriptScope();
+					local wScope = aw.GetScriptScope();
+					wScope["HoldItemOwner"] <- player;
+					wScope["HoldItemModel"] <- model;
+					wScope["HoldItemThink"] <- ::Left4Bots.HoldItemThink;
+					AddThinkToEnt(aw, "HoldItemThink");
 				}
-				
-				local model = "";
-				if (aw.GetClassname() == "weapon_gnome")
-					model = "models/props_junk/gnome.mdl";
-				//else if (aw.GetClassname() == "weapon_gascan")
-				//	model = "models/props_junk/gascan001a.mdl";
-				else if (aw.GetClassname() == "weapon_propanetank")
-					model = "models/props_junk/propanecanister001a.mdl";
-				else if (aw.GetClassname() == "weapon_oxygentank")
-					model = "models/props_equipment/oxygentank01.mdl";
-				else if (aw.GetClassname() == "weapon_fireworkcrate")
-					model = "models/props_junk/explosive_box001.mdl";
-				
-				aw.ValidateScriptScope();
-				local wScope = aw.GetScriptScope();
-				wScope["HoldItemOwner"] <- player;
-				wScope["HoldItemModel"] <- model;
-				wScope["HoldItemThink"] <- ::Left4Bots.HoldItemThink;
-				AddThinkToEnt(aw, "HoldItemThink");
 			}
 		}
 		
@@ -2747,6 +2754,7 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		
 		if (p != "")
 		{
+			player.ValidateScriptScope();
 			local scope = player.GetScriptScope();
 			if (("HoldItem" in scope) && scope.HoldItem && scope.HoldItem == weapon)
 			{
@@ -5475,7 +5483,7 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 	
 	::Left4Bots.BtnListenerThinkFunc <- function ()
 	{
-		foreach (surv in Left4Bots.Survivors)
+		foreach (surv in ::Left4Bots.Survivors)
 		{
 			//if (surv && surv.IsValid() && !IsPlayerABot(surv) && (NetProps.GetPropInt(surv, "m_afButtonPressed") & BUTTON_SHOVE) != 0)
 			if (surv && surv.IsValid() && !IsPlayerABot(surv))
@@ -5582,6 +5590,9 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			if (w)
 				NetProps.SetPropEntity(w, "m_hOwner", bot);
 		}
+		
+		if (!IsPlayerABot(bot))
+			return;
 		
 		Left4Bots.DropHoldItem(bot);
 		
