@@ -71,7 +71,7 @@ const BOT_GOTO_END_RADIUS = 80;
 const BOT_GOTO_POUR_RADIUS = 80;
 
 // How long do the bots hold down a button to do single tap button press
-const BUTTON_HOLDTIME_TAP = 0.1;
+const BUTTON_HOLDTIME_TAP = 0.05;
 
 // How long do the bots hold down the button to heal
 const BUTTON_HOLDTIME_HEAL = 5.3;

@@ -225,6 +225,14 @@ long	type	damage type
 	Left4Bots.OnChargerCarryStart(player, victim, params);
 }
 
+::Left4Bots.Events.OnGameEvent_charger_pummel_start <- function (params)
+{
+	local player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+	local victim = g_MapScript.GetPlayerFromUserID(params["victim"]);
+	
+	Left4Bots.OnChargerPummelStart(player, victim, params);
+}
+
 ::Left4Bots.Events.OnGameEvent_tongue_grab <- function (params)
 {
 	local player = g_MapScript.GetPlayerFromUserID(params["userid"]);
@@ -326,6 +334,17 @@ long	type	damage type
 	Left4Bots.OnFriendlyFire(attacker, victim, guilty, dmgType, params);
 }
 
+::Left4Bots.Events.OnGameEvent_player_jump <- function (params)
+{
+	local userid = params["userid"];
+	local player = g_MapScript.GetPlayerFromUserID(userid);
+	
+	if (!player || !player.IsValid())
+		return;
+	
+	Left4Bots.OnPlayerJump(player, params);
+}
+
 ::Left4Bots.Events.OnGameEvent_ability_use <- function (params)
 {
 	local player = 0;
@@ -403,6 +422,20 @@ long	type	damage type
 		weapon = EntIndexToHScript(params["propid"]);
 	
 	Left4Bots.OnWeaponDrop(player, weapon);
+}
+
+::Left4Bots.Events.OnGameEvent_player_use <- function (params)
+{
+	local player = null;
+	local entity = null;
+	
+	if ("userid" in params)
+		player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+		
+	if ("targetid" in params)
+		entity = EntIndexToHScript(params["targetid"]);
+	
+	Left4Bots.OnPlayerUse(player, entity);
 }
 
 ::Left4Bots.Events.OnGameEvent_server_pre_shutdown <- function (params)
