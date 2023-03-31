@@ -70,7 +70,6 @@ function ScriptMode_Init( modename, mapname )
 	}
 	
 	IncludeScript("left4bots");
-	Left4Bots.Initialize(modename, mapname);
 	
 	return true;
 }
