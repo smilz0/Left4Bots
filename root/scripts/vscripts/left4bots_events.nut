@@ -26,6 +26,11 @@ Msg("Including left4bots_events...\n");
 	
 	// Start the inventory manager
 	Left4Timers.AddTimer("InventoryManager", 0.7, Left4Bots.OnInventoryManager, {}, true);
+	
+	// Start the button listener
+	Left4Timers.AddThinker("L4BUTTON_LISTENER", 0.01, Left4Bots.OnButtonListener, {});
+	
+	DirectorScript.GetDirectorOptions().cm_ShouldHurry <- 1; // TODO: settings
 }
 
 ::Left4Bots.Events.OnGameEvent_round_end <- function (params)
@@ -36,15 +41,29 @@ Msg("Including left4bots_events...\n");
 	local time = params["time"];
 	
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_round_end - winner: " + winner + " - reason: " + reason + " - message: " + message + " - time: " + time);
-		
+	
+	if (Left4Bots.Settings.anti_pipebomb_bug)
+		Left4Bots.ClearPipeBombs();
+	
 	Left4Bots.AddonStop();
 }
 
 ::Left4Bots.Events.OnGameEvent_map_transition <- function (params)
 {
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_map_transition");
-		
+	
+	if (Left4Bots.Settings.anti_pipebomb_bug)
+		Left4Bots.ClearPipeBombs();
+	
 	Left4Bots.AddonStop();
+}
+
+::Left4Bots.Events.OnGameEvent_server_pre_shutdown <- function (params)
+{
+	//local reason = params["reason"];
+	
+	if (Left4Bots.Settings.anti_pipebomb_bug)
+		Left4Bots.ClearPipeBombs();
 }
 
 ::Left4Bots.Events.OnGameEvent_player_spawn <- function (params)
@@ -204,6 +223,12 @@ Msg("Including left4bots_events...\n");
 				else
 					Left4Bots.Log(LOG_LEVEL_ERROR, "Dead special was not in Left4Bots.Specials");
 			}
+			
+			if (attacker && attackerIsPlayer && Left4Bots.IsHandledBot(attacker))
+			{
+				Left4Bots.NiceShootSurv = attacker;
+				Left4Bots.NiceShootTime = Time();
+			}
 		}
 		else
 		{
@@ -222,6 +247,12 @@ Msg("Including left4bots_events...\n");
 				}
 				else
 					Left4Bots.Log(LOG_LEVEL_ERROR, "Dead witch was not in Left4Bots.Witches");
+
+				if (attacker && attackerIsPlayer && Left4Bots.IsHandledBot(attacker))
+				{
+					Left4Bots.NiceShootSurv = attacker;
+					Left4Bots.NiceShootTime = Time();
+				}
 			}
 		}
 	}
@@ -438,6 +469,56 @@ Msg("Including left4bots_events...\n");
 		Left4Timers.AddTimer(null, 0.001 * d, @(params) Left4Utils.PlayerPressButton(params.player, BUTTON_SHOVE, Left4Bots.Settings.button_holdtime_tap, params.destination, Left4Bots.Settings.shove_deadstop_deltapitch, 0, false), { player = victim, destination = player });
 }
 
+::Left4Bots.Events.OnGameEvent_player_entered_checkpoint <- function (params)
+{
+	if (!Left4Bots.ModeStarted)
+		return;
+	
+	local player = null;
+	if ("userid" in params)
+		player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+	
+	if (!player || !player.IsValid() || !Left4Bots.IsValidSurvivor(player))
+		return;
+
+	local door = null;
+	if ("door" in params)
+		door = EntIndexToHScript(params["door"]);
+	
+	//local doorname = null;
+	//if ("doorname" in params)
+	//	doorname = params["doorname"];
+	
+	if (Left4Bots.Settings.close_saferoom_door && door && door.IsValid() && Left4Bots.IsHandledBot(player) && Left4Bots.OtherSurvivorsInCheckpoint(player.GetPlayerUserId()))
+	{
+		local state = NetProps.GetPropInt(door, "m_eDoorState"); // 0 = closed - 1 = opening - 2 = open - 3 = closing
+		if (state != 0 && state != 3)
+		{
+			local area = null;
+			if ("area" in params)
+				area = NavMesh.GetNavAreaByID(params["area"]);
+			else
+				area = NavMesh.GetNearestNavArea(door.GetOrigin(), 200, false, false);
+			
+			local scope = player.GetScriptScope();
+			scope.DoorAct = AI_DOOR_ACTION.Saferoom;
+			scope.DoorEnt = door; // This tells the bot to close the door. From now on, the bot will start looking for the best moment to close the door without locking himself out (will try at least)
+			if (area)
+			{
+				scope.DoorZ = area.GetCenter().z;
+				
+				Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_player_entered_checkpoint - area: " + area.GetID() + " - DoorZ: " + scope.DoorZ);
+			}
+			else
+			{
+				scope.DoorZ = player.GetOrigin().z;
+				
+				Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_player_entered_checkpoint - area is null! - DoorZ: " + scope.DoorZ);
+			}
+		}
+	}
+}
+
 ::Left4Bots.Events.OnGameEvent_finale_escape_start <- function (params)
 {
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_finale_escape_start");
@@ -450,6 +531,113 @@ Msg("Including left4bots_events...\n");
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_finale_vehicle_ready");
 	
 	Left4Bots.EscapeStarted = true;
+}
+
+::Left4Bots.Events.OnGameEvent_door_close <- function (params)
+{
+	local checkpoint = params["checkpoint"];
+	// TODO: is there any other way to know if we are in the exit checkoint? Director.IsAnySurvivorInExitCheckpoint() doesn't even work. It returns true for the starting checkpoint too
+	if (checkpoint && Left4Bots.Settings.anti_pipebomb_bug /*&& Director.IsAnySurvivorInExitCheckpoint()*/ && Left4Bots.OtherSurvivorsInCheckpoint(-1)) // -1 is like: is everyone in checkpoint?
+	{
+		Left4Bots.ClearPipeBombs();
+		
+		// If someone is holding a pipe bomb we'll also force them to switch to another weapon to make sure they don't throw the bomb while the door is closing
+		foreach (surv in ::Left4Bots.Survivors)
+		{
+			local activeWeapon = surv.GetActiveWeapon();
+			if (activeWeapon && activeWeapon.GetClassname() == "weapon_pipe_bomb")
+				Left4Bots.BotSwitchToAnotherWeapon(surv);
+		}
+	}
+}
+
+::Left4Bots.Events.OnGameEvent_friendly_fire <- function (params)
+{
+	local attacker = null;
+	local victim = null;
+	local guilty = null;
+	//local dmgType = null;
+	
+	if ("attacker" in params)
+		attacker = g_MapScript.GetPlayerFromUserID(params["attacker"]);
+	if ("victim" in params)
+		victim = g_MapScript.GetPlayerFromUserID(params["victim"]);
+	if ("guilty" in params)
+		guilty = g_MapScript.GetPlayerFromUserID(params["guilty"]);
+	//if ("type" in params)
+	//	dmgType = params["type"];
+	
+	local attackerName = "";
+	local victimName = "";
+	local guiltyName = "";
+	
+	if (attacker)
+		attackerName = attacker.GetPlayerName();
+	if (victim)
+		victimName = victim.GetPlayerName();
+	if (guilty)
+		guiltyName = guilty.GetPlayerName();
+	
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_friendly_fire - attacker: " + attackerName + " - victim: " + victimName + " - guilty: " + guiltyName);
+	
+	if (victim && guilty && victim.GetPlayerUserId() != guilty.GetPlayerUserId() && IsPlayerABot(guilty) /*&& !IsPlayerABot(victim)*/ && RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_sorry_chance)
+		DoEntFire("!self", "SpeakResponseConcept", "PlayerSorry", RandomFloat(0.6, 2), null, guilty);
+}
+
+::Left4Bots.Events.OnGameEvent_heal_begin <- function (params)
+{
+	local player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+	local subject = g_MapScript.GetPlayerFromUserID(params["subject"]);
+
+	if(!player || !subject || !player.IsValid() || !subject.IsValid())
+		return;
+	
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_heal_begin - player: " + player.GetPlayerName() + " - subject: " + subject.GetPlayerName());
+	
+	if (Left4Bots.IsHandledBot(player) && player.GetPlayerUserId() == subject.GetPlayerUserId()) // Bot healing himself
+	{
+		// Don't let survivor bots heal themselves if their health is >= Left4Bots.Settings.min_start_health (usually they do it in the start saferoom) and there are not enough spare medkits around
+		// ... and there are humans in the team (otherwise they won't leave the saferoom)
+		if (player.GetHealth() >= Left4Bots.Settings.heal_interrupt_minhealth && Left4Bots.Bots.len() < Left4Bots.Survivors.len() && (!player.GetScriptScope().CurrentOrder || player.GetScriptScope().CurrentOrder.OrderType != "heal") && !Left4Bots.HasSpareMedkitsAround(player))
+			player.GetScriptScope().BotReset(); // TODO: Maybe handle this from the Think func?
+		else if (Left4Bots.Settings.heal_force && !Left4Bots.HasAngryCommonsWithin(player.GetOrigin(), 3, 100) && !Left4Utils.HasSpecialInfectedWithin(player.GetOrigin(), 400))
+		{
+			// Force healing without interrupting or they won't heal when not "feeling safe" resulting sometimes in not healing until they die
+			
+			Left4Bots.Log(LOG_LEVEL_DEBUG, player.GetPlayerName() + " FORCE HEAL");
+			
+			Left4Utils.PlayerPressButton(player, BUTTON_ATTACK, Left4Bots.Settings.button_holdtime_heal, null, 0, 0, true); // <- Without lockLook the vanilla AI will be able to interrupt the healing
+		}
+	}
+}
+
+::Left4Bots.Events.OnGameEvent_finale_win <- function (params)
+{
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_finale_win");
+	
+	local ggLines = Left4Utils.FileToStringList(Left4Bots.Settings.file_gg);
+	local bgLines = Left4Utils.FileToStringList(Left4Bots.Settings.file_bg);
+	
+	foreach (id, bot in ::Left4Utils.GetAllSurvivors())
+	{
+		if (bot && bot.IsValid() && IsPlayerABot(bot))
+		{
+			local line = null;
+			if (!bot.IsIncapacitated() && !bot.IsDead() && !bot.IsDying())
+			{
+				if (ggLines && ggLines.len() > 0 && RandomInt(1, 100) <= Left4Bots.Settings.chat_gg_chance)
+					line = ggLines[RandomInt(0, ggLines.len() - 1)];
+			}
+			else
+			{
+				if (bgLines && bgLines.len() > 0 && RandomInt(1, 100) <= Left4Bots.Settings.chat_bg_chance)
+					line = bgLines[RandomInt(0, bgLines.len() - 1)];
+			}
+			
+			if (line)
+				Left4Timers.AddTimer(null, RandomFloat(2.0, 5.0), @(params) Left4Bots.SayGG(params.bot, params.line), { bot = bot, line = line });
+		}
+	}
 }
 
 //
@@ -482,7 +670,7 @@ Msg("Including left4bots_events...\n");
 
 	if (who && who.IsValid())
 	{
-		if (IsPlayerABot(who))
+		if (Left4Bots.IsHandledBot(who))
 		{
 			// WHO is a bot
 			
@@ -508,7 +696,7 @@ Msg("Including left4bots_events...\n");
 					// Delayed resets are executed as soon as we can reset again
 					if (scope.DelayedReset)
 						Left4Timers.AddTimer(null, 0.01, @(params) params.scope.BotReset(true), { scope = scope });
-						//scope.BotReset(true); // Apparently, sending a RESET command to the bot from this OnScope, makes the game crash
+						//scope.BotReset(true); // Apparently, sending a RESET command to the bot from this OnConcept, makes the game crash
 				}
 				
 				// Bot's vanilla escape flames/spit algorithm interfered with any previous MOVE so the MOVE must be refreshed
@@ -527,7 +715,7 @@ Msg("Including left4bots_events...\n");
 					// Delayed resets are executed as soon as we can reset again
 					if (scope.DelayedReset)
 						Left4Timers.AddTimer(null, 0.01, @(params) params.scope.BotReset(true), { scope = scope });
-						//scope.BotReset(true); // Apparently, sending a RESET command to the bot from this OnScope, makes the game crash
+						//scope.BotReset(true); // Apparently, sending a RESET command to the bot from this OnConcept, makes the game crash
 				}
 				
 				// Receiving this concept from a bot who is executing a move command means that the bot got nav stuck and teleported somewhere.
@@ -542,8 +730,6 @@ Msg("Including left4bots_events...\n");
 		{
 			// WHO is a human
 			
-			local canCommand = who.GetPlayerName() == "smilzo";
-			
 			if (concept == "OfferItem")
 			{
 				if (subject)
@@ -555,38 +741,95 @@ Msg("Including left4bots_events...\n");
 				return;
 			}
 			
-			if (canCommand)
+			local lvl = Left4Users.GetOnlineUserLevel(who.GetPlayerUserId());
+			
+			if (Left4Bots.Settings.vocalizer_commands && lvl >= Left4Bots.Settings.userlevel_orders)
 			{
 				if (concept == "PlayerStayTogether")
 					Left4Bots.OnUserCommand(who, "bots", "cancel", null);
 				else if (concept == "PlayerLeadOn")
 					Left4Bots.OnUserCommand(who, "bots", "lead", null);
 				else if (concept == "PlayerWarnWitch")
+					Left4Bots.OnUserCommand(who, "bot", "witch", null);
+				else if (concept == "PlayerFollowMe")
+					Left4Bots.OnUserCommand(who, "bot", "follow", "me");
+				else if (concept == "AskForHealth2")
+					Left4Bots.OnUserCommand(who, "bot", "heal", "me");
+				else if (concept == "iMT_PlayerSuggestHealth")
 				{
-					local bestBot = null;
-					local bestBotQueue = 10000;
-					foreach (bot in Left4Bots.Bots)
-					{
-						local aw = bot.GetActiveWeapon();
-						if (aw && aw.IsValid() && aw.GetClassname().find("shotgun") != null)
-						{
-							local queued = Left4Bots.BotOrdersCount(bot, "witch");
-							if (queued < bestBotQueue)
-							{
-								bestBot = bot;
-								bestBotQueue = queued;
-							}
-						}
-					}
-					if (bestBot)
-						Left4Bots.OnUserCommand(who, bestBot.GetPlayerName().tolower(), "witch", null);
+					if (subject)
+						subject = Left4Bots.GetSurvivorFromActor(subject);
+
+					if (Left4Bots.IsHandledBot(subject))
+						Left4Bots.OnUserCommand(who, subject.GetPlayerName().tolower(), "heal", null);
+					else
+						Left4Bots.OnUserCommand(who, "bots", "heal", null);
 				}
 			}
 			
-			// TODO
-			
-			
+			if (lvl < Left4Bots.Settings.userlevel_vocalizer)
+				return;
+
+			if (concept == "PlayerLaugh")
+			{
+				foreach (bot in ::Left4Bots.Bots)
+				{
+					if (bot.IsValid() && RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_laugh_chance)
+						DoEntFire("!self", "SpeakResponseConcept", "PlayerLaugh", RandomFloat(0.5, 2), null, bot);
+				}
+			}
+			else if (concept == "PlayerThanks")
+			{
+				if (subject)
+					subject = Left4Bots.GetSurvivorFromActor(subject);
+				
+				if (subject && IsPlayerABot(subject) && RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_youwelcome_chance)
+					DoEntFire("!self", "SpeakResponseConcept", "PlayerYouAreWelcome", RandomFloat(1.2, 2.3), null, subject);
+			}
+			else if (concept == "iMT_PlayerNiceShot")
+			{
+				if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_thanks_chance)
+				{
+					if (subject)
+						subject = Left4Bots.GetSurvivorFromActor(subject);
+
+					if (subject && IsPlayerABot(subject))
+						DoEntFire("!self", "SpeakResponseConcept", "PlayerThanks", RandomFloat(1.2, 2.3), null, subject);
+					else if (Left4Bots.NiceShootSurv && Left4Bots.NiceShootSurv.IsValid() && (Time() - Left4Bots.NiceShootTime) <= 10.0)
+						DoEntFire("!self", "SpeakResponseConcept", "PlayerThanks", RandomFloat(0.5, 2), null, Left4Bots.NiceShootSurv);
+				}
+			}
+			/// ...
 		}
+	}
+}
+
+::Left4Bots.OnModeStart <- function ()
+{
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.OnModeStart");
+	
+	if (Left4Bots.MapName == "c7m3_port")
+	{
+		// This stuff allows a full bot team to play The Sacrifice finale by disabling the error message for not enough human survivors
+		local bridge_checker = Entities.FindByName(null, "bridge_checker");
+		if (bridge_checker)
+		{
+			DoEntFire("!self", "Kill", "", 0, null, bridge_checker);
+			
+			Left4Bots.Log(LOG_LEVEL_DEBUG, "Killed bridge_checker");
+		}
+		else
+			Left4Bots.Log(LOG_LEVEL_WARN, "bridge_checker was not found in c7m3_port map!");
+		
+		local generator_start_model = Entities.FindByName(null, "generator_start_model");
+		if (generator_start_model)
+		{
+			DoEntFire("!self", "SacrificeEscapeSucceeded", "", 0, null, generator_start_model);
+			
+			Left4Bots.Log(LOG_LEVEL_DEBUG, "Triggered generator_start_model's SacrificeEscapeSucceeded");
+		}
+		else
+			Left4Bots.Log(LOG_LEVEL_WARN, "generator_start_model was not found in c7m3_port map!");
 	}
 }
 
@@ -745,13 +988,13 @@ Msg("Including left4bots_events...\n");
 			else
 			{
 				// Otherwise the priority will be like this:
-				// 1. If there is a dead survivor to defib nearby, top priority will be the defib
+				// 1. If there is a dead survivor to defib nearby, top priority -> defib
 				// 2. If not enough team medkits or the bot needs to heal, priority -> medkit
 				// 3. If not enough team defibs, -> defib
 				
 				local itemClass = inv[INV_SLOT_MEDKIT].GetClassname();
 				local goMedkit = false;
-				local goDefib = Left4Bots.HasDeathModelWithin(bot, Left4Bots.Settings.deads_scan_radius);
+				local goDefib = Left4Bots.HasDeathModelWithin(bot.GetOrigin(), Left4Bots.Settings.deads_scan_radius);
 				if (!goDefib)
 				{
 					local c = Left4Bots.Survivors.len();
@@ -819,6 +1062,106 @@ Msg("Including left4bots_events...\n");
 	}
 }
 
+// Listen for BUTTON_SHOVE press
+Left4Bots.OnButtonListener <- function (params)
+{
+	foreach (surv in ::Left4Bots.Survivors)
+	{
+		if (surv.IsValid() && !IsPlayerABot(surv))
+		{
+			if ((surv.GetButtonMask() & BUTTON_SHOVE) != 0 || (NetProps.GetPropInt(surv, "m_afButtonPressed") & BUTTON_SHOVE) != 0) // <- With med items (pills and adrenaline) the shove button is disabled when looking at teammates and GetButtonMask never sees the button down but m_afButtonPressed still does
+			{
+				local userid = surv.GetPlayerUserId();
+				if (!(userid in Left4Bots.BtnStatus_Shove) || !Left4Bots.BtnStatus_Shove[userid])
+				{
+					Left4Bots.Log(LOG_LEVEL_DEBUG, surv.GetPlayerName() + " BUTTON_SHOVE");
+					
+					Left4Bots.BtnStatus_Shove[userid] <- true;
+
+					if (Left4Bots.Settings.give_humans_nades || Left4Bots.Settings.give_humans_meds)
+						Left4Timers.AddTimer(null, 0.0, Left4Bots.OnShovePressed, { player = surv });
+				}
+			}
+			else
+				Left4Bots.BtnStatus_Shove[surv.GetPlayerUserId()] <- false;
+		}
+	}
+}
+
+// params["player"] pressed the SHOVE button. Handle the items give/swap from the humans
+::Left4Bots.OnShovePressed <- function (params)
+{
+	local attacker = params["player"];
+	if (!attacker || !attacker.IsValid())
+		return;
+	
+	local attackerItem = attacker.GetActiveWeapon();
+	if (!attackerItem || !attackerItem.IsValid())
+		return;
+	
+	local slot = Left4Utils.FindSlotForItemClass(attacker, attackerItem.GetClassname());
+	if (!(slot == INV_SLOT_THROW && Left4Bots.Settings.give_humans_nades) && !(slot == INV_SLOT_PILLS && Left4Bots.Settings.give_humans_meds))
+		return;
+	
+	local attackerItemClass = attackerItem.GetClassname();
+	local attackerItemSkin = NetProps.GetPropInt(attackerItem, "m_nSkin");
+	
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.OnShovePressed - " + attacker.GetPlayerName() + " - " + attackerItemClass + " - " + attackerItemSkin);
+	
+	local t = Time();
+	if (((attackerItemClass == "weapon_pipe_bomb" || attackerItemClass == "weapon_vomitjar") && (t - Left4Bots.LastNadeTime) < 1.5) || (attackerItemClass == "weapon_molotov" && (t - Left4Bots.LastMolotovTime) < 1.5))
+		return; // Preventing an exploit that allows you to give the item you just threw away. Throw the nade and press RMB immediately, the item is still seen in the players inventory (Drop event comes after a second), so the item was duplicated.
+	
+	local victim = Left4Utils.GetPickerEntity(attacker, 270, 0.95);
+	if (!victim || !victim.IsValid() || victim.GetClassname() != "player" || !victim.IsSurvivor())
+		return;
+
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.OnShovePressed - attacker: " + attacker.GetPlayerName() + " - victim: " + victim.GetPlayerName() + " - weapon: " + attackerItemClass + " - skin: " + attackerItemSkin);
+	
+	local victimItem = Left4Utils.GetInventoryItemInSlot(victim, slot);
+	if (!victimItem && slot == INV_SLOT_THROW)
+	{
+		DoEntFire("!self", "SpeakResponseConcept", "PlayerAlertGiveItem", 0, null, attacker);
+		
+		Left4Bots.GiveItemIndex1 = attackerItem.GetEntityIndex();
+		
+		attacker.DropItem(attackerItemClass);
+
+		//victim.GiveItemWithSkin(attackerItemClass, attackerItemSkin);
+		Left4Utils.GiveItemWithSkin(victim, attackerItemClass, attackerItemSkin);
+		
+		Left4Timers.AddTimer(null, 0.1, Left4Bots.ItemGiven, { player1 = attacker, player2 = victim, item = attackerItem });
+		
+		if (IsPlayerABot(victim))
+			Left4Bots.LastGiveItemTime = Time();
+	}
+	else if (victimItem && IsPlayerABot(victim))
+	{
+		// Swap
+		local victimItemClass = victimItem.GetClassname();
+		local victimItemSkin = NetProps.GetPropInt(victimItem, "m_nSkin");
+		
+		if (victimItemClass != attackerItemClass || victimItemSkin != attackerItemSkin)
+		{
+			DoEntFire("!self", "SpeakResponseConcept", "PlayerAlertGiveItem", 0, null, attacker);
+			DoEntFire("!self", "SpeakResponseConcept", "PlayerAlertGiveItem", 0, null, victim);
+			
+			Left4Bots.GiveItemIndex1 = attackerItem.GetEntityIndex();
+			Left4Bots.GiveItemIndex2 = victimItem.GetEntityIndex();
+			
+			attacker.DropItem(attackerItemClass);
+			victim.DropItem(victimItemClass);
+			
+			//attacker.GiveItemWithSkin(victimItemClass, victimItemSkin);
+			Left4Utils.GiveItemWithSkin(attacker, victimItemClass, victimItemSkin);
+			//victim.GiveItemWithSkin(attackerItemClass, attackerItemSkin);
+			Left4Utils.GiveItemWithSkin(victim, attackerItemClass, attackerItemSkin);
+			
+			Left4Timers.AddTimer(null, 0.1, Left4Bots.ItemSwapped, { player1 = attacker, item1 = victimItem, player2 = victim, item2 = attackerItem });
+		}
+	}
+}
+
 // There is at least 1 tank alive
 ::Left4Bots.OnTankActive <- function ()
 {
@@ -837,144 +1180,259 @@ Msg("Including left4bots_events...\n");
 
 /* Handle user commands
 
+botsource command [target]
+
+"botsource" can be: "bot" (bot is automatically selected), "bots" (all the bots), "botname" (name of the bot)
+
 Available commands:
-	[botname] lead				: The order is added to the given bot's orders queue. The bot will start leading the way following the map's flow
-	bots lead					: Same as above but the first available bot will be automatically selected
-	[botname] witch				: The order is added to the given bot's orders queue. The bot will try to kill the witch you are looking at
-	bots witch					: Same as above but the first available bot will be automatically selected
-	[botname] cancel current	: The given bot will abort it's current order and will proceed with the next one in the queue (if any)
-	bots cancel current			: Same as above but for all the bots
-	[botname] cancel [ordertype]: The given bot will abort all it's orders (current and queued ones) of type [type] (example: coach cancel lead)
-	bots cancel [ordertype]		: Same as above but for all the bots
-	[botname] cancel orders		: The given bot will abort all it's orders (current and queued ones) of any type
-	bots cancel	orders			: Same as above but for all the bots
-	[botname] cancel all		: (or just: [botname] cancel) The given bot will abort everything (orders, current pick-up, ...)
-	bots cancel	all				: Same as above but for all the bots
+	botsource lead				: The order is added to the given bot(s) orders queue. The bot(s) will start leading the way following the map's flow
+	botsource follow			: The order is added to the given bot(s) orders queue. The bot(s) will start following you
+	botsource follow target		: The order is added to the given bot(s) orders queue. The bot(s) will follow the given target survivor (you can also use the keyword "me" to follow you)
+	botsource witch				: The order is added to the given bot(s) orders queue. The bot(s) will try to kill the witch you are looking at
+	botsource heal				: The order is added to the given bot(s) orders queue. The bot(s) will heal himself/themselves
+	botsource heal target		: The order is added to the given bot(s) orders queue. The bot(s) will heal the target survivor (target can also be the bot himself or the keyword "me" to heal you)
+	botsource goto				: The order is added to the given bot(s) orders queue. The bot(s) will go to the location you are looking at
+	botsource goto target		: The order is added to the given bot(s) orders queue. The bot(s) will go to the current target's position (target can be another survivor or the keyword "me" to come to you)
+
+
+botsource cancel [switch]
+
+"botsource" can be: "bots" (all the bots) or "botname" (name of the bot); Keyword "bot" is not allowed here
+
+Switches:
+	current		: The given bot(s) will abort his/their current order and will proceed with the next one in the queue (if any)
+	ordertype	: The given bot(s) will abort all his/their orders (current and queued ones) of type 'ordertype' (example: coach cancel lead)
+	orders		: The given bot(s) will abort all his/their orders (current and queued ones) of any type
+	all			: (or empty) The given bot(s) will abort everything (orders, current pick-up, anything)
 
 */
 ::Left4Bots.OnUserCommand <- function (player, target, command, param)
 {
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnUserCommand - player: " + player.GetPlayerName() + " - target: " + target + " - command: " + command + " - param: " + param);
 	
-	// allBots = true -> "bots" keyword was used, tgtBot is ignored (will be null)
-	// allBots = false -> "botname" was used, tgtBot is the target bot (or null if "botname" is invalid)
-	local allBots = false;
-	local tgtBot = null;
+	local allBots = false;	// true = "bots" keyword was used, tgtBot is ignored (will be null)
+	local tgtBot = null;	// (allBots = false) null = "bot" keyword was used, tgtBot will be automatically selected - not null = "[botname]" was used, tgtBot is the selected bot
 
 	if (target == "bots")
 		allBots = true;
-	else
+	else if (target != "bot")
+	{
 		tgtBot = Left4Bots.GetBotByName(target);
-	
-	if (!allBots && !tgtBot)
-		return false; // Invalid target
+		if (!tgtBot)
+			return false; // Invalid target
+	}
 	
 	switch (command)
 	{
 		case "lead":
 		{
 			if (allBots)
-				tgtBot = Left4Bots.GetFirstAvailableBotForOrder(command);
-			
-			if (tgtBot)
-				Left4Bots.BotOrderAppend(tgtBot, command, player);
+			{
+				foreach (bot in Left4Bots.Bots)
+					Left4Bots.BotOrderAdd(bot, command, player);
+			}
 			else
-				Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + command);
+			{
+				if (!tgtBot)
+					tgtBot = Left4Bots.GetFirstAvailableBotForOrder(command);
+				
+				if (tgtBot)
+					Left4Bots.BotOrderAdd(tgtBot, command, player);
+				else
+					Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + command);
+			}
 			
 			return true;
 		}
 		case "follow":
 		{
-			if (allBots)
-				tgtBot = Left4Bots.GetFirstAvailableBotForOrder(command);
-			
-			if (tgtBot)
+			local followEnt = null;
+			if (param)
 			{
-				local followEnt = null;
-				if (param)
-					followEnt = param.tolower();
-				
-				if (!followEnt || followEnt == "me")
+				if (param.tolower() == "me")
 					followEnt = player;
 				else
-					followEnt = Left4Bots.GetBotByName(followEnt);
-				
-				if (followEnt && followEnt.GetPlayerUserId() != tgtBot.GetPlayerUserId())
-					Left4Bots.BotOrderAppend(tgtBot, command, player, followEnt);
-				else
-					Left4Bots.Log(LOG_LEVEL_WARN, "Invalid follow target: " + param);
+					followEnt = Left4Bots.GetBotByName(param);
 			}
 			else
-				Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + command);
+				followEnt = player;
+			
+			if (!followEnt)
+			{
+				Left4Bots.Log(LOG_LEVEL_WARN, "Invalid follow target: " + param);
+				return true;
+			}
+			
+			if (allBots)
+			{
+				foreach (id, bot in Left4Bots.Bots)
+				{
+					if (id != followEnt.GetPlayerUserId())
+						Left4Bots.BotOrderAdd(bot, command, player, followEnt);
+				}
+			}
+			else
+			{
+				if (!tgtBot)
+					tgtBot = Left4Bots.GetFirstAvailableBotForOrder(command, followEnt.GetPlayerUserId(), followEnt.GetOrigin());
+
+				if (tgtBot && tgtBot.GetPlayerUserId() != followEnt.GetPlayerUserId())
+					Left4Bots.BotOrderAdd(tgtBot, command, player, followEnt);
+				else
+					Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + command);
+			}
 			
 			return true;
 		}
 		case "witch":
 		{
-			local witch = Left4Bots.GetPickerWitch(player);
-			if (witch)
+			local witch = Left4Bots.GetPickerWitch(player); // TODO: Shouldn't just pick the one with the best dot, distance should also be taken into account
+			if (!witch)
 			{
-				if (allBots)
-					tgtBot = Left4Bots.GetFirstAvailableBotForOrder(command);
+				Left4Bots.Log(LOG_LEVEL_WARN, "No target witch found for order of type: " + command);
+				return true;
+			}
+			
+			if (allBots)
+			{
+				foreach (bot in Left4Bots.Bots)
+					Left4Bots.BotOrderAdd(bot, command, player, witch, null, null, 0, false);
+			}
+			else
+			{
+				if (!tgtBot)
+					tgtBot = Left4Bots.GetFirstAvailableBotForOrder(command, null, witch.GetOrigin());
 				
 				if (tgtBot)
-					//Left4Bots.BotOrderInsert(tgtBot, command, player, witch, null, null, 0, false); // This order should have an higher priority so let's use BotOrderInsert instead of BotOrderAppend
-					Left4Bots.BotOrderInsertAfter("witch", tgtBot, command, player, witch, null, null, 0, false); // ^ but lower than any previous "witch" order, so BotOrderInsertAfter is better
+					Left4Bots.BotOrderAdd(tgtBot, command, player, witch, null, null, 0, false);
 				else
 					Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + command);
 			}
+			
+			return true;
+		}
+		case "heal":
+		{
+			local healTgt = null;
+			if (param)
+			{
+				if (param.tolower() == "me")
+					healTgt = player;
+				else
+					healTgt = Left4Bots.GetBotByName(param);
+				
+				if (!healTgt)
+				{
+					Left4Bots.Log(LOG_LEVEL_WARN, "Invalid heal target: " + param);
+					return true;
+				}
+			}
+
+			if (allBots)
+			{
+				foreach (bot in Left4Bots.Bots)
+					Left4Bots.BotOrderAdd(bot, command, player, healTgt != null ? healTgt : bot, null, null, Left4Bots.Settings.button_holdtime_heal, false);
+			}
 			else
-				Left4Bots.Log(LOG_LEVEL_WARN, "No target witch found for order of type: " + command);
+			{
+				if (!tgtBot)
+				{
+					if (healTgt)
+						tgtBot = Left4Bots.GetNearestBotWithMedkit(healTgt.GetOrigin());
+					else
+						tgtBot = Left4Bots.GetLowestHPBotWithMedkit()
+				}
+
+				if (tgtBot)
+					Left4Bots.BotOrderAdd(tgtBot, command, player, healTgt != null ? healTgt : tgtBot, null, null, Left4Bots.Settings.button_holdtime_heal, false);
+				else
+					Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + command);
+			}
+
+			return true;
+		}
+		case "goto":
+		{
+			local gotoPos = null;
+			if (param)
+			{
+				if (param.tolower() == "me")
+					gotoPos = player;
+				else
+					gotoPos = Left4Bots.GetBotByName(param);
+				if (!gotoPos)
+				{
+					Left4Bots.Log(LOG_LEVEL_WARN, "Invalid goto target: " + param);
+					return true;
+				}
+				gotoPos = gotoPos.GetOrigin();
+			}
+			else
+			{
+				gotoPos = Left4Utils.GetLookingPosition(player);
+				if (!gotoPos)
+				{
+					Left4Bots.Log(LOG_LEVEL_WARN, "Invalid goto position");
+					return true;
+				}
+			}
+			
+			if (allBots)
+			{
+				foreach (bot in Left4Bots.Bots)
+					Left4Bots.BotOrderAdd(bot, command, player, null, gotoPos);
+			}
+			else
+			{
+				if (!tgtBot)
+					tgtBot = Left4Bots.GetFirstAvailableBotForOrder(command);
+				
+				if (tgtBot)
+					Left4Bots.BotOrderAdd(tgtBot, command, player, null, gotoPos);
+				else
+					Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + command);
+			}
 			
 			return true;
 		}
 		case "cancel":
 		{
+			if (!allBots && !tgtBot)
+			{
+				Left4Bots.Log(LOG_LEVEL_WARN, "Can't use the 'bot' keyword with the 'cancel' command");
+				return true;
+			}
+			
 			// param can be:
 			// - "current" to cancel the current order only
 			// - "orders" to cancel all the orders (including the current one)
 			// - "ordertype" to cancel all the orders of given type
-			// - "all" (or null) to cancel everything (orders, current pick-up, ...)
+			// - "all" (or null) to cancel everything (orders, current pick-up, anything)
 			if (param)
 				param = param.tolower();
 			
-			if (!param || param == "all")
+			if (allBots)
 			{
-				if (allBots)
+				foreach (bot in ::Left4Bots.Bots)
 				{
-					foreach (bot in ::Left4Bots.Bots)
+					if (!param || param == "all")
 						bot.GetScriptScope().BotCancelAll();
-				}
-				else
-					tgtBot.GetScriptScope().BotCancelAll();
-			}
-			else if (param == "current")
-			{
-				if (allBots)
-				{
-					foreach (bot in ::Left4Bots.Bots)
+					else if (param == "current")
 						bot.GetScriptScope().BotCancelCurrentOrder();
-				}
-				else
-					tgtBot.GetScriptScope().BotCancelCurrentOrder();
-			}
-			else if (param == "orders")
-			{
-				if (allBots)
-				{
-					foreach (bot in ::Left4Bots.Bots)
+					else if (param == "orders")
 						bot.GetScriptScope().BotCancelOrders();
+					else
+						bot.GetScriptScope().BotCancelCurrentOrder(param);
 				}
-				else
-					tgtBot.GetScriptScope().BotCancelOrders();
 			}
 			else
 			{
-				if (allBots)
-				{
-					foreach (bot in ::Left4Bots.Bots)
-						bot.GetScriptScope().BotCancelCurrentOrder(param);
-				}
+				if (!param || param == "all")
+					tgtBot.GetScriptScope().BotCancelAll();
+				else if (param == "current")
+					tgtBot.GetScriptScope().BotCancelCurrentOrder();
+				else if (param == "orders")
+					tgtBot.GetScriptScope().BotCancelOrders();
 				else
 					tgtBot.GetScriptScope().BotCancelCurrentOrder(param);
 			}
@@ -1002,6 +1460,9 @@ Available commands:
 		return true;
 	}
 	
+	if (Left4Users.GetOnlineUserLevel(speaker.GetPlayerUserId()) < Left4Bots.Settings.userlevel_orders)
+		return true;
+	
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "InterceptChat - speaker: " + speaker.GetPlayerName() + " - msg: " + msg);
 	
 	local name = speaker.GetPlayerName() + ": ";
@@ -1027,6 +1488,9 @@ Available commands:
 
 ::Left4Bots.UserConsoleCommand <- function (playerScript, arg)
 {
+	if (Left4Users.GetOnlineUserLevel(playerScript.GetPlayerUserId()) < Left4Bots.Settings.userlevel_orders)
+		return true;
+	
 	local args = {};
 	if (arg != null && arg != "")
 		args = split(arg, ",");
