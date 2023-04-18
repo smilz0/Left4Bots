@@ -640,6 +640,76 @@ Msg("Including left4bots_events...\n");
 	}
 }
 
+::Left4Bots.Events.OnGameEvent_player_hurt <- function (params)
+{
+	local player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+	local attacker = g_MapScript.GetPlayerFromUserID(params["attacker"]);
+	if (!attacker && ("attackerentid" in params))
+		attacker = EntIndexToHScript(params["attackerentid"]);
+	
+	/*
+	local weapon = "";
+	if ("weapon" in params)
+		weapon = params["weapon"];
+	local type = -1;
+	if ("type" in params)
+		type = params["type"]; // commons do DMG_CLUB
+		
+	if (attacker)
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_player_hurt - player: " + player.GetPlayerName() + " - attacker: " + attacker.GetClassname() + " - weapon: " + weapon + " - type: " + type);
+	else
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_player_hurt - player: " + player.GetPlayerName() + " - weapon: " + weapon + " - type: " + type);
+	*/
+	
+	if (Left4Bots.IsHandledBot(player))
+	{
+		local weapon = "";
+		if ("weapon" in params)
+			weapon = params["weapon"];
+		
+		if (weapon == "insect_swarm" || weapon == "inferno")
+		{
+			// Pause the 'wait' order if the bot is being damaged by the spitter's spit or the fire
+			local scope = player.GetScriptScope();
+			if (scope.Waiting && !scope.Paused)
+			{
+				scope.Paused = Time();
+				scope.BotOnPause();
+			}
+		}
+	}
+}
+
+::Left4Bots.Events.OnGameEvent_ammo_pile_weapon_cant_use_ammo <- function (params)
+{
+	local player = null;
+	if ("userid" in params)
+		player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+
+	if (!player || !player.IsValid())
+		return;
+
+	local pWeapon = Left4Utils.GetInventoryItemInSlot(player, INV_SLOT_PRIMARY);
+	if (!pWeapon || !pWeapon.IsValid())
+		return;
+		
+	local cWeapon = pWeapon.GetClassname();
+		
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_ammo_pile_weapon_cant_use_ammo - player: " + player.GetPlayerName() + " - weapon: " + cWeapon);
+		
+	if (cWeapon == "weapon_grenade_launcher" || cWeapon == "weapon_rifle_m60")
+	{
+		if ((IsPlayerABot(player) && Left4Bots.Settings.t3_ammo_bots) || (!IsPlayerABot(player) && Left4Bots.Settings.t3_ammo_human))
+		{
+			local ammoType = NetProps.GetPropInt(pWeapon, "m_iPrimaryAmmoType");
+			local maxAmmo = Left4Utils.GetMaxAmmo(ammoType);
+			NetProps.SetPropIntArray(player, "m_iAmmo", maxAmmo + (pWeapon.GetMaxClip1() - pWeapon.Clip1()), ammoType);
+			
+			Left4Bots.Log(LOG_LEVEL_INFO, "Player: " + player.GetPlayerName() + " replenished ammo for T3 weapon " + cWeapon);
+		}
+	}
+}
+
 //
 
 ::Left4Bots.OnConcept <- function (concept, query)
@@ -720,8 +790,23 @@ Msg("Including left4bots_events...\n");
 				
 				// Receiving this concept from a bot who is executing a move command means that the bot got nav stuck and teleported somewhere.
 				// After the teleport the move command is lost and needs to be refreshed.
-				if (scope.MovePos && scope.NeedMove <= 0)
+				if (scope.MovePos && scope.NeedMove <= 0 && !scope.Paused)
 					scope.NeedMove = 2;
+			}
+			else if (concept == "TLK_IDLE" || concept == "SurvivorBotNoteHumanAttention" || concept == "SurvivorBotHasRegroupedWithTeam")
+			{
+				if (Left4Bots.Settings.deploy_upgrades)
+				{
+					local itemClass = Left4Bots.ShouldDeployUpgrades(who, query);
+					if (itemClass)
+					{
+						Left4Bots.Log(LOG_LEVEL_DEBUG, "Bot " + who.GetPlayerName() + " switching to upgrade " + itemClass);
+						
+						who.SwitchToItem(itemClass);
+						
+						Left4Timers.AddTimer(null, 1, @(params) Left4Bots.DoDeployUpgrade(params.player), { player = who });
+					}
+				}
 			}
 			
 			// ...
@@ -747,6 +832,8 @@ Msg("Including left4bots_events...\n");
 			{
 				if (concept == "PlayerStayTogether")
 					Left4Bots.OnUserCommand(who, "bots", "cancel", null);
+				else if (concept == "PlayerMoveOn")
+					Left4Bots.OnUserCommand(who, "bots", "cancel", "current");
 				else if (concept == "PlayerLeadOn")
 					Left4Bots.OnUserCommand(who, "bots", "lead", null);
 				else if (concept == "PlayerWarnWitch")
@@ -755,6 +842,8 @@ Msg("Including left4bots_events...\n");
 					Left4Bots.OnUserCommand(who, "bot", "follow", "me");
 				else if (concept == "AskForHealth2")
 					Left4Bots.OnUserCommand(who, "bot", "heal", "me");
+				else if (concept == "PlayerWaitHere")
+					Left4Bots.OnUserCommand(who, "bots", "wait", null);
 				else if (concept == "iMT_PlayerSuggestHealth")
 				{
 					if (subject)
@@ -1193,6 +1282,9 @@ Available commands:
 	botsource heal target		: The order is added to the given bot(s) orders queue. The bot(s) will heal the target survivor (target can also be the bot himself or the keyword "me" to heal you)
 	botsource goto				: The order is added to the given bot(s) orders queue. The bot(s) will go to the location you are looking at
 	botsource goto target		: The order is added to the given bot(s) orders queue. The bot(s) will go to the current target's position (target can be another survivor or the keyword "me" to come to you)
+	botsource wait				: The order is added to the given bot(s) orders queue. The bot(s) will hold his/their current position
+	botsource wait here			: The order is added to the given bot(s) orders queue. The bot(s) will hold position at your current position
+	botsource wait there		: The order is added to the given bot(s) orders queue. The bot(s) will hold position at the location you are looking at
 
 
 botsource cancel [switch]
@@ -1395,6 +1487,41 @@ Switches:
 			
 			return true;
 		}
+		case "wait":
+		{
+			local waitPos = null;
+			if (param)
+			{
+				if (param.tolower() == "here")
+					waitPos = player.GetOrigin();
+				else if (param.tolower() == "there")
+					waitPos = Left4Utils.GetLookingPosition(player);
+
+				if (!waitPos)
+				{
+					Left4Bots.Log(LOG_LEVEL_WARN, "Invalid wait position: " + param);
+					return true;
+				}
+			}
+			
+			if (allBots)
+			{
+				foreach (bot in Left4Bots.Bots)
+					Left4Bots.BotOrderAdd(bot, command, player, null, waitPos != null ? waitPos : bot.GetOrigin(), null, 0, !Left4Bots.Settings.wait_nopause);
+			}
+			else
+			{
+				if (!tgtBot)
+					tgtBot = Left4Bots.GetFirstAvailableBotForOrder(command);
+				
+				if (tgtBot)
+					Left4Bots.BotOrderAdd(tgtBot, command, player, null, waitPos != null ? waitPos : tgtBot.GetOrigin(), null, 0, !Left4Bots.Settings.wait_nopause);
+				else
+					Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + command);
+			}
+			
+			return true;
+		}
 		case "cancel":
 		{
 			if (!allBots && !tgtBot)
@@ -1510,4 +1637,5 @@ Switches:
 	Left4Bots.OnUserCommand(playerScript, arg1, arg2, arg3);
 }
 
-__CollectEventCallbacks(::Left4Bots.Events, "OnGameEvent_", "GameEventCallbacks", RegisterScriptGameEventListener);
+// Moved to left4bots.nut
+//__CollectEventCallbacks(::Left4Bots.Events, "OnGameEvent_", "GameEventCallbacks", RegisterScriptGameEventListener);

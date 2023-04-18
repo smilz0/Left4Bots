@@ -3,9 +3,6 @@
 //     https://steamcommunity.com/id/smilz0
 //------------------------------------------------------
 
-// TODO: Reset should reset pause?
-// TODO: Cancel heal near saferoom
-
 Msg("Including left4bots_ai...\n");
 
 // AI Move types from the lowest to the highest priority one
@@ -60,6 +57,11 @@ enum AI_DOOR_ACTION {
 	scope.DoorEnt <- null; // Used for AI_MOVE_TYPE.Door
 	scope.DoorZ <- 0; // Used for AI_MOVE_TYPE.Door
 	scope.DoorAct <- AI_DOOR_ACTION.None; // Used for AI_MOVE_TYPE.Door
+	scope.Waiting <- false;
+	scope.SM_IsStuck <- false;
+	scope.SM_StuckPos <- Vector(0, 0, 0);
+	scope.SM_StuckTime <- 0;
+	scope.SM_MoveTime <- 0;
 	
 	/*
 	scope.HoldItem <- null;
@@ -74,7 +76,9 @@ enum AI_DOOR_ACTION {
 	scope["BotThink_Door"] <- ::Left4Bots.BotThink_Door;
 	scope["BotThink_Misc"] <- ::Left4Bots.BotThink_Misc;
 	scope["BotManualAttack"] <- ::Left4Bots.BotManualAttack;
+	scope["BotStuckMonitor"] <- ::Left4Bots.BotStuckMonitor;
 	scope["BotMoveTo"] <- ::Left4Bots.BotMoveTo;
+	scope["BotMoveReset"] <- ::Left4Bots.BotMoveReset;
 	scope["BotReset"] <- ::Left4Bots.BotReset;
 	scope["BotGetNearestPickupWithin"] <- ::Left4Bots.BotGetNearestPickupWithin;
 	scope["BotInitializeCurrentOrder"] <- ::Left4Bots.BotInitializeCurrentOrder;
@@ -110,7 +114,7 @@ enum AI_DOOR_ACTION {
 	Origin = self.GetOrigin();
 	
 	// Can't do anything at the moment
-	if (Left4Bots.SurvivorCantMove(self))
+	if (Left4Bots.SurvivorCantMove(self, Waiting))
 		return Left4Bots.Settings.bot_think_interval;
 	
 	// Don't do anything if the bot is on a ladder or the mode hasn't started yet
@@ -128,6 +132,27 @@ enum AI_DOOR_ACTION {
 		return Left4Bots.Settings.bot_think_interval;
 	}
 	
+	if (Left4Bots.Settings.fall_velocity_warp != 0 && self.GetVelocity().z <= (-Left4Bots.Settings.fall_velocity_warp))
+	{
+		local others = Left4Bots.GetOtherAliveSurvivors(UserId);
+		if (others.len() > 0)
+		{
+			local to = others[RandomInt(0, others.len() - 1)];
+			if (to && to.IsValid())
+			{
+				self.SetVelocity(Vector(0,0,0));
+				self.SetOrigin(to.GetOrigin());
+				
+				Left4Bots.Log(LOG_LEVEL_INFO, self.GetPlayerName() + " has been teleported to " + to.GetPlayerName() + " while falling");
+				
+				return Left4Bots.Settings.bot_think_interval;
+			}
+		}
+	}
+	
+	if (Left4Bots.Settings.stuck_detection)
+		BotStuckMonitor();
+	
 	// HighPriority MOVEs are spit/charger dodging and such
 	if (MovePos && MoveType == AI_MOVE_TYPE.HighPriority)
 	{
@@ -135,11 +160,12 @@ enum AI_DOOR_ACTION {
 		if ((Origin - MovePos).Length() <= Left4Bots.Settings.move_end_radius)  // TODO: apparently TryGetPathableLocationWithin can return a position under cars and other big obstacles. This will make the MOVE try to get there indefinitely. Maybe add a timeout to reset it?
 		{
 			// Yes, we did
-			MovePos = null;
-			MoveType = AI_MOVE_TYPE.None;
 			
 			// No longer needed if we set sb_debug_apoproach_wait_time to something like 0.5 or even 0
 			// BotReset();
+			
+			MovePos = null;
+			MoveType = AI_MOVE_TYPE.None;
 		}
 		else
 			BotMoveTo(MovePos); // No, keep moving
@@ -226,13 +252,7 @@ enum AI_DOOR_ACTION {
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - No item to pick up; resetting previous pick-up MOVE");
 			
 			// We were moving for a pick-up tho, so we must reset
-			if (MovePos)
-				BotReset();
-			
-			MoveEnt = null;
-			MovePos = null;
-			MoveType = AI_MOVE_TYPE.None;
-			NeedMove = 0;
+			BotMoveReset();
 		}
 		return;
 	}
@@ -251,13 +271,7 @@ enum AI_DOOR_ACTION {
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Item picked up: resetting MOVE");
 			
 			// Reset if we were moving for this item
-			if (MovePos)
-				BotReset();
-
-			MoveEnt = null;
-			MovePos = null;
-			MoveType = AI_MOVE_TYPE.None;
-			NeedMove = 0;
+			BotMoveReset();
 		}
 		// else means that we picked up an item while moving for something else
 		
@@ -280,13 +294,7 @@ enum AI_DOOR_ACTION {
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Teammates need help or too far: resetting MOVE");
 			
 			// Reset if we were moving for this item
-			if (MovePos)
-				BotReset();
-
-			MoveEnt = null;
-			MovePos = null;
-			MoveType = AI_MOVE_TYPE.None;
-			NeedMove = 0;
+			BotMoveReset();
 		}
 		return;
 	}
@@ -327,13 +335,7 @@ enum AI_DOOR_ACTION {
 		{
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Someone else is about to defib; resetting");
 			
-			if (MovePos)
-				BotReset();
-
-			MoveEnt = null;
-			MovePos = null;
-			MoveType = AI_MOVE_TYPE.None;
-			NeedMove = 0;
+			BotMoveReset();
 		}
 		return;
 	}
@@ -378,13 +380,7 @@ enum AI_DOOR_ACTION {
 	{
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Dest death model no longer valid; resetting");
 		
-		if (MovePos)
-			BotReset();
-
-		MoveEnt = null;
-		MovePos = null;
-		MoveType = AI_MOVE_TYPE.None;
-		NeedMove = 0;
+		BotMoveReset();
 		
 		return;
 	}
@@ -403,13 +399,7 @@ enum AI_DOOR_ACTION {
 				
 				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Dest death had a defib nearby but it's no longer available; resetting");
 				
-				if (MovePos)
-					BotReset();
-
-				MoveEnt = null;
-				MovePos = null;
-				MoveType = AI_MOVE_TYPE.None;
-				NeedMove = 0;
+				BotMoveReset();
 				
 				return;
 			}
@@ -458,7 +448,7 @@ enum AI_DOOR_ACTION {
 	
 	// Handle give items
 	local lookAtHuman = NetProps.GetPropEntity(self, "m_lookatPlayer");
-	if (lookAtHuman && lookAtHuman.IsValid() && !IsPlayerABot(lookAtHuman) && NetProps.GetPropInt(lookAtHuman, "m_iTeamNum") == TEAM_SURVIVORS && !Left4Bots.SurvivorCantMove(lookAtHuman) && (Origin - lookAtHuman.GetOrigin()).Length() <= Left4Bots.Settings.give_max_range)
+	if (lookAtHuman && lookAtHuman.IsValid() && !IsPlayerABot(lookAtHuman) && NetProps.GetPropInt(lookAtHuman, "m_iTeamNum") == TEAM_SURVIVORS && !Left4Bots.SurvivorCantMove(lookAtHuman, Waiting) && (Origin - lookAtHuman.GetOrigin()).Length() <= Left4Bots.Settings.give_max_range)
 	{
 		// Try give a throwable
 		if (Left4Bots.GiveInventoryItem(self, lookAtHuman, INV_SLOT_THROW))
@@ -474,7 +464,7 @@ enum AI_DOOR_ACTION {
 	}
 	
 	// Handle throw nades
-	if ((ThrowStartedOn && (Time() - ThrowStartedOn) > 5.0) || Left4Bots.SurvivorCantMove(self))
+	if ((ThrowStartedOn && (Time() - ThrowStartedOn) > 5.0) || Left4Bots.SurvivorCantMove(self, Waiting))
 	{
 		// Reset last attempted throw if takes too long (likely we got interrupted while switching) or bot can't move (probably got pinned)
 		ThrowType = AI_THROW_TYPE.None;
@@ -607,12 +597,12 @@ enum AI_DOOR_ACTION {
 	
 	if (CurrentOrder.OrderType == "follow")
 	{
-		if (CurrentOrder.CanPause && BotIsInPause(false, CurrentOrder.MaxSeparation, CurrentOrder.DestEnt, Left4Bots.Settings.follow_pause_radius))
+		if (BotIsInPause(CurrentOrder.CanPause, false, CurrentOrder.MaxSeparation, CurrentOrder.DestEnt, Left4Bots.Settings.follow_pause_radius))
 			return;
 	}
 	else
 	{
-		if (CurrentOrder.CanPause && BotIsInPause(CurrentOrder.OrderType == "heal", CurrentOrder.MaxSeparation))
+		if (BotIsInPause(CurrentOrder.CanPause, CurrentOrder.OrderType == "heal", CurrentOrder.MaxSeparation))
 			return;
 	}
 	
@@ -675,15 +665,8 @@ enum AI_DOOR_ACTION {
 		DoorAct = AI_DOOR_ACTION.None;
 		
 		if (MoveType == AI_MOVE_TYPE.Door)
-		{
-			if (MovePos)
-				BotReset();
+			BotMoveReset();
 
-			MoveEnt = null;
-			MovePos = null;
-			MoveType = AI_MOVE_TYPE.None;
-			NeedMove = 0;
-		}
 		return;
 	}
 	
@@ -743,15 +726,7 @@ enum AI_DOOR_ACTION {
 		DoorAct = AI_DOOR_ACTION.None;
 		
 		if (MoveType == AI_MOVE_TYPE.Door)
-		{
-			if (MovePos)
-				BotReset();
-
-			MoveEnt = null;
-			MovePos = null;
-			MoveType = AI_MOVE_TYPE.None;
-			NeedMove = 0;
-		}
+			BotMoveReset();
 	}
 	else
 	{
@@ -842,6 +817,87 @@ enum AI_DOOR_ACTION {
 	return true;
 }
 
+// Based on the Valve's C++ ILocomotion::StuckMonitor()
+// It tries to detect the stuck status of the bot before the C++ does. The bot's AI will use this to try to reset the MOVE and start a Pause before the bot gets teleported
+// Runs in the scope of the bot entity
+::Left4Bots.BotStuckMonitor <- function ()
+{
+	local t = Time();
+	
+	if ((NetProps.GetPropInt(self, "m_nButtons") & (BUTTON_FORWARD + BUTTON_BACK + BUTTON_MOVELEFT + BUTTON_MOVERIGHT)) != 0)
+	{
+		// Bot is trying to move
+		if (SM_MoveTime == 0)
+			SM_MoveTime = t; // Start of the move
+	}
+	else
+		SM_MoveTime = 0; // No longer trying to move
+	
+	if (SM_MoveTime == 0 || (t - SM_MoveTime) < 0.25)
+	{
+		if (Left4Bots.Settings.stuck_nomove_unstuck && SM_IsStuck)
+		{
+			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " [UN-STUCK]");
+			if (Left4Bots.Settings.stuck_debug)
+				Say(self, "[UN-STUCK]", false);
+			
+			SM_IsStuck = false;
+		}
+
+		SM_StuckPos = Origin;
+		SM_StuckTime = t;
+
+		return false;
+	}
+	
+	if (SM_IsStuck)
+	{
+		if ((Origin - SM_StuckPos).Length() > Left4Bots.Settings.stuck_range)
+		{
+			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " [UN-STUCK]");
+			if (Left4Bots.Settings.stuck_debug)
+				Say(self, "[UN-STUCK]", false);
+			
+			SM_IsStuck = false;
+			SM_StuckPos = Origin;
+			SM_StuckTime = t;
+		}
+	}
+	else
+	{
+		//if ( /*IsClimbingOrJumping() || */GetBot()->IsRangeGreaterThan( m_stuckPos, STUCK_RADIUS ) )
+		if ((Origin - SM_StuckPos).Length() > Left4Bots.Settings.stuck_range)
+		{
+			SM_StuckPos = Origin;
+			SM_StuckTime = t;
+		}
+		else
+		{
+			local m_StuckLast = NetProps.GetPropInt(self, "m_StuckLast");
+			if (m_StuckLast != 0)
+				printl(self.GetPlayerName() + " m_StuckLast: " + m_StuckLast);
+			
+			//local minMoveSpeed = 0.1 * GetDesiredSpeed() + 0.1;
+			//local escapeTime = Left4Bots.Settings.stuck_range / minMoveSpeed;
+			//if ((t - SM_StuckTime) > escapeTime)
+			if ((t - SM_StuckTime) >= Left4Bots.Settings.stuck_time)
+			{
+				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " [STUCK]");
+				if (Left4Bots.Settings.stuck_debug)
+					Say(self, "[STUCK]", false);
+				
+				SM_IsStuck = true;
+
+				//if (MovePos)
+				//	BotReset();
+				//  BotCancelAll();
+			}
+		}
+	}
+	
+	return SM_IsStuck;
+}
+
 // Send the MOVE command to reach the given position, but only when really needed
 // force = true to start moving or to force a MOVE command. force = false to keep moving and only send another MOVE command if needed
 // Runs in the scope of the bot entity
@@ -858,6 +914,12 @@ enum AI_DOOR_ACTION {
 	
 	if (!(NetProps.GetPropInt(self, "m_fFlags") & (1 << 5)))
 	{
+		// Reset movetype if needed
+		Waiting = false;
+		if (NetProps.GetPropInt(self, "movetype") == 0)
+			NetProps.SetPropInt(self, "movetype", 2);
+		NetProps.SetPropInt(self, "m_afButtonForced", NetProps.GetPropInt(self, "m_afButtonForced") & (~BUTTON_DUCK));
+		
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - MOVE -> " + dest);
 		
 		MovePos = dest;
@@ -866,6 +928,27 @@ enum AI_DOOR_ACTION {
 	
 		NeedMove--;
 	}
+}
+
+// Reset the MOVE parameters and, if needed, the MOVE itself and the movetype
+// Runs in the scope of the bot entity
+::Left4Bots.BotMoveReset <- function ()
+{
+	// Reset the MOVE if needed
+	if (MovePos)
+		BotReset();
+	
+	// Reset movetype if needed
+	Waiting = false;
+	if (NetProps.GetPropInt(self, "movetype") == 0)
+		NetProps.SetPropInt(self, "movetype", 2);
+	NetProps.SetPropInt(self, "m_afButtonForced", NetProps.GetPropInt(self, "m_afButtonForced") & (~BUTTON_DUCK));
+	
+	// Reset MOVE parameters
+	MoveEnt = null;
+	MovePos = null;
+	MoveType = AI_MOVE_TYPE.None;
+	NeedMove = 0;
 }
 
 // Send a RESET command to the bot (if CanReset is true)
@@ -993,19 +1076,12 @@ enum AI_DOOR_ACTION {
 	local orderComplete = true;
 	switch (CurrentOrder.OrderType)
 	{
-		case "use":
-		{
-			// TODO
-			
-			break;
-		}
 		case "lead":
 		{
-			local nextPos = Left4Utils.GetFarthestPathableFlowPos(self, Left4Bots.Settings.lead_max_segment, Left4Bots.Settings.lead_check_ground, Left4Bots.Settings.lead_debug_duration);
+			local nextPos = Left4Utils.GetFarthestPathableFlowPos(self, Left4Bots.Settings.lead_max_segment, Left4Bots.Settings.lead_dontstop_ondamaging, Left4Bots.Settings.lead_detour_maxdist, Left4Bots.Settings.lead_check_ground, Left4Bots.Settings.lead_debug_duration);
 			if (nextPos)
 			{
-				//if ((nextPos - Origin).Length() >= Left4Bots.Settings.lead_min_segment)
-				if (abs(GetFlowDistanceForPosition(nextPos) - GetFlowDistanceForPosition(Origin)) >= Left4Bots.Settings.lead_min_segment)
+				if ((nextPos - Origin).Length() >= Left4Bots.Settings.lead_min_segment)
 				{
 					if (!CurrentOrder.DestPos)
 					{
@@ -1111,6 +1187,12 @@ enum AI_DOOR_ACTION {
 			
 			break;
 		}
+		case "use":
+		{
+			// TODO
+			
+			break;
+		}
 		case "heal":
 		{
 			if (Left4Utils.HasMedkit(self))
@@ -1154,6 +1236,30 @@ enum AI_DOOR_ACTION {
 			
 			break;
 		}
+		case "wait":
+		{
+			if (MovePos && !Waiting)
+			{
+				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Wait position is in range");
+
+				// Give control back to the vanilla AI
+				BotReset();
+				
+				// But don't let it move
+				NetProps.SetPropInt(self, "movetype", 0);
+				
+				self.SetVelocity(Vector(0, 0, 0)); // This will reset the bot's animation from running to idle
+				
+				if (Left4Bots.Settings.wait_crouch)
+					NetProps.SetPropInt(self, "m_afButtonForced", NetProps.GetPropInt(self, "m_afButtonForced") | BUTTON_DUCK);
+				
+				Waiting = true;
+			}
+			
+			orderComplete = false;
+			
+			break;
+		}
 		default:
 		{
 			// Do nothing
@@ -1183,14 +1289,7 @@ enum AI_DOOR_ACTION {
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Cancelling order: " + Left4Bots.BotOrderToString(CurrentOrder));
 
 	if (MoveType == AI_MOVE_TYPE.Order)
-	{
-		if (MovePos)
-			BotReset();
-
-		MovePos = null;
-		MoveType = AI_MOVE_TYPE.None;
-		NeedMove = 0;
-	}
+		BotMoveReset();
 
 	CurrentOrder = null;
 }
@@ -1231,16 +1330,8 @@ enum AI_DOOR_ACTION {
 	BotCancelOrders();
 	
 	// MOVE stuff
-	if (MoveType != AI_MOVE_TYPE.None)
-	{
-		if (MovePos)
-			BotReset();
-
-		MovePos = null;
-		MoveEnt = null;
-		MoveType = AI_MOVE_TYPE.None;
-		NeedMove = 0;
-	}
+	//if (MoveType != AI_MOVE_TYPE.None)
+		BotMoveReset();
 	
 	// Door stuff
 	DoorEnt = null;
@@ -1254,18 +1345,19 @@ enum AI_DOOR_ACTION {
 }
 
 // Check if the bot should pause what he is doing. Handles the Paused flag and the RESET command
+// canStartPause tells whether the bot can start a pause or not. It has no effect on ending a previously started pause
 // maxSeparation is the max distance from the other survivors (0 = no check)
 // followEnt if not null it's the entity we need to follow
 // if followEnt is not null, followRange is the maximum distance from followEnt before we need to move to follow again (we'll stay in Pause if within this range from followEnt)
 // followEnt and followRange have no effect on the logics to start the pause, only for the stop. The pause will be started in BotThink_Orders when we're within DestRadius from our followEnt
 // Returns true if the bot is in pause, false if not
 // Runs in the scope of the bot entity
-::Left4Bots.BotIsInPause <- function (isHealOrder = false, maxSeparation = 0, followEnt = null, followRange = 150)
+::Left4Bots.BotIsInPause <- function (canStartPause = true, isHealOrder = false, maxSeparation = 0, followEnt = null, followRange = 150)
 {
 	if (Paused == 0)
 	{
 		// Should we start the pause?
-		if (Left4Bots.BotShouldStartPause(self, UserId, Origin, isHealOrder, maxSeparation))
+		if (canStartPause && Left4Bots.BotShouldStartPause(self, UserId, Origin, SM_IsStuck, isHealOrder, maxSeparation))
 		{
 			// Yes, let's give control back to the vanilla AI
 			Paused = Time();
@@ -1275,7 +1367,7 @@ enum AI_DOOR_ACTION {
 	else if (followEnt || (Time() - Paused) >= Left4Bots.Settings.pause_min_time) // Only stop the pause if at least pause_min_time seconds passed, or we are following someone
 	{
 		// Should we stop the pause?
-		if ((!followEnt || (followEnt.GetOrigin() - Origin).Length() > followRange) && Left4Bots.BotShouldStopPause(self, UserId, Origin, isHealOrder, maxSeparation))
+		if ((!followEnt || (followEnt.GetOrigin() - Origin).Length() > followRange) && Left4Bots.BotShouldStopPause(self, UserId, Origin, SM_IsStuck, isHealOrder, maxSeparation))
 		{
 			// Yes, unpause and refresh the last MOVE if needed
 			Paused = 0;
@@ -1290,27 +1382,31 @@ enum AI_DOOR_ACTION {
 // Runs in the scope of the bot entity
 ::Left4Bots.BotOnPause <- function ()
 {
-	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Pause start");
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " [P]");
+	if (Left4Bots.Settings.pause_debug)
+		Say(self, "[P]", false);
 	
 	if (MovePos)
 		BotReset();
-	
-	if (Left4Bots.Settings.pause_debug)
-		Say(self, "[P]", false);
+		
+	// Reset movetype if needed
+	Waiting = false;
+	if (NetProps.GetPropInt(self, "movetype") == 0)
+		NetProps.SetPropInt(self, "movetype", 2);
+	NetProps.SetPropInt(self, "m_afButtonForced", NetProps.GetPropInt(self, "m_afButtonForced") & (~BUTTON_DUCK));
 }
 
 // Called when the bot stops the pause
 // Runs in the scope of the bot entity
 ::Left4Bots.BotOnResume <- function ()
 {
-	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Pause stop");
-	
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " [->]");
 	if (Left4Bots.Settings.pause_debug)
 		Say(self, "[->]", false);
 			
 	if (MoveType == AI_MOVE_TYPE.Order && CurrentOrder.OrderType == "lead")
 	{
-		if (CurrentOrder.DestPos /*&& GetFlowDistanceForPosition(Origin) > GetFlowDistanceForPosition(CurrentOrder.DestPos) */)
+		if (CurrentOrder.DestPos)
 		{
 			// If we are executing a "lead" order and, during the pause, we moved ahead of the next position, the last MOVE will take us backwards. Better finalize the order to re-calc the next position from here
 			BotFinalizeCurrentOrder();
@@ -1366,6 +1462,14 @@ enum AI_DOOR_ACTION {
 			//Left4Bots.SpeakRandomVocalize(bot, Left4Bots.VocalizerYes, RandomFloat(0.5, 1.0));
 			
 			order.DestRadius <- Left4Bots.Settings.move_end_radius_heal;
+			order.MaxSeparation <- 0;
+			break;
+		}
+		case "wait":
+		{
+			Left4Bots.SpeakRandomVocalize(bot, Left4Bots.VocalizerYes, RandomFloat(0.5, 1.0));
+			
+			order.DestRadius <- Left4Bots.Settings.move_end_radius_wait;
 			order.MaxSeparation <- 0;
 			break;
 		}
@@ -1616,13 +1720,14 @@ enum AI_DOOR_ACTION {
 		return false;
 	}
 	
-	if (Left4Bots.SurvivorCantMove(bot))
+	local scope = bot.GetScriptScope();
+	
+	if (Left4Bots.SurvivorCantMove(bot, scope.Waiting))
 	{
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " can't execute High Priority MOVE now; bot can't move");
 		return false;
 	}
 	
-	local scope = bot.GetScriptScope();
 	scope.MoveType = AI_MOVE_TYPE.HighPriority;
 	scope.BotMoveTo(destPos, true);
 	
@@ -1640,12 +1745,6 @@ enum AI_DOOR_ACTION {
 		return false;
 	}
 	
-	if (Left4Bots.SurvivorCantMove(bot))
-	{
-		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " can't throw now; bot can't move");
-		return false;
-	}
-	
 	local throwItem = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_THROW);
 	if (!throwItem || !throwItem.IsValid())
 	{
@@ -1654,6 +1753,13 @@ enum AI_DOOR_ACTION {
 	}
 	
 	local scope = bot.GetScriptScope();
+	
+	if (Left4Bots.SurvivorCantMove(bot, scope.Waiting))
+	{
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " can't throw now; bot can't move");
+		return false;
+	}
+	
 	scope.ThrowType = AI_THROW_TYPE.Manual;
 	scope.ThrowTarget = destPos;
 	scope.ThrowStartedOn = Time();

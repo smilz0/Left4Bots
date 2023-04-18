@@ -1,3 +1,28 @@
+/* TODO:
+
+- (L4F): scripted vocalizer per far dire altre frasi con le prime parole di ogni frase (tipo: "[survivor] [delay] [duration] [scene]" -> [survivor] play [scene] after [delay] then cancel after [duration]...)
+
+
+- Dodge rock come col charger
+- Pickup all
+- Heal da solo e rescue pure
+- sb_unstick 0 e gestire l'unstick (magari teleportarlo dietro, davanti solo se sta da solo o è indietro?)
+- auto crown witch
+- manual attack headshot
+- Reset should reset pause?
+- Cancel heal near saferoom
+
+----- IMPROV:
+
+- Lead detour
+- l4u
+- close saferoom door
+- 'wait'
+- Spit/Flames not stuck
+- 'follow' (new)
+
+*/
+
 //------------------------------------------------------
 //     Author : smilzo
 //     https://steamcommunity.com/id/smilz0
@@ -39,7 +64,7 @@ IncludeScript("left4bots_requirements");
 		// How long do the bots hold down the button to heal
 		button_holdtime_heal = 5.3
 		
-		// How long do the bots hold down a button to do single tap button press (it has to last at least 2 ticks, so it must be greater than 0.033333 or the weapons firing can fail)
+		// How long do the bots hold down a button to do single tap button press (it needs to last at least 2 ticks, so it must be greater than 0.033333 or the weapons firing can fail)
 		button_holdtime_tap = 0.04
 		
 		// Chance that the bot will chat one of the BG lines at the end of the campaign (if dead or incapped)
@@ -53,11 +78,11 @@ IncludeScript("left4bots_requirements");
 		
 		// When the last bot steps into the saferoom he will start the close door procedure when his distance from the door is > than this
 		// This is meant to make sure that the bot is actually inside and will not lock himself out
-		// NOTE: Maps with bad navmesh (CHECKPOINT nav areas outside of the actual saferoom) might still make the bots lock themselves out. I you can try increasing this in such cases
+		// NOTE: Maps with bad navmesh (CHECKPOINT nav areas outside of the actual saferoom) might still make the bots lock themselves out. You can try increasing this in such cases
 		close_saferoom_door_distance = 70
 		
 		// [1/0] 1 = The close door AI code runs every think tick (15 times per second by default). 0 = Run rate is 1/5 (3 times per second default)
-		// Basically with 1 the bots will quickly close the door as soon as they are inside. 0 adds more variation with some chance that the bot will step inside further and then go back to the door after a couple of seconds
+		// Basically with 1 the bots will quickly close the door as soon as they are inside. 0 adds more variation with some chance that the bot will step inside further and then go back to the door after a moment
 		close_saferoom_door_highres = 0
 		
 		// Dead survivors to defib must be within this radius
@@ -68,6 +93,9 @@ IncludeScript("left4bots_requirements");
 		
 		// When survivor bots find a dead survivor to defib but they don't have a defib, they will consider picking up and use defibs within this radius from the dead survivor
 		deads_scan_defibradius = 250
+		
+		// [1/0] 1 = Bots will automatically deploy upgrade packs when near other teammates
+		deploy_upgrades = 1
 		
 		// [1/0] Enable/Disable charger dodging
 		dodge_charger = 1
@@ -91,6 +119,10 @@ IncludeScript("left4bots_requirements");
 		// But if, for some reason, the open/close door fails (too far or something) the door will be forced to open/close by the addon after this delay
 		door_failsafe_delay = 0.15
 		
+		// If the bot's falling (vertical) velocity is > than this, he will be safely teleported to a random teammate. 0 = disabled
+		// Can be set to the value of one of the game's cvars "fall_speed_fatal" (default val. 720), "fall_speed_safe" (560) to avoid insta-death or any damage at all respectively
+		fall_velocity_warp = 0
+		
 		// Name of the file containing the BG chat lines
 		file_bg = "left4bots2/cfg/bg.txt"
 		
@@ -106,10 +138,11 @@ IncludeScript("left4bots_requirements");
 		// Name of the file with the vocalizer/command mapping
 		file_vocalizer = "left4bots2/cfg/vocalizer.txt"
 		
-		// When executing a 'follow' order, the bot will start pause when within move_end_radius_follow from the followed entity, but will only resume when farther than follow_pause_radius, so this has to be > move_end_radius_follow
+		// When executing a 'follow' order, the bot will start pause when within move_end_radius_follow from the followed entity,
+		// but will only resume when farther than follow_pause_radius, so this has to be > than move_end_radius_follow
 		follow_pause_radius = 220
 		
-		// [1/0] Should the bots give their medkits/defibrillators to human players? // TODO: admins?
+		// [1/0] Should the bots give their medkits/defibrillators to human players?
 		give_bots_medkits = 1
 		
 		// [1/0] Should the bots give their pills/adrenaline to human players?
@@ -131,10 +164,10 @@ IncludeScript("left4bots_requirements");
 		give_max_range = 270
 		
 		// (1/0) Should the L4B AI handle the extra L4D1 survivors (spawned in some maps like "The Passing" or manually by some admin addon)?
-		// Does not affect the L4D1 survivors spawned as the main team, they are always handled
+		// This does only apply when the main team is the L4D2 one, it has no effect when the L4D1 survivors are spawned as the main team
 		handle_l4d1_survivors = 0
 		
-		// When the bot tries to heal with a health >= this (usually they do it in the start saferoom) the addon will interrupt it, unless there is no human in the team
+		// When the bot tries to heal with health >= this (usually they do it in the start saferoom) the addon will interrupt it, unless there is no human in the team
 		// or there are enough spare medkits around for the bot and the teammates who also need it
 		heal_interrupt_minhealth = 50
 		
@@ -165,11 +198,19 @@ IncludeScript("left4bots_requirements");
 		// >0 = each segment calculation of the 'lead' order is drawn on screen for this amount of time (only the host can see it). 0 = Disable
 		lead_debug_duration = 0
 		
-		// Max(ish) distance of a single MOVE segment when executing the 'lead' order
-		lead_max_segment = 600
+		// If during the 'lead' order, a blocked nav area is found, the algorithm will try to find an alternate route to get past the blocked area. This is the max distance of the alternate route
+		// Set 0 to disable the alternate route calculation and just stop at the blocked area
+		lead_detour_maxdist = 5000
 		
-		// Max distance from the other survivors when executing the 'lead' order. Bot will pause the leading when too far (0 = no limit)
-		lead_max_separation = 1000
+		// [1/0] If 1, lead segments will avoid to end on nav areas with DAMAGING attribute (such as areas with fire and spitter's spit),
+		// so the vanilla nav system of the bot can try to avoid such areas and take an alternate route (if possible)
+		lead_dontstop_ondamaging = 1
+		
+		// Max(ish) distance of a single MOVE segment when executing the 'lead' order
+		lead_max_segment = 800
+		
+		// Max distance from human survivors when executing the 'lead' order. Bot will pause the leading when too far (0 = no limit)
+		lead_max_separation = 1200
 		
 		// Min distance of a single MOVE segment when executing the 'lead' order (if the next segment's end is closer than this, it means that the goal was reached and the 'lead' is done)
 		lead_min_segment = 100
@@ -192,25 +233,28 @@ IncludeScript("left4bots_requirements");
 		// While executing MOVE commands, this is the max distance of the enemies that the bot will shoot
 		manual_attack_radius = 600
 		
-		// Minimum distance from the destination position for setting the travel done
+		// Maximum distance from a generic destination position for setting the travel done
 		move_end_radius = 30
 		
-		// Minimum distance from the destination dead teammate before starting to defib
+		// Maximum distance from the destination dead teammate before starting to defib
 		move_end_radius_defib = 80
 		
-		// Minimum distance from the destination door before open/close it
-		move_end_radius_door = 100
+		// Maximum distance from the destination door before open/close it
+		move_end_radius_door = 110
 		
-		// Minimum distance from the destination teammate before starting to heal him
+		// Maximum distance from the destination teammate before starting to heal him
 		move_end_radius_heal = 80
 		
-		// Minimum distance from the destination position for setting the 'lead' travel done
-		move_end_radius_lead = 85
+		// Maximum distance from the destination position for setting the 'lead' travel done
+		move_end_radius_lead = 110
 		
-		// Minimum distance from the followed entity for setting the 'follow' travel done
+		// Maximum distance from the followed entity for setting the 'follow' travel done
 		move_end_radius_follow = 100
 		
-		// Minimum distance from the destination witch before starting to shoot her
+		// Maximum distance from the 'wait' position before stopping
+		move_end_radius_wait = 150
+		
+		// Maximum distance from the destination witch before starting to shoot her
 		move_end_radius_witch = 55
 		
 		// [1/0] Enable/Disable debug chat messages when the bot starts/stops the pause
@@ -283,20 +327,41 @@ IncludeScript("left4bots_requirements");
 		// UI/LittleReward.wav (Played on all the players except the giver)
 		sound_give_others = "Hint.LittleReward"
 		
+		// [1/0] Enable/Disable debug chat messages of the stuck detection algorithm
+		stuck_debug = 0
+		
+		// [1/0] Enable/Disable the stuck detection algorithm
+		stuck_detection = 1
+		
+		// [1/0] 1 = Unstuck is also triggered as soon the bot stops moving. 0 = Only when his movement is > stuck_range
+		stuck_nomove_unstuck = 1
+		
+		// Range used by the stuck detection algorithm
+		stuck_range = 100.0
+		
+		// Min time to be considered stuck
+		stuck_time = 2.9
+		
+		// [1/0] Enable/Disable replenish ammo for T3 weapon by bots
+		t3_ammo_bots = 1
+		
+		// [1/0] Enable/Disable replenish ammo for T3 weapon by humans
+		t3_ammo_human = 1 // TODO: 0
+		
 		// Chance that the bot will throw the molotov at the tank (this check runs multiple times in a second while the tank is in range, so this chance must be pretty low to have an actual chance of no throw)
 		tank_molotov_chance = 25
 		
 		// Chance that the bot will throw the bile jar at the tank (this check runs multiple times in a second while the tank is in range, so this chance must be pretty low to have an actual chance of no throw)
 		tank_vomitjar_chance = 1
 		
-		// Tanks with health lower than this do not become molotov/bile jar targets
+		// Tanks with health lower than this will not become molotov/bile jar targets
 		tank_throw_min_health = 1500
 		
 		// Minimum bot's distance to a tank for throwing molotovs/bile jars at the tank
 		tank_throw_range_min = 200
 		
 		// Maximum bot's distance to a tank for throwing molotovs/bile jars at the tank
-		tank_throw_range_max = 1200
+		tank_throw_range_max = 1300
 
 		// Minimum distance between the tank and the other survivors for throwing molotovs at the tank
 		tank_throw_survivors_mindistance = 240
@@ -355,7 +420,7 @@ IncludeScript("left4bots_requirements");
 		// Comma separated vocalizer commands to speak when the bot ends the 'goto' order (command to speak will be a random one from this list)
 		vocalizer_goto_stop = "PlayerAnswerLostCall,PlayerLostCall"
 		
-		// Chance that the bots will laugh after you laugh
+		// Chance that the bots will laugh when you laugh
 		vocalizer_laugh_chance = 30
 		
 		// Comma separated vocalizer commands to speak when the bot starts the 'lead' order (command to speak will be a random one from this list)
@@ -375,13 +440,21 @@ IncludeScript("left4bots_requirements");
 		
 		// Chance that the bot you are looking at will vocalize "You welcome" after your "Thanks"
 		vocalizer_youwelcome_chance = 90
+		
+		// [1/0] While executing the 'wait' order the bot will wait crouch (1) or standing (0)
+		wait_crouch = 0
+		
+		// [1/0] If 1, the bots will not pause the 'wait' order
+		// This means that they will keep holding their positions even if there are special infected around, teammates who need help etc. But they will still move to do higher priority tasks (like charger/spit dodging/defib etc.)
+		wait_nopause = 0
 	}
 	OrderPriorities = // Orders and their priorities (orders with lower priority are shifted back in the queue when orders with higher priority are added)
 	{
 		lead = 0
-		follow = 1
+		follow = 0
+		goto = 1
+		wait = 1
 		use = 2
-		goto = 2
 		heal = 2
 		witch = 3
 	}
@@ -432,7 +505,7 @@ IncludeScript("left4bots_requirements");
 {
 	if (Left4Bots.Initialized)
 	{
-		// For some reason, when Initialize is called, LOG_LEVEL* consts contained in left4lib are not available yet...
+		// LOG_LEVEL* consts contained in left4lib are not available yet...
 		printl("[L4B][DEBUG] Already initialized");
 		
 		return;
@@ -448,7 +521,8 @@ IncludeScript("left4bots_requirements");
 	
 	// TODO: convars
 	Convars.SetValue("sb_debug_apoproach_wait_time", 0.5);
-	//Convars.SetValue("sb_unstick", 0);
+	Convars.SetValue("sb_enforce_proximity_range", 20000);
+	// Convars.SetValue("sb_unstick", 0);  // TODO: Posso farlo unstickare io
 	
 	// Put the vocalizer lines into arrays
 	if (Left4Bots.Settings.vocalizer_lead_start != "")
@@ -461,6 +535,15 @@ IncludeScript("left4bots_requirements");
 		Left4Bots.VocalizerYes = split(Left4Bots.Settings.vocalizer_yes, ",");
 	
 	Left4Bots.Initialized = true;
+	
+	try
+	{
+		IncludeScript("left4bots_afterinit");
+	}
+	catch(exception)
+	{
+		error("[L4B][ERROR] Exception in left4bots_afterinit.nut: " + exception + "\n");
+	}
 }
 
 ::Left4Bots.AddonStop <- function ()
@@ -623,7 +706,7 @@ IncludeScript("left4bots_requirements");
 }
 
 // Is the given survivor actually immobilized and cannot do anything?
-::Left4Bots.SurvivorCantMove <- function (survivor)
+::Left4Bots.SurvivorCantMove <- function (survivor, waiting = false) // 'wait' order sets movetype to 0, which makes IsImmobilized() return true and we don't want to return true for that
 {
 	// IsHangingFromLedge = hanging from ledge
 	// IsIncapacitated = down or hanging from ledge
@@ -633,27 +716,27 @@ IncludeScript("left4bots_requirements");
 	// IsDying = dying
 	// IsImmobilized = down, hanging from ledge, dominated by special (except jockey), dying, healing, being healed, reviving, being revived, punched by tank
 	
-	return (survivor.IsImmobilized() || survivor.IsDominatedBySpecialInfected() || survivor.IsStaggering());
+	return ((!waiting && survivor.IsImmobilized()) || survivor.IsDominatedBySpecialInfected() || survivor.IsStaggering());
 }
 
 // Should the bot's AI start the pause and temporarily give control to the vanilla AI?
-::Left4Bots.BotShouldStartPause <- function (bot, userid, orig, isHealOrder = false, maxSeparation = 0)
+::Left4Bots.BotShouldStartPause <- function (bot, userid, orig, isstuck, isHealOrder = false, maxSeparation = 0)
 {
 	local aw = bot.GetActiveWeapon();
 	if (maxSeparation)
-		return bot.IsIT() || (!isHealOrder && aw && aw.GetClassname() == "weapon_first_aid_kit") || Left4Bots.IsFarFromOtherSurvivors(userid, orig, maxSeparation) || Left4Bots.HasTanksWithin(orig, 800) || Left4Bots.BotWillUseMeds(bot) || Left4Bots.HasVisibleSpecialInfectedWithin(bot, orig, 400) || Left4Bots.HasWitchesWithin(orig, 300, 100) || Left4Bots.SurvivorsHeldOrIncapped() || Left4Bots.HasAngryCommonsWithin(orig, 4, 160, 100);
+		return isstuck || bot.IsIT() || (!isHealOrder && aw && aw.GetClassname() == "weapon_first_aid_kit") || /*Left4Bots.IsFarFromOtherSurvivors(userid, orig, maxSeparation)*/ Left4Bots.IsFarFromHumanSurvivors(userid, orig, maxSeparation) || Left4Bots.HasTanksWithin(orig, 800) || Left4Bots.BotWillUseMeds(bot) || Left4Bots.HasVisibleSpecialInfectedWithin(bot, orig, 400) || Left4Bots.HasWitchesWithin(orig, 300, 100) || Left4Bots.SurvivorsHeldOrIncapped() || Left4Bots.HasAngryCommonsWithin(orig, 4, 160, 100);
 	else
-		return bot.IsIT() || (!isHealOrder && aw && aw.GetClassname() == "weapon_first_aid_kit") || Left4Bots.HasTanksWithin(orig, 800) || Left4Bots.BotWillUseMeds(bot) || Left4Bots.HasVisibleSpecialInfectedWithin(bot, orig, 400) || Left4Bots.HasWitchesWithin(orig, 300, 100) || Left4Bots.SurvivorsHeldOrIncapped() || Left4Bots.HasAngryCommonsWithin(orig, 4, 160, 100);
+		return isstuck || bot.IsIT() || (!isHealOrder && aw && aw.GetClassname() == "weapon_first_aid_kit") || Left4Bots.HasTanksWithin(orig, 800) || Left4Bots.BotWillUseMeds(bot) || Left4Bots.HasVisibleSpecialInfectedWithin(bot, orig, 400) || Left4Bots.HasWitchesWithin(orig, 300, 100) || Left4Bots.SurvivorsHeldOrIncapped() || Left4Bots.HasAngryCommonsWithin(orig, 4, 160, 100);
 }
 
 // Should the bot's AI stop the pause?
-::Left4Bots.BotShouldStopPause <- function (bot, userid, orig, isHealOrder = false, maxSeparation = 0)
+::Left4Bots.BotShouldStopPause <- function (bot, userid, orig, isstuck, isHealOrder = false, maxSeparation = 0)
 {
 	local aw = bot.GetActiveWeapon();
 	if (maxSeparation)
-		return /*!bot.IsIT() &&*/ (isHealOrder || !aw || aw.GetClassname() != "weapon_first_aid_kit") && !bot.IsInCombat() && !Left4Bots.IsFarFromOtherSurvivors(userid, orig, maxSeparation) && !Left4Bots.HasTanksWithin(orig, 800) && !Left4Bots.BotWillUseMeds(bot) && !Left4Bots.HasVisibleSpecialInfectedWithin(bot, orig, 400) && !Left4Bots.HasWitchesWithin(orig, 300, 100) && !Left4Bots.SurvivorsHeldOrIncapped();
+		return !isstuck && /*!bot.IsIT() &&*/ (isHealOrder || !aw || aw.GetClassname() != "weapon_first_aid_kit") && !bot.IsInCombat() && /*!Left4Bots.IsFarFromOtherSurvivors(userid, orig, maxSeparation)*/ !Left4Bots.IsFarFromHumanSurvivors(userid, orig, maxSeparation) && !Left4Bots.HasTanksWithin(orig, 800) && !Left4Bots.BotWillUseMeds(bot) && !Left4Bots.HasVisibleSpecialInfectedWithin(bot, orig, 400) && !Left4Bots.HasWitchesWithin(orig, 300, 100) && !Left4Bots.SurvivorsHeldOrIncapped();
 	else
-		return /*!bot.IsIT() &&*/ (isHealOrder || !aw || aw.GetClassname() != "weapon_first_aid_kit") && !bot.IsInCombat() && !Left4Bots.HasTanksWithin(orig, 800) && !Left4Bots.BotWillUseMeds(bot) && !Left4Bots.HasVisibleSpecialInfectedWithin(bot, orig, 400) && !Left4Bots.HasWitchesWithin(orig, 300, 100) && !Left4Bots.SurvivorsHeldOrIncapped();
+		return !isstuck && /*!bot.IsIT() &&*/ (isHealOrder || !aw || aw.GetClassname() != "weapon_first_aid_kit") && !bot.IsInCombat() && !Left4Bots.HasTanksWithin(orig, 800) && !Left4Bots.BotWillUseMeds(bot) && !Left4Bots.HasVisibleSpecialInfectedWithin(bot, orig, 400) && !Left4Bots.HasWitchesWithin(orig, 300, 100) && !Left4Bots.SurvivorsHeldOrIncapped();
 }
 
 // Will the vanilla AI use meds?
@@ -973,6 +1056,19 @@ IncludeScript("left4bots_requirements");
 			return false;
 	}
 	return true;
+}
+
+// Returns the list of survivors alive (excluding the one with the given userid)
+::Left4Bots.GetOtherAliveSurvivors <- function (userid)
+{
+	local t = {};
+	local i = -1;
+	foreach (surv in ::Left4Bots.Survivors)
+	{
+		if (surv.IsValid() && surv.GetPlayerUserId() != userid)
+			t[++i] <- surv;
+	}
+	return t;
 }
 
 // Returns the list of alive human survivors (excluding the one with the given userid)
@@ -1343,7 +1439,7 @@ IncludeScript("left4bots_requirements");
 }
 
 // 'bot' will try to dodge the 'spit'
-::Left4Bots.TryDodgeSpit <- function (bot, spit = null)
+::Left4Bots.TryDodgeSpit <- function (bot, spit = null) // TODO: Improve (maybe just move to the position of a teammate who is not in spit radius)
 {
 	local p2 = bot.GetOrigin();
 	local p1 = p2;
@@ -1351,28 +1447,14 @@ IncludeScript("left4bots_requirements");
 		p1 = spit.GetOrigin();
 
 	local i = 0;
-	while (i < 6 && (p1 - p2).Length() <= Left4Bots.Settings.dodge_spit_radius)
+	while ((p1 - p2).Length() <= Left4Bots.Settings.dodge_spit_radius && ++i <= 6)
 	{
 		Left4Bots.Log(LOG_LEVEL_DEBUG, bot.GetPlayerName() + ".TryGetPathableLocationWithin - i = " + i);
 		p2 = bot.TryGetPathableLocationWithin(Left4Bots.Settings.dodge_spit_radius + 150);
-		i++;
 	}
 	
-	if (i == 0)
-		return; // No need to move
-	
-	/* TODO?
-	if (Convars.GetFloat("sb_hold_position") != 0 && !Left4Bots.Settings.keep_holding_position)
-	{
-		// Stop holding position if one or more bots are going to be hit by the spitter's spit
-		Convars.SetValue("sb_hold_position", 0);
-		Convars.SetValue("sb_enforce_proximity_range", Left4Bots.Old_sb_enforce_proximity_range);
-		if (Left4Bots.Settings.wait_crouch)
-			Convars.SetValue("sb_crouch", 0);
-	}
-	*/
-	
-	Left4Bots.BotHighPriorityMove(bot, p2);
+	if (i > 0 && i <= 6)
+		Left4Bots.BotHighPriorityMove(bot, p2);
 }
 
 // 'bot' will try to dodge the 'charger'
@@ -1534,19 +1616,6 @@ IncludeScript("left4bots_requirements");
 	return true;
 }
 
-// Returns the list of survivors alive (excluding the one with the given userid)
-::Left4Bots.GetOtherAliveSurvivors <- function (userid)
-{
-	local t = {};
-	local i = -1;
-	foreach (surv in ::Left4Bots.Survivors)
-	{
-		if (surv.IsValid() && surv.GetPlayerUserId() != userid)
-			t[++i] <- surv;
-	}
-	return t;
-}
-
 // Are there enough spare medkits around for the teammates who need them and 'me'?
 ::Left4Bots.HasSpareMedkitsAround <- function (me)
 {
@@ -1651,9 +1720,83 @@ IncludeScript("left4bots_requirements");
 	return ret;
 }
 
+// Checks whether the given player should deploy the carried upgrade pack (if any)
+// Returns the class name of the upgrade pack to deploy or null if can't/shouldn't deploy now
+// query is the OnConcept query
+::Left4Bots.ShouldDeployUpgrades <- function (player, query)
+{
+	if (!player || !player.IsValid())
+		return null;
+	
+	local item = Left4Utils.GetInventoryItemInSlot(player, INV_SLOT_MEDKIT);
+	if (!item)
+		return null;
+	
+	local itemClass = item.GetClassname();
+	if (itemClass != "weapon_upgradepack_incendiary" && itemClass != "weapon_upgradepack_explosive")
+		return null;
+	
+	if ((("incheckpoint" in query) && query.incheckpoint != 0) || (("BotIsNearCheckpoint" in query) && query.BotIsNearCheckpoint != 0) || (("incombat" in query) && query.incombat != 0) || (("InCombatMusic" in query) && query.InCombatMusic != 0))
+		return null;
+	
+	if ((("incapacitated" in query) && query.incapacitated != 0) || (("hangingfromledge" in query) && query.hangingfromledge != 0) || (("onfire" in query) && query.onfire != 0) || (("beinghealed" in query) && query.beinghealed != 0))
+		return null;
+		
+	if ((("hangingfromtongue" in query) && query.hangingfromtongue != 0) || (("pouncevictim" in query) && query.pouncevictim != 0) || (("beingjockeyed" in query) && query.beingjockeyed != 0))
+		return null;
+	
+	if (("activeweapon" in query) && (query.activeweapon == "UpgradePack_Incendiary" || query.activeweapon == "UpgradePack_Explosive"))
+		return null;
+	
+	if ((!("instartarea" in query) || query.instartarea == 0) && (!("disttoclosestsurvivor" in query) || query.disttoclosestsurvivor > 100))
+		return null;
+	
+	local primary = Left4Utils.GetInventoryItemInSlot(player, INV_SLOT_PRIMARY);
+	if (primary && NetProps.GetPropInt(primary, "m_nUpgradedPrimaryAmmoLoaded") > 5)
+		return null;
+	
+	if (Left4Bots.SurvivorsHeldOrIncapped())
+		return null;
+	
+	return itemClass;
+}
+
+// Finalize the upgrade pack deploy procedure
+::Left4Bots.DoDeployUpgrade <- function (player)
+{
+	if (!player || !player.IsValid())
+		return;
+	
+	local item = player.GetActiveWeapon();
+	if (!item)
+		return;
+	
+	local itemClass = item.GetClassname();
+	
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "Bot " + player.GetPlayerName() + " switched to upgrade " + itemClass);
+	
+	if (itemClass != "weapon_upgradepack_incendiary" && itemClass != "weapon_upgradepack_explosive")
+		return;
+	
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "Bot " + player.GetPlayerName() + " deploying upgrade " + itemClass);
+	
+	Left4Utils.PlayerPressButton(player, BUTTON_ATTACK, 2.2, null, 0, 0, true);
+}
+
 //
 
 IncludeScript("left4bots_ai");
 IncludeScript("left4bots_events");
+
+try
+{
+	IncludeScript("left4bots_afterload");
+}
+catch(exception)
+{
+	error("[L4B][ERROR] Exception in left4bots_afterload.nut: " + exception + "\n");
+}
+
+__CollectEventCallbacks(::Left4Bots.Events, "OnGameEvent_", "GameEventCallbacks", RegisterScriptGameEventListener);
 
 Left4Bots.Initialize();
