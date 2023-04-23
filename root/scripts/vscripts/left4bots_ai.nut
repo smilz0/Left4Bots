@@ -44,6 +44,8 @@ enum AI_DOOR_ACTION {
 	scope.MoveEnt <- null;
 	scope.MovePos <- null;
 	scope.MoveType <- AI_MOVE_TYPE.None;
+	scope.MoveTime <- 0;
+	scope.MoveTimeout <- 0;
 	scope.NeedMove <- 0;
 	scope.CanReset <- true;
 	scope.DelayedReset <- false;
@@ -157,7 +159,7 @@ enum AI_DOOR_ACTION {
 	if (MovePos && MoveType == AI_MOVE_TYPE.HighPriority)
 	{
 		// Lets see if we reached our high priority destination...
-		if ((Origin - MovePos).Length() <= Left4Bots.Settings.move_end_radius)  // TODO: apparently TryGetPathableLocationWithin can return a position under cars and other big obstacles. This will make the MOVE try to get there indefinitely. Maybe add a timeout to reset it?
+		if ((Origin - MovePos).Length() <= Left4Bots.Settings.move_end_radius || (Time() - MoveTime) >= MoveTimeout)
 		{
 			// Yes, we did
 			
@@ -215,11 +217,20 @@ enum AI_DOOR_ACTION {
 	}
 	else
 	{
-		if (Left4Bots.Settings.shove_specials_radius > 0 && Time() >= NetProps.GetPropFloat(self, "m_flNextShoveTime"))
+		if (Time() >= NetProps.GetPropFloat(self, "m_flNextShoveTime"))
 		{
-			local target = Left4Bots.GetSpecialInfectedToShove(self, Origin);
+			local target = null;
+			if (Left4Bots.Settings.shove_tonguevictim_radius > 0)
+				target = Left4Bots.GetTongueVictimToShove(self, Origin);
+			
 			if (target)
-				Left4Utils.PlayerPressButton(self, BUTTON_SHOVE, Left4Bots.Settings.button_holdtime_tap, target, Left4Bots.Settings.shove_specials_deltapitch, 0, false);
+				Left4Utils.PlayerPressButton(self, BUTTON_SHOVE, Left4Bots.Settings.button_holdtime_tap, target, Left4Bots.Settings.shove_tonguevictim_deltapitch, 0, false);
+			else if (Left4Bots.Settings.shove_specials_radius > 0)
+			{
+				target = Left4Bots.GetSpecialInfectedToShove(self, Origin);
+				if (target)
+					Left4Utils.PlayerPressButton(self, BUTTON_SHOVE, Left4Bots.Settings.button_holdtime_tap, target, Left4Bots.Settings.shove_specials_deltapitch, 0, false);
+			}
 		}
 		
 		Left4Utils.PlayerEnableButton(self, BUTTON_RELOAD);
@@ -751,7 +762,7 @@ enum AI_DOOR_ACTION {
 // Handles the bot's enemy shoot/shove logics while the bot is executing a MOVE command
 // Returns whether the bot is allowed to reload his current weapon or not
 // Runs in the scope of the bot entity
-::Left4Bots.BotManualAttack <- function () // TODO: Shove teammates hanging from tongue
+::Left4Bots.BotManualAttack <- function ()
 {
 	local target = null;
 	local targetDeltaPitch = Left4Bots.Settings.shove_commons_deltapitch;
@@ -759,17 +770,20 @@ enum AI_DOOR_ACTION {
 	{
 		// Can shove
 		
-		// Is there a special infected to shove?
-		if (Left4Bots.Settings.shove_specials_radius > 0)
-			target = Left4Bots.GetSpecialInfectedToShove(self, Origin);
+		// Is there any tongue victim teammate to shove?
+		if (Left4Bots.Settings.shove_tonguevictim_radius > 0)
+			target = Left4Bots.GetTongueVictimToShove(self, Origin);
 		
 		if (target)
-			targetDeltaPitch = Left4Bots.Settings.shove_specials_deltapitch;
-		else
+			targetDeltaPitch = Left4Bots.Settings.shove_tonguevictim_deltapitch; // Yes
+		else if (Left4Bots.Settings.shove_specials_radius > 0)
 		{
-			// No. Any common?
-			if (Left4Bots.Settings.shove_commons_radius > 0)
-				target = Left4Utils.GetFirstVisibleCommonInfectedWithin(self, Left4Bots.Settings.shove_commons_radius);
+			// No. Any special infected?
+			target = Left4Bots.GetSpecialInfectedToShove(self, Origin);
+			if (target)
+				targetDeltaPitch = Left4Bots.Settings.shove_specials_deltapitch; // Yes
+			else if (Left4Bots.Settings.shove_commons_radius > 0)
+				target = Left4Utils.GetFirstVisibleCommonInfectedWithin(self, Left4Bots.Settings.shove_commons_radius); // No. Any common?
 		}
 	}
 	
@@ -1357,11 +1371,15 @@ enum AI_DOOR_ACTION {
 	if (Paused == 0)
 	{
 		// Should we start the pause?
-		if (canStartPause && Left4Bots.BotShouldStartPause(self, UserId, Origin, SM_IsStuck, isHealOrder, maxSeparation))
+		if (canStartPause)
 		{
-			// Yes, let's give control back to the vanilla AI
-			Paused = Time();
-			BotOnPause();
+			local r = Left4Bots.BotShouldStartPause(self, UserId, Origin, SM_IsStuck, isHealOrder, maxSeparation);
+			if (r)
+			{
+				// Yes, let's give control back to the vanilla AI
+				Paused = Time();
+				BotOnPause(r);
+			}
 		}
 	}
 	else if (followEnt || (Time() - Paused) >= Left4Bots.Settings.pause_min_time) // Only stop the pause if at least pause_min_time seconds passed, or we are following someone
@@ -1380,12 +1398,8 @@ enum AI_DOOR_ACTION {
 
 // Called when the bot starts the pause
 // Runs in the scope of the bot entity
-::Left4Bots.BotOnPause <- function ()
+::Left4Bots.BotOnPause <- function (reason = true)
 {
-	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " [P]");
-	if (Left4Bots.Settings.pause_debug)
-		Say(self, "[P]", false);
-	
 	if (MovePos)
 		BotReset();
 		
@@ -1394,6 +1408,113 @@ enum AI_DOOR_ACTION {
 	if (NetProps.GetPropInt(self, "movetype") == 0)
 		NetProps.SetPropInt(self, "movetype", 2);
 	NetProps.SetPropInt(self, "m_afButtonForced", NetProps.GetPropInt(self, "m_afButtonForced") & (~BUTTON_DUCK));
+	
+	// reason is actually the return value of Left4Bots.BotShouldStartPause (but cannot be false here)
+	// - ent (entity of the special infected / tank / witch that is the reason to start the pause)
+	// - 1 (common infected horde)
+	// - true (any other reason)
+	if (reason == true)
+		reason = "other";
+	else if (reason == 1)
+	{
+		reason = "horde";
+		if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_onpause_horde_chance)
+			DoEntFire("!self", "SpeakResponseConcept", "PlayerIncoming", RandomFloat(0, 0.8), null, self);
+	}
+	else
+	{
+		if (reason.GetClassname() == "witch")
+		{
+			// TODO? auto crown
+			
+			reason = "witch";
+			if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_onpause_witch_chance)
+				DoEntFire("!self", "SpeakResponseConcept", "PlayerWarnWitch", RandomFloat(0, 0.8), null, self);
+		}
+		else
+		{
+			// player
+			switch (reason.GetZombieType())
+			{
+				case Z_SMOKER:
+				{
+					Left4Timers.AddTimer(null, 0.01, @(params) Left4Utils.BotCmdAttack(params.bot, params.target), { bot = self, target = reason });
+					
+					reason = "smoker";
+					if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_onpause_special_chance)
+						DoEntFire("!self", "SpeakResponseConcept", "PlayerWarnSmoker", RandomFloat(0, 0.8), null, self);
+					
+					break;
+				}
+				case Z_BOOMER:
+				{
+					Left4Timers.AddTimer(null, 0.01, @(params) Left4Utils.BotCmdAttack(params.bot, params.target), { bot = self, target = reason });
+					
+					reason = "boomer";
+					if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_onpause_special_chance)
+						DoEntFire("!self", "SpeakResponseConcept", "PlayerWarnBoomer", RandomFloat(0, 0.8), null, self);
+					
+					break;
+				}
+				case Z_HUNTER:
+				{
+					Left4Timers.AddTimer(null, 0.01, @(params) Left4Utils.BotCmdAttack(params.bot, params.target), { bot = self, target = reason });
+					
+					reason = "hunter";
+					if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_onpause_special_chance)					
+						DoEntFire("!self", "SpeakResponseConcept", "PlayerWarnHunter", RandomFloat(0, 0.8), null, self);
+						
+					break;
+				}
+				case Z_SPITTER:
+				{
+					Left4Timers.AddTimer(null, 0.01, @(params) Left4Utils.BotCmdAttack(params.bot, params.target), { bot = self, target = reason });
+					
+					reason = "spitter";
+					if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_onpause_special_chance)
+						DoEntFire("!self", "SpeakResponseConcept", "PlayerWarnSpitter", RandomFloat(0, 0.8), null, self);
+					
+					break;
+				}
+				case Z_JOCKEY:
+				{
+					Left4Timers.AddTimer(null, 0.01, @(params) Left4Utils.BotCmdAttack(params.bot, params.target), { bot = self, target = reason });
+					
+					reason = "jockey";
+					if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_onpause_special_chance)
+						DoEntFire("!self", "SpeakResponseConcept", "PlayerWarnJockey", RandomFloat(0, 0.8), null, self);
+
+					break;
+				}
+				case Z_CHARGER:
+				{
+					Left4Timers.AddTimer(null, 0.01, @(params) Left4Utils.BotCmdAttack(params.bot, params.target), { bot = self, target = reason });
+					
+					reason = "charger";
+					if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_onpause_special_chance)
+						DoEntFire("!self", "SpeakResponseConcept", "PlayerWarnCharger", RandomFloat(0, 0.8), null, self);
+					
+					break;
+				}
+				case Z_TANK:
+				{
+					reason = "tank";
+					if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_onpause_tank_chance)
+						DoEntFire("!self", "SpeakResponseConcept", "PlayerWarnTank", RandomFloat(0, 0.8), null, self);
+					
+					break;
+				}
+				default:
+				{
+					reason = "unknown";
+				}
+			}
+		}
+	}
+	
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " [P] (" + reason + ")");
+	if (Left4Bots.Settings.pause_debug)
+		Say(self, "[P] (" + reason + ")", false);
 }
 
 // Called when the bot stops the pause
@@ -1524,6 +1645,13 @@ enum AI_DOOR_ACTION {
 	local queueLen = scope.Orders.len();
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " - Inserted order (queue len " + queueLen + "): " + Left4Bots.BotOrderToString(order));
 	
+	if (Paused)
+	{
+		// Unpause
+		Paused = 0;
+		BotOnResume();
+	}
+	
 	return queueLen;
 }
 
@@ -1565,6 +1693,13 @@ enum AI_DOOR_ACTION {
 				scope.CurrentOrder = order; // Set CurrentOrder
 				
 				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " - New order set to CurrentOrder: " + Left4Bots.BotOrderToString(order));
+			}
+			
+			if (Paused)
+			{
+				// Unpause
+				Paused = 0;
+				BotOnResume();
 			}
 			
 			return 0;
@@ -1729,6 +1864,8 @@ enum AI_DOOR_ACTION {
 	}
 	
 	scope.MoveType = AI_MOVE_TYPE.HighPriority;
+	scope.MoveTime = Time();
+	scope.MoveTimeout = Left4Bots.Settings.move_hipri_timeout;
 	scope.BotMoveTo(destPos, true);
 	
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " - High Priority MOVE -> " + destPos);

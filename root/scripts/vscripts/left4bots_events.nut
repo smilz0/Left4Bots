@@ -27,10 +27,10 @@ Msg("Including left4bots_events...\n");
 	// Start the inventory manager
 	Left4Timers.AddTimer("InventoryManager", 0.7, Left4Bots.OnInventoryManager, {}, true);
 	
-	// Start the button listener
-	Left4Timers.AddThinker("L4BUTTON_LISTENER", 0.01, Left4Bots.OnButtonListener, {});
+	// Start the thinker
+	Left4Timers.AddThinker("L4BThinker", 0.01, Left4Bots.OnThinker, {});
 	
-	DirectorScript.GetDirectorOptions().cm_ShouldHurry <- 1; // TODO: settings
+	DirectorScript.GetDirectorOptions().cm_ShouldHurry <- Left4Bots.Settings.should_hurry;
 }
 
 ::Left4Bots.Events.OnGameEvent_round_end <- function (params)
@@ -221,7 +221,7 @@ Msg("Including left4bots_events...\n");
 					Left4Bots.Log(LOG_LEVEL_DEBUG, "Active specials: " + ::Left4Bots.Specials.len());
 				}
 				else
-					Left4Bots.Log(LOG_LEVEL_ERROR, "Dead special was not in Left4Bots.Specials");
+					Left4Bots.Log(LOG_LEVEL_WARN, "Dead special was not in Left4Bots.Specials");
 			}
 			
 			if (attacker && attackerIsPlayer && Left4Bots.IsHandledBot(attacker))
@@ -395,7 +395,7 @@ Msg("Including left4bots_events...\n");
 
 	foreach (bot in ::Left4Bots.Bots)
 	{
-		if (bot.IsValid())
+		if (bot.IsValid() && !Left4Bots.SurvivorCantMove(bot))
 			Left4Bots.TryDodgeSpit(bot, spit);
 	}
 		
@@ -416,21 +416,23 @@ Msg("Including left4bots_events...\n");
 		return;
 	
 	local chargerOrig = charger.GetOrigin();
+	local chargerLeft = charger.EyeAngles().Left();
+	local chargerForwardY = charger.EyeAngles().Forward();
+	chargerForwardY.Norm();
+	chargerForwardY = Left4Utils.VectorAngles(chargerForwardY).y;
+	
 	foreach (bot in ::Left4Bots.Bots)
 	{
-		if (bot.IsValid() && (chargerOrig - bot.GetOrigin()).Length() <= 1200 /*&& Left4Utils.CanTraceTo(bot, charger)*/)
+		if (bot.IsValid() && !Left4Bots.SurvivorCantMove(bot))
 		{
-			local facing = charger.EyeAngles().Forward();
-			local toBot = bot.GetOrigin() - chargerOrig;
-			
-			facing.Norm();
-			toBot.Norm();
-			
-			local d = Left4Utils.GetDiffAngle(Left4Utils.VectorAngles(toBot).y, Left4Utils.VectorAngles(facing).y);
-			
-			// d must be between -dodge_charger_diffangle and dodge_charger_diffangle. d > 0 -> the bot should run to the charger's left. d < 0 -> the bot should run to the charger's right
-			if (d >= -Left4Bots.Settings.dodge_charger_diffangle && d <= Left4Bots.Settings.dodge_charger_diffangle)
-				Left4Bots.TryDodgeCharger(bot, charger, charger.EyeAngles().Left(), d > 0);
+			local d = (chargerOrig - bot.GetOrigin()).Length();
+			if (d <= 1200 /*&& Left4Utils.CanTraceTo(bot, charger)*/)
+			{
+				if (d <= 500)
+					Left4Bots.CheckShouldDodgeCharger(bot, charger, chargerOrig, chargerLeft, chargerForwardY);
+				else
+					Left4Timers.AddTimer(null, Left4Bots.Settings.dodge_charger_distdelay_factor * d, @(params) Left4Bots.CheckShouldDodgeCharger(params.bot, params.charger, params.chargerOrig, params.chargerLeft, params.chargerForwardY), { bot = bot, charger = charger, chargerOrig = chargerOrig, chargerLeft = chargerLeft, chargerForwardY = chargerForwardY });
+			}
 		}
 	}
 }
@@ -1151,9 +1153,10 @@ Msg("Including left4bots_events...\n");
 	}
 }
 
-// Listen for BUTTON_SHOVE press
-Left4Bots.OnButtonListener <- function (params)
+// Does various stuff
+Left4Bots.OnThinker <- function (params)
 {
+	// Listen for human survivors BUTTON_SHOVE press
 	foreach (surv in ::Left4Bots.Survivors)
 	{
 		if (surv.IsValid() && !IsPlayerABot(surv))
@@ -1173,6 +1176,28 @@ Left4Bots.OnButtonListener <- function (params)
 			}
 			else
 				Left4Bots.BtnStatus_Shove[surv.GetPlayerUserId()] <- false;
+		}
+	}
+	
+	// Attach our think function to newly spawned tank rocks
+	if (Left4Bots.Settings.dodge_rock)
+	{
+		local ent = null;
+		while (ent = Entities.FindByClassname(ent, "tank_rock"))
+		{
+			if (ent.IsValid())
+			{
+				ent.ValidateScriptScope();
+				local scope = ent.GetScriptScope();
+				if (!("L4B_RockThink" in scope))
+				{
+					scope.WarnedBots <- {};
+					scope["L4B_RockThink"] <- ::Left4Bots.L4B_RockThink;
+					AddThinkToEnt(ent, "L4B_RockThink");
+					
+					Left4Bots.Log(LOG_LEVEL_DEBUG, "New tank rock: " + ent.GetEntityIndex());
+				}
+			}
 		}
 	}
 }

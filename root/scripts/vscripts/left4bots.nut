@@ -1,9 +1,8 @@
 /* TODO:
 
-- (L4F): scripted vocalizer per far dire altre frasi con le prime parole di ogni frase (tipo: "[survivor] [delay] [duration] [scene]" -> [survivor] play [scene] after [delay] then cancel after [duration]...)
-
-
-- Dodge rock come col charger
+- Weapon/Item spotted -> check dist/... and add as pickup
+- Remove cmdattack su special (bugga i bot)
+- Give order should reset pause
 - Pickup all
 - Heal da solo e rescue pure
 - sb_unstick 0 e gestire l'unstick (magari teleportarlo dietro, davanti solo se sta da solo o è indietro?)
@@ -20,6 +19,7 @@
 - 'wait'
 - Spit/Flames not stuck
 - 'follow' (new)
+- dodge rock
 
 */
 
@@ -103,11 +103,26 @@ IncludeScript("left4bots_requirements");
 		// Max angle difference between the charger's current facing direction and the direction to the bot when deciding whether the bot should dodge the charge or not
 		dodge_charger_diffangle = 10
 		
+		// Delay of the dodge is the result of the distance between the charger and the bot multiplied by this
+		dodge_charger_distdelay_factor = 0.0006
+		
 		// Maximum distance to travel when dodging chargers
 		dodge_charger_maxdistance = 600
 		
 		// Minimum distance to travel when dodging chargers
 		dodge_charger_mindistance = 80
+		
+		// [1/0] Enable/Disable tank rocks dodging
+		dodge_rock = 1
+		
+		// Max angle difference between the tank's rock current direction and the direction to the bot when deciding whether the bot should dodge the rock or not
+		dodge_rock_diffangle = 8
+		
+		// Maximum distance to travel when dodging tank rocks
+		dodge_rock_maxdistance = 600
+		
+		// Minimum distance to travel when dodging tank rocks
+		dodge_rock_mindistance = 140
 		
 		// [1/0] Enable/Disable spit dodging
 		dodge_spit = 1
@@ -171,8 +186,8 @@ IncludeScript("left4bots_requirements");
 		// or there are enough spare medkits around for the bot and the teammates who also need it
 		heal_interrupt_minhealth = 50
 		
-		// [1/0] 1 = The bot will be forced to heal without interrupting when healing himself (unless there are enough infected nearby). 0 = The bot can interrupt healing even without a real threat (vanilla behavior)
-		heal_force = 0 // TODO: 1?
+		// [1/0] 1 = The bot will be forced to heal without interrupting when healing himself (unless there are enough infected nearby). 0 = The bot can interrupt healing if not feeling safe enough (vanilla behavior)
+		heal_force = 1
 		
 		// Radius for searching the spare medkits around
 		heal_spare_medkits_radius = 500
@@ -240,7 +255,7 @@ IncludeScript("left4bots_requirements");
 		move_end_radius_defib = 80
 		
 		// Maximum distance from the destination door before open/close it
-		move_end_radius_door = 110
+		move_end_radius_door = 100
 		
 		// Maximum distance from the destination teammate before starting to heal him
 		move_end_radius_heal = 80
@@ -256,6 +271,9 @@ IncludeScript("left4bots_requirements");
 		
 		// Maximum distance from the destination witch before starting to shoot her
 		move_end_radius_witch = 55
+		
+		// High priority MOVEs will be automatically terminated after this time, regardless the destination position (likely unreachable) was reached or not
+		move_hipri_timeout = 5.0
 		
 		// [1/0] Enable/Disable debug chat messages when the bot starts/stops the pause
 		pause_debug = 0
@@ -300,8 +318,11 @@ IncludeScript("left4bots_requirements");
 		// Items to pick up must be within this radius (and be visible to the bot)
 		pickups_scan_radius = 380
 		
-		// (1/0) Should the sounds be played on give/swap items?
+		// [1/0] Should the sounds be played on give/swap items?
 		play_sounds = 1
+		
+		// Value for the cm_ShouldHurry director option. Not sure what it does exactly, though
+		should_hurry = 0 // TODO: 1
 		
 		// Delta pitch (from his feet) for aiming when shoving common infected
 		shove_commons_deltapitch = -6.0
@@ -320,6 +341,12 @@ IncludeScript("left4bots_requirements");
 		
 		// Bots will shove special infected (excluding boomers) within this radius (set 0 to disable)
 		shove_specials_radius = 70
+		
+		// Delta pitch (from his feet) for aiming when shoving tongue victim teammates within shove_specials_radius
+		shove_tonguevictim_deltapitch = -6.0
+		
+		// Bots will shove tongue victim teammates within this radius (set 0 to disable)
+		shove_tonguevictim_radius = 90
 		
 		// Sound scripts to play when a survivor gives an item to another survivor
 		// UI/BigReward.wav	(played on the giver)
@@ -429,6 +456,18 @@ IncludeScript("left4bots_requirements");
 		// Comma separated vocalizer commands to speak when the bot ends the 'lead' order (command to speak will be a random one from this list)
 		vocalizer_lead_stop = "PlayerAnswerLostCall,PlayerLostCall,PlayerStayTogether,PlayerLeadOn"
 		
+		// Chance that the bot will vocalize the horde incoming warning when starting the pause for that reason
+		vocalizer_onpause_horde_chance = 50
+		
+		// Chance that the bot will vocalize the special infected warning when starting the pause for that reason
+		vocalizer_onpause_special_chance = 80
+		
+		// Chance that the bot will vocalize the tank warning when starting the pause for that reason
+		vocalizer_onpause_tank_chance = 100
+		
+		// Chance that the bot will vocalize the witch warning when starting the pause for that reason
+		vocalizer_onpause_witch_chance = 90
+		
 		// Chance that the bot will vocalize "Sorry" after doing friendly fire
 		vocalizer_sorry_chance = 80
 		
@@ -445,7 +484,7 @@ IncludeScript("left4bots_requirements");
 		wait_crouch = 0
 		
 		// [1/0] If 1, the bots will not pause the 'wait' order
-		// This means that they will keep holding their positions even if there are special infected around, teammates who need help etc. But they will still move to do higher priority tasks (like charger/spit dodging/defib etc.)
+		// This means that they will keep holding their positions even if there are special infected around, teammates who need help etc. But they will still move to do higher priority tasks (like charger/spit dodging, defib, etc.)
 		wait_nopause = 0
 	}
 	OrderPriorities = // Orders and their priorities (orders with lower priority are shifted back in the queue when orders with higher priority are added)
@@ -548,8 +587,8 @@ IncludeScript("left4bots_requirements");
 
 ::Left4Bots.AddonStop <- function ()
 {
-	// Stop the button listener
-	Left4Timers.RemoveThinker("L4BUTTON_LISTENER");
+	// Stop the thinker
+	Left4Timers.RemoveThinker("L4BThinker");
 	
 	// Stop the inventory manager
 	Left4Timers.RemoveTimer("InventoryManager");
@@ -720,13 +759,46 @@ IncludeScript("left4bots_requirements");
 }
 
 // Should the bot's AI start the pause and temporarily give control to the vanilla AI?
+// Returns:
+// - false: if no need to start the pause
+// - ent: if should start the pause (ent is the entity of the special infected / tank / witch that is the reason to start the pause)
+// - 1: if should start the pause and the reason is because of a common infected horde
+// - true: if should start the pause for any other reason
 ::Left4Bots.BotShouldStartPause <- function (bot, userid, orig, isstuck, isHealOrder = false, maxSeparation = 0)
 {
-	local aw = bot.GetActiveWeapon();
-	if (maxSeparation)
-		return isstuck || bot.IsIT() || (!isHealOrder && aw && aw.GetClassname() == "weapon_first_aid_kit") || /*Left4Bots.IsFarFromOtherSurvivors(userid, orig, maxSeparation)*/ Left4Bots.IsFarFromHumanSurvivors(userid, orig, maxSeparation) || Left4Bots.HasTanksWithin(orig, 800) || Left4Bots.BotWillUseMeds(bot) || Left4Bots.HasVisibleSpecialInfectedWithin(bot, orig, 400) || Left4Bots.HasWitchesWithin(orig, 300, 100) || Left4Bots.SurvivorsHeldOrIncapped() || Left4Bots.HasAngryCommonsWithin(orig, 4, 160, 100);
-	else
-		return isstuck || bot.IsIT() || (!isHealOrder && aw && aw.GetClassname() == "weapon_first_aid_kit") || Left4Bots.HasTanksWithin(orig, 800) || Left4Bots.BotWillUseMeds(bot) || Left4Bots.HasVisibleSpecialInfectedWithin(bot, orig, 400) || Left4Bots.HasWitchesWithin(orig, 300, 100) || Left4Bots.SurvivorsHeldOrIncapped() || Left4Bots.HasAngryCommonsWithin(orig, 4, 160, 100);
+	//local aw = bot.GetActiveWeapon();
+	//if (maxSeparation)
+	//	return isstuck || bot.IsIT() || (!isHealOrder && aw && aw.GetClassname() == "weapon_first_aid_kit") || /*Left4Bots.IsFarFromOtherSurvivors(userid, orig, maxSeparation)*/ Left4Bots.IsFarFromHumanSurvivors(userid, orig, maxSeparation) || Left4Bots.HasTanksWithin(orig, 800) || Left4Bots.BotWillUseMeds(bot) || Left4Bots.HasVisibleSpecialInfectedWithin(bot, orig, 400) || Left4Bots.HasWitchesWithin(orig, 300, 100) || Left4Bots.SurvivorsHeldOrIncapped() || Left4Bots.HasAngryCommonsWithin(orig, 4, 160, 100);
+	//else
+	//	return isstuck || bot.IsIT() || (!isHealOrder && aw && aw.GetClassname() == "weapon_first_aid_kit") || Left4Bots.HasTanksWithin(orig, 800) || Left4Bots.BotWillUseMeds(bot) || Left4Bots.HasVisibleSpecialInfectedWithin(bot, orig, 400) || Left4Bots.HasWitchesWithin(orig, 300, 100) || Left4Bots.SurvivorsHeldOrIncapped() || Left4Bots.HasAngryCommonsWithin(orig, 4, 160, 100);
+	
+	if (isstuck || bot.IsIT() || (maxSeparation && /*Left4Bots.IsFarFromOtherSurvivors(userid, orig, maxSeparation)*/ Left4Bots.IsFarFromHumanSurvivors(userid, orig, maxSeparation)) || Left4Bots.BotWillUseMeds(bot) || Left4Bots.SurvivorsHeldOrIncapped())
+		return true;
+	
+	local tmp;
+	if (!isHealOrder)
+	{
+		tmp = bot.GetActiveWeapon();
+		if (tmp && tmp.GetClassname() == "weapon_first_aid_kit")
+			return true;
+	}
+	
+	tmp = Left4Bots.HasVisibleSpecialInfectedWithin(bot, orig, 400);
+	if (tmp)
+		return tmp;
+	
+	tmp = Left4Bots.HasTanksWithin(orig, 800);
+	if (tmp)
+		return tmp;
+	
+	tmp = Left4Bots.HasWitchesWithin(orig, 300, 100);
+	if (tmp)
+		return tmp;
+	
+	if (Left4Bots.HasAngryCommonsWithin(orig, 4, 160, 100))
+		return 1;
+	
+	return false;
 }
 
 // Should the bot's AI stop the pause?
@@ -803,14 +875,15 @@ IncludeScript("left4bots_requirements");
 }
 
 // Does 'player' have at least one visible special infected within 'radius'?
+// Returns the ent of the first special infected found or null if none
 ::Left4Bots.HasVisibleSpecialInfectedWithin <- function (player, orig, radius = 1000)
 {
 	foreach (ent in ::Left4Bots.Specials)
 	{
 		if (ent.IsValid() && (ent.GetOrigin() - orig).Length() <= radius && !ent.IsGhost() && Left4Utils.CanTraceTo(player, ent))
-			return true;
+			return ent;
 	}
-	return false;
+	return null;
 }
 
 // Does 'player' have at least one special infected within 'radius'?
@@ -825,25 +898,27 @@ IncludeScript("left4bots_requirements");
 }
 
 // Is there at least one tank within 'radius' from 'orig'?
+// Returns the ent of the first tank found or null if none
 ::Left4Bots.HasTanksWithin <- function (orig, radius = 1000)
 {
 	foreach (ent in ::Left4Bots.Tanks)
 	{
 		if (ent.IsValid() && (ent.GetOrigin() - orig).Length() <= radius && !ent.IsGhost())
-			return true;
+			return ent;
 	}
-	return false;
+	return null;
 }
 
 // Is there at least one witch within 'radius' and 'maxAltDiff' from 'orig'?
+// Returns the ent of the first witch found or null if none
 ::Left4Bots.HasWitchesWithin <- function (orig, radius = 1000, maxAltDiff = 1000)
 {
 	foreach (witch in ::Left4Bots.Witches)
 	{
 		if (witch.IsValid() && abs(orig.z - witch.GetOrigin().z) <= maxAltDiff && (witch.GetOrigin() - orig).Length() <= radius && NetProps.GetPropInt(witch, "m_lifeState") == 0 && !NetProps.GetPropInt(witch, "m_bIsBurning"))
-			return true;
+			return witch;
 	}
-	return false;
+	return null;
 }
 
 // Is there at least one survivor to defib within 'radius' from 'orig'?
@@ -855,6 +930,17 @@ IncludeScript("left4bots_requirements");
 			return true;
 	}
 	return false;
+}
+
+// Returns the first tongue victim teammate to shove
+::Left4Bots.GetTongueVictimToShove <- function (player, orig) // TODO: add trace check?
+{
+	foreach (surv in ::Left4Bots.GetOtherAliveSurvivors(player.GetPlayerUserId()))
+	{
+		if ((surv.GetOrigin() - orig).Length() <= Left4Bots.Settings.shove_tonguevictim_radius && NetProps.GetPropInt(surv, "m_tongueOwner") > 0)
+			return surv;
+	}
+	return null;
 }
 
 // Returns the first special infected to shove (only smokers, hunters, spitters or jockeys)
@@ -1457,62 +1543,80 @@ IncludeScript("left4bots_requirements");
 		Left4Bots.BotHighPriorityMove(bot, p2);
 }
 
-// 'bot' will try to dodge the 'charger'
+// Checks whether the given bot is in the direction of the charger's charge and starts the dodge if needed
+::Left4Bots.CheckShouldDodgeCharger <- function (bot, charger, chargerOrig, chargerLeft, chargerForwardY)
+{
+	if (!bot || !charger || !bot.IsValid() || !charger.IsValid())
+		return;
+
+	local toBot = bot.GetOrigin() - chargerOrig;
+	toBot.Norm();
+	
+	local a = Left4Utils.GetDiffAngle(Left4Utils.VectorAngles(toBot).y, chargerForwardY);
+	
+	// a must be between -dodge_charger_diffangle and dodge_charger_diffangle. a > 0 -> the bot should run to the charger's left. a < 0 -> the bot should run to the charger's right
+	if (a >= -Left4Bots.Settings.dodge_charger_diffangle && a <= Left4Bots.Settings.dodge_charger_diffangle)
+		Left4Bots.TryDodge(bot, chargerLeft, a > 0, Left4Bots.Settings.dodge_charger_mindistance, Left4Bots.Settings.dodge_charger_maxdistance);
+}
+
+// 'bot' will try to dodge left o right
 // 'leftVector' is a vector facing the current carger's left
 // 'goLeft' tells whether the bot should run left (true) or right (false)
-::Left4Bots.TryDodgeCharger <- function (bot, charger, leftVector, goLeft) // TODO: delay based on distance
+// 'minDistance' and 'maxDistance' are the minimum and maximum distance to travel
+::Left4Bots.TryDodge <- function (bot, leftVector, goLeft, minDistance, maxDistance)
 {
-	Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.TryDodgeCharger - bot: " + bot.GetPlayerName() + " - goLeft: " + goLeft);
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.TryDodge - bot: " + bot.GetPlayerName() + " - goLeft: " + goLeft);
 	
-	local startArea = NavMesh.GetNavArea(bot.GetCenter(), 300);
+	//local startArea = NavMesh.GetNavArea(bot.GetCenter(), 300);
+	local startArea = bot.GetLastKnownArea();
 	
 	local dest;
 	if (goLeft)
-		dest = bot.GetCenter() - (leftVector * Left4Bots.Settings.dodge_charger_mindistance);
+		dest = bot.GetCenter() - (leftVector * minDistance);
 	else
-		dest = bot.GetCenter() + (leftVector * Left4Bots.Settings.dodge_charger_mindistance);
+		dest = bot.GetCenter() + (leftVector * minDistance);
 	
 	local destArea =  NavMesh.GetNavArea(dest, 300);
 	if (destArea && destArea.IsValid())
 	{
-		local d = NavMesh.NavAreaTravelDistance(startArea, destArea, Left4Bots.Settings.dodge_charger_maxdistance);
-		Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.TryDodgeCharger - bot: " + bot.GetPlayerName() + " - d: " + d);
+		local d = NavMesh.NavAreaTravelDistance(startArea, destArea, maxDistance);
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.TryDodge - bot: " + bot.GetPlayerName() + " - d: " + d);
 		
 		if (d >= 0)
 		{
-			Left4Bots.Log(LOG_LEVEL_INFO, bot.GetPlayerName() + " trying to dodge charger");
+			Left4Bots.Log(LOG_LEVEL_INFO, bot.GetPlayerName() + " trying to dodge");
 			
 			Left4Bots.BotHighPriorityMove(bot, Vector(dest.x, dest.y, destArea.GetZ(dest))); // Set the Z axis to ground level
 			return;
 		}
 	}
 	else
-		Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.TryDodgeCharger - bot: " + bot.GetPlayerName() + " - nav area not found");
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.TryDodge - bot: " + bot.GetPlayerName() + " - nav area not found");
 	
 	// Preferred direction failed, let's try the other one (add some distance because we probably need to traver farther in this direction)
 	if (goLeft)
-		dest = bot.GetCenter() + (leftVector * (Left4Bots.Settings.dodge_charger_mindistance + 40)); // TODO: better calc that +40
+		dest = bot.GetCenter() + (leftVector * (minDistance + 40)); // TODO: better calc that +40
 	else
-		dest = bot.GetCenter() - (leftVector * (Left4Bots.Settings.dodge_charger_mindistance + 40));
+		dest = bot.GetCenter() - (leftVector * (minDistance + 40));
 	
 	local destArea =  NavMesh.GetNavArea(dest, 300);
 	if (destArea && destArea.IsValid())
 	{
-		local d = NavMesh.NavAreaTravelDistance(startArea, destArea, Left4Bots.Settings.dodge_charger_maxdistance);
-		Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.TryDodgeCharger - bot: " + bot.GetPlayerName() + " - d: " + d);
+		local d = NavMesh.NavAreaTravelDistance(startArea, destArea, maxDistance);
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.TryDodge - bot: " + bot.GetPlayerName() + " - d: " + d);
 		
 		if (d >= 0)
 		{
-			Left4Bots.Log(LOG_LEVEL_INFO, bot.GetPlayerName() + " trying to dodge charger");
+			Left4Bots.Log(LOG_LEVEL_INFO, bot.GetPlayerName() + " trying to dodge");
 			
 			Left4Bots.BotHighPriorityMove(bot, Vector(dest.x, dest.y, destArea.GetZ(dest))); // Set the Z axis to ground level
 			return;
 		}
 	}
 	else
-		Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.TryDodgeCharger - bot: " + bot.GetPlayerName() + " - nav area not found");
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.TryDodge - bot: " + bot.GetPlayerName() + " - nav area not found");
 	
-	Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.TryDodgeCharger - failed!");
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.TryDodge - failed!");
 }
 
 // Returns the survivor aimed by 'player' within 'radius' and with at least 'threshold' accuracy. visibleOnly = true if the aimed survivor must be visible to 'player'
@@ -1616,7 +1720,7 @@ IncludeScript("left4bots_requirements");
 	return true;
 }
 
-// Are there enough spare medkits around for the teammates who need them and 'me'?
+// Are there enough spare medkits around for the teammates who need them and for 'me'?
 ::Left4Bots.HasSpareMedkitsAround <- function (me)
 {
 	local numMedkits = Left4Utils.GetMedkitsWithin(me, 500).len();
@@ -1781,6 +1885,68 @@ IncludeScript("left4bots_requirements");
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "Bot " + player.GetPlayerName() + " deploying upgrade " + itemClass);
 	
 	Left4Utils.PlayerPressButton(player, BUTTON_ATTACK, 2.2, null, 0, 0, true);
+}
+
+// Think function that is attached to any spawned tank rock
+// It triggers the dodging for the bots who are in it's trajectory
+::Left4Bots.L4B_RockThink <- function ()
+{
+	/*
+	- m_hThrower
+	- m_DmgRadius
+	- m_flDamage
+	*/
+	
+	// Wait until the rock left the tank's hands
+	if (NetProps.GetPropInt(self, "m_hMoveParent") >= 0)
+		return 0.01;
+	
+	//Left4Bots.Log(LOG_LEVEL_DEBUG, "L4B_RockThink");
+	
+	local MyPos = self.GetCenter();
+	
+	//local fwd = self.GetForwardVector();
+	local fwdY = self.GetAngles().Forward();
+	fwdY.Norm();
+	fwdY = Left4Utils.VectorAngles(fwdY).y;
+	local lft = self.GetAngles().Left();
+	
+	//fwd = Vector(fwd.x, fwd.y, 0);
+	
+	//DebugDrawLine_vCol(MyPos, MyPos + (fwd * 30), Vector(0, 255, 0), true, 5.0);
+	
+	foreach (id, bot in ::Left4Bots.Bots)
+	{
+		/*
+		//if (bot.IsValid() && Left4Utils.CanTraceTo(bot, rock, TRACE_MASK_ALL))
+		//if (bot.IsValid() && (self.GetCenter() - bot.EyePosition()).Length() <= Left4Bots.Settings.rock_shoot_range)
+		if (bot.IsValid() && (self.GetCenter() - bot.EyePosition()).Length() <= Left4Bots.Settings.rock_shoot_range && NetProps.GetPropInt(bot, "m_reviveTarget") <= 0 && NetProps.GetPropInt(bot, "m_iCurrentUseAction") <= 0)
+		{
+			Left4Bots.BotPressButton(bot, BUTTON_ATTACK, BUTTON_HOLDTIME_TAP, self.GetCenter(), 0, 0, true);
+		
+			Left4Bots.Log(LOG_LEVEL_DEBUG, bot.GetPlayerName() + " shooting at rock " + self.GetEntityIndex());
+			
+			//Delay = 0.4;
+		}
+		*/
+		
+		if (bot.IsValid() && !(id in WarnedBots) && !Left4Bots.SurvivorCantMove(bot) && (bot.GetCenter() - MyPos).Length() <= 1500 && Left4Utils.CanTraceTo(bot, self))
+		{
+			local toBot = bot.GetCenter() - MyPos;
+			toBot.Norm();
+			
+			local a = Left4Utils.GetDiffAngle(Left4Utils.VectorAngles(toBot).y, fwdY);
+			
+			// a must be between -dodge_rock_diffangle and dodge_rock_diffangle. a > 0 -> the bot should run to the rock's left. a < 0 -> the bot should run to the rock's right
+			if (a >= -Left4Bots.Settings.dodge_rock_diffangle && a <= Left4Bots.Settings.dodge_rock_diffangle)
+			{
+				Left4Bots.TryDodge(bot, lft, a > 0, Left4Bots.Settings.dodge_rock_mindistance, Left4Bots.Settings.dodge_rock_maxdistance);
+				WarnedBots[id] <- 1;
+			}
+		}
+	}
+
+	return 0.01;
 }
 
 //
