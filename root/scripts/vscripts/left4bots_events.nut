@@ -25,7 +25,7 @@ Msg("Including left4bots_events...\n");
 	Left4Timers.AddTimer("Cleaner", 0.5, Left4Bots.OnCleaner, {}, true);
 	
 	// Start the inventory manager
-	Left4Timers.AddTimer("InventoryManager", 0.7, Left4Bots.OnInventoryManager, {}, true);
+	Left4Timers.AddTimer("InventoryManager", 0.5, Left4Bots.OnInventoryManager, {}, true);
 	
 	// Start the thinker
 	Left4Timers.AddThinker("L4BThinker", 0.01, Left4Bots.OnThinker, {});
@@ -356,7 +356,17 @@ Msg("Including left4bots_events...\n");
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_item_pickup - player: " + player.GetPlayerName() + " picked up: " + item);
 	
 	// Update the inventory items
-	Left4Bots.OnInventoryManager(params);
+	//Left4Bots.OnInventoryManager(params);
+	//Left4Timers.AddTimer(null, 0.1, Left4Bots.OnInventoryManager, { });
+	
+	// Temporarily clear the weapons to search to prevent swiching back and forth with the dropped weapon, until the picked weapon is fully in our inventory and the next OnInventoryManager does update it
+	//if (Left4Bots.IsHandledBot(player))
+	//	player.GetScriptScope().WeaponsToSearch <- {};
+	foreach (bot in Left4Bots.Bots)
+	{
+		if (bot.IsValid())
+			bot.GetScriptScope().WeaponsToSearch <- {};
+	}
 }
 
 ::Left4Bots.Events.OnGameEvent_weapon_fire <- function (params)
@@ -491,7 +501,9 @@ Msg("Including left4bots_events...\n");
 	//if ("doorname" in params)
 	//	doorname = params["doorname"];
 	
-	if (Left4Bots.Settings.close_saferoom_door && door && door.IsValid() && Left4Bots.IsHandledBot(player) && Left4Bots.OtherSurvivorsInCheckpoint(player.GetPlayerUserId()))
+	local allBots = RandomInt(1, 100) <= Left4Bots.Settings.close_saferoom_door_all_chance;
+	
+	if (Left4Bots.Settings.close_saferoom_door && door && door.IsValid() && (allBots || Left4Bots.IsHandledBot(player)) && Left4Bots.OtherSurvivorsInCheckpoint(player.GetPlayerUserId()))
 	{
 		local state = NetProps.GetPropInt(door, "m_eDoorState"); // 0 = closed - 1 = opening - 2 = open - 3 = closing
 		if (state != 0 && state != 3)
@@ -502,20 +514,32 @@ Msg("Including left4bots_events...\n");
 			else
 				area = NavMesh.GetNearestNavArea(door.GetOrigin(), 200, false, false);
 			
-			local scope = player.GetScriptScope();
-			scope.DoorAct = AI_DOOR_ACTION.Saferoom;
-			scope.DoorEnt = door; // This tells the bot to close the door. From now on, the bot will start looking for the best moment to close the door without locking himself out (will try at least)
+			local doorZ = player.GetOrigin().z;
 			if (area)
 			{
-				scope.DoorZ = area.GetCenter().z;
+				doorZ = area.GetCenter().z;
 				
-				Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_player_entered_checkpoint - area: " + area.GetID() + " - DoorZ: " + scope.DoorZ);
+				Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_player_entered_checkpoint - area: " + area.GetID() + " - DoorZ: " + doorZ);
+			}
+			else
+				Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_player_entered_checkpoint - area is null! - DoorZ: " + doorZ);
+			
+			if (allBots)
+			{
+				foreach (bot in Left4Bots.Bots)
+				{
+					local scope = bot.GetScriptScope();
+					scope.DoorAct = AI_DOOR_ACTION.Saferoom;
+					scope.DoorEnt = door; // This tells the bot to close the door. From now on, the bot will start looking for the best moment to close the door without locking himself out (will try at least)
+					scope.DoorZ = doorZ;
+				}
 			}
 			else
 			{
-				scope.DoorZ = player.GetOrigin().z;
-				
-				Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_player_entered_checkpoint - area is null! - DoorZ: " + scope.DoorZ);
+				local scope = player.GetScriptScope();
+				scope.DoorAct = AI_DOOR_ACTION.Saferoom;
+				scope.DoorEnt = door; // This tells the bot to close the door. From now on, the bot will start looking for the best moment to close the door without locking himself out (will try at least)
+				scope.DoorZ = doorZ;
 			}
 		}
 	}
@@ -600,9 +624,10 @@ Msg("Including left4bots_events...\n");
 	{
 		// Don't let survivor bots heal themselves if their health is >= Left4Bots.Settings.min_start_health (usually they do it in the start saferoom) and there are not enough spare medkits around
 		// ... and there are humans in the team (otherwise they won't leave the saferoom)
-		if (player.GetHealth() >= Left4Bots.Settings.heal_interrupt_minhealth && Left4Bots.Bots.len() < Left4Bots.Survivors.len() && (!player.GetScriptScope().CurrentOrder || player.GetScriptScope().CurrentOrder.OrderType != "heal") && !Left4Bots.HasSpareMedkitsAround(player))
+		// ... and it's not a "heal" order
+		if (player.GetHealth() >= Left4Bots.Settings.heal_interrupt_minhealth && Left4Bots.Bots.len() < Left4Bots.Survivors.len() && (NetProps.GetPropInt(player, "m_afButtonForced") & BUTTON_ATTACK) == 0 && !Left4Bots.HasSpareMedkitsAround(player))
 			player.GetScriptScope().BotReset(); // TODO: Maybe handle this from the Think func?
-		else if (Left4Bots.Settings.heal_force && !Left4Bots.HasAngryCommonsWithin(player.GetOrigin(), 3, 100) && !Left4Utils.HasSpecialInfectedWithin(player.GetOrigin(), 400))
+		else if (Left4Bots.Settings.heal_force && !Left4Bots.HasAngryCommonsWithin(player.GetOrigin(), 3, 100) && !Left4Bots.HasSpecialInfectedWithin(player.GetOrigin(), 400))
 		{
 			// Force healing without interrupting or they won't heal when not "feeling safe" resulting sometimes in not healing until they die
 			
@@ -832,7 +857,33 @@ Msg("Including left4bots_events...\n");
 			
 			if (Left4Bots.Settings.vocalizer_commands && lvl >= Left4Bots.Settings.userlevel_orders)
 			{
-				if (concept == "PlayerStayTogether")
+				if (concept == "PlayerLook" || concept == "PlayerLookHere")
+				{
+					// Bot selection
+					if (subject)
+						subject = Left4Bots.GetSurvivorFromActor(subject);
+
+					if (Left4Bots.IsHandledBot(subject))
+					{
+						Left4Bots.VocalizerBotSelection[who.GetPlayerUserId()] <- { bot = subject, time = Time() };
+						
+						Left4Bots.Log(LOG_LEVEL_DEBUG, who.GetPlayerName() + " selected bot " + subject.GetPlayerName());
+					}
+				}
+				else if (concept in Left4Bots.VocalizerCommands)
+				{
+					local cmd = Left4Bots.VocalizerCommands[concept];
+					local userid = who.GetPlayerUserId();
+					if ((userid in Left4Bots.VocalizerBotSelection) && (Time() - Left4Bots.VocalizerBotSelection[userid].time) <= Left4Bots.Settings.vocalize_botselect_timeout && Left4Bots.VocalizerBotSelection[userid].bot && Left4Bots.VocalizerBotSelection[userid].bot.IsValid())
+					{
+						local botname = Left4Bots.VocalizerBotSelection[userid].bot.GetPlayerName().tolower();
+						cmd = Left4Utils.StringReplace(cmd, "bot ", botname + " ");
+						cmd = Left4Utils.StringReplace(cmd, "bots ", botname + " ");
+					}
+					Left4Bots.OnChatCommand(who, cmd);
+				}
+				/*
+				else if (concept == "PlayerStayTogether")
 					Left4Bots.OnUserCommand(who, "bots", "cancel", null);
 				else if (concept == "PlayerMoveOn")
 					Left4Bots.OnUserCommand(who, "bots", "cancel", "current");
@@ -856,6 +907,7 @@ Msg("Including left4bots_events...\n");
 					else
 						Left4Bots.OnUserCommand(who, "bots", "heal", null);
 				}
+				*/
 			}
 			
 			if (lvl < Left4Bots.Settings.userlevel_vocalizer)
@@ -989,15 +1041,31 @@ Msg("Including left4bots_events...\n");
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "Removed an invalid witch from ::Left4Bots.Witches");
 		}
 	}
+	
+	// Vocalizer bot selections
+	foreach (id, sel in ::Left4Bots.VocalizerBotSelection)
+	{
+		if ((Time() - sel.time) > Left4Bots.Settings.vocalize_botselect_timeout || !sel.bot || !sel.bot.IsValid())
+		{
+			delete ::Left4Bots.VocalizerBotSelection[id];
+			Left4Bots.Log(LOG_LEVEL_DEBUG, "Removed an invalid vocalizer bot selection from ::Left4Bots.VocalizerBotSelection");
+		}
+	}
+	
 }
 
 // Tells the bots which items to pick up based on the current team situation
 ::Left4Bots.OnInventoryManager <- function (params)
 {
-	// First count how many medkits, defibs and chainsaws we already have in the team
-	local teamMedkits = 0;
-	local teamDefibs = 0;
-	local teamChainsaws = 0;
+	// First count how many medkits, defibs, chainsaws and throwables we already have in the team
+	Left4Bots.TeamChainsaws = 0;
+	Left4Bots.TeamMelee = 0;
+	Left4Bots.TeamMolotovs = 0;
+	Left4Bots.TeamPipeBombs = 0;
+	Left4Bots.TeamVomitJars = 0;
+	Left4Bots.TeamMedkits = 0;
+	Left4Bots.TeamDefibs = 0;
+	
 	foreach (surv in ::Left4Bots.Survivors)
 	{
 		if (surv.IsValid())
@@ -1005,16 +1073,37 @@ Msg("Including left4bots_events...\n");
 			local inv = {};
 			GetInvTable(surv, inv);
 			
-			if (INV_SLOT_MEDKIT in inv)
+			if (INV_SLOT_SECONDARY in inv)
 			{
-				if (inv[INV_SLOT_MEDKIT].GetClassname() == "weapon_first_aid_kit")
-					teamMedkits++;
-				else if (inv[INV_SLOT_MEDKIT].GetClassname() == "weapon_defibrillator")
-					teamDefibs++;
+				local cls = inv[INV_SLOT_SECONDARY].GetClassname();
+				
+				if (cls == "weapon_chainsaw")
+					Left4Bots.TeamChainsaws++;
+				else if (cls == "weapon_melee")
+					Left4Bots.TeamMelee++;
 			}
 			
-			if ((INV_SLOT_SECONDARY in inv) && inv[INV_SLOT_SECONDARY].GetClassname() == "weapon_chainsaw")
-				teamChainsaws++;
+			if (INV_SLOT_THROW in inv)
+			{
+				local cls = inv[INV_SLOT_THROW].GetClassname();
+				
+				if (cls == "weapon_molotov")
+					Left4Bots.TeamMolotovs++;
+				else if (cls == "weapon_pipe_bomb")
+					Left4Bots.TeamPipeBombs++;
+				else if (cls == "weapon_vomitjar")
+					Left4Bots.TeamVomitJars++;
+			}
+			
+			if (INV_SLOT_MEDKIT in inv)
+			{
+				local cls = inv[INV_SLOT_MEDKIT].GetClassname();
+				
+				if (cls == "weapon_first_aid_kit")
+					Left4Bots.TeamMedkits++;
+				else if (cls == "weapon_defibrillator")
+					Left4Bots.TeamDefibs++;
+			}
 		}
 	}
 	
@@ -1022,134 +1111,7 @@ Msg("Including left4bots_events...\n");
 	foreach (bot in ::Left4Bots.Bots)
 	{
 		if (bot.IsValid())
-		{
-			local scope = bot.GetScriptScope();
-			scope.PickupsToSearch = {};
-			
-			local inv = {};
-			GetInvTable(bot, inv);
-			
-			// TODO: Priorities
-			if (!(INV_SLOT_THROW in inv))
-			{
-				// If we don't have a throwable we'll just pick up anything
-				
-				if (Left4Bots.Settings.pickup_molotov && !("weapon_molotov" in Left4Bots.ItemsToAvoid))
-				{
-					scope.PickupsToSearch["weapon_molotov"] <- 0;
-					scope.PickupsToSearch["weapon_molotov_spawn"] <- 0;
-				}
-				if (Left4Bots.Settings.pickup_pipebomb && !("weapon_pipe_bomb" in Left4Bots.ItemsToAvoid))
-				{
-					scope.PickupsToSearch["weapon_pipe_bomb"] <- 0;
-					scope.PickupsToSearch["weapon_pipe_bomb_spawn"] <- 0;
-				}
-				if (Left4Bots.Settings.pickup_vomitjar && !("weapon_vomitjar" in Left4Bots.ItemsToAvoid))
-				{
-					scope.PickupsToSearch["weapon_vomitjar"] <- 0;
-					scope.PickupsToSearch["weapon_vomitjar_spawn"] <- 0;
-				}
-			}
-			
-			if (!(INV_SLOT_MEDKIT in inv))
-			{
-				// If we have nothing in the medkit slot we'll just pick up anything
-				
-				if (Left4Bots.Settings.pickup_defib && !("weapon_defibrillator" in Left4Bots.ItemsToAvoid))
-				{
-					scope.PickupsToSearch["weapon_defibrillator"] <- 0;
-					scope.PickupsToSearch["weapon_defibrillator_spawn"] <- 0;
-				}
-				if (Left4Bots.Settings.pickup_medkit && !("weapon_first_aid_kit" in Left4Bots.ItemsToAvoid))
-				{
-					scope.PickupsToSearch["weapon_first_aid_kit"] <- 0;
-					scope.PickupsToSearch["weapon_first_aid_kit_spawn"] <- 0;
-				}
-				if (Left4Bots.Settings.pickup_upgrades && !("weapon_upgradepack_explosive" in Left4Bots.ItemsToAvoid))
-				{
-					scope.PickupsToSearch["weapon_upgradepack_explosive"] <- 0;
-					scope.PickupsToSearch["weapon_upgradepack_explosive_spawn"] <- 0;
-				}
-				if (Left4Bots.Settings.pickup_upgrades && !("weapon_upgradepack_incendiary" in Left4Bots.ItemsToAvoid))
-				{
-					scope.PickupsToSearch["weapon_upgradepack_incendiary"] <- 0;
-					scope.PickupsToSearch["weapon_upgradepack_incendiary_spawn"] <- 0;
-				}
-			}
-			else
-			{
-				// Otherwise the priority will be like this:
-				// 1. If there is a dead survivor to defib nearby, top priority -> defib
-				// 2. If not enough team medkits or the bot needs to heal, priority -> medkit
-				// 3. If not enough team defibs, -> defib
-				
-				local itemClass = inv[INV_SLOT_MEDKIT].GetClassname();
-				local goMedkit = false;
-				local goDefib = Left4Bots.HasDeathModelWithin(bot.GetOrigin(), Left4Bots.Settings.deads_scan_radius);
-				if (!goDefib)
-				{
-					local c = Left4Bots.Survivors.len();
-					if ((teamMedkits < Left4Bots.Settings.team_min_medkits && teamMedkits < c) || Left4Bots.BotWillUseMeds(bot))
-						goMedkit = true;
-					else if (teamDefibs < Left4Bots.Settings.team_min_defibs && teamDefibs < (c - Left4Bots.Settings.team_min_medkits))
-						goDefib = true;
-				}
-				
-				if (itemClass != "weapon_defibrillator" && itemClass != "weapon_first_aid_kit")
-				{
-					if (goDefib && Left4Bots.Settings.pickup_defib && !("weapon_defibrillator" in Left4Bots.ItemsToAvoid))
-					{
-						scope.PickupsToSearch["weapon_defibrillator"] <- 0;
-						scope.PickupsToSearch["weapon_defibrillator_spawn"] <- 0;
-					}
-					if (Left4Bots.Settings.pickup_medkit && !("weapon_first_aid_kit" in Left4Bots.ItemsToAvoid))
-					{
-						scope.PickupsToSearch["weapon_first_aid_kit"] <- 0;
-						scope.PickupsToSearch["weapon_first_aid_kit_spawn"] <- 0;
-					}
-				}
-				else if (itemClass != "weapon_defibrillator" && goDefib && Left4Bots.Settings.pickup_defib && !("weapon_defibrillator" in Left4Bots.ItemsToAvoid))
-				{
-					scope.PickupsToSearch["weapon_defibrillator"] <- 0;
-					scope.PickupsToSearch["weapon_defibrillator_spawn"] <- 0;
-				}
-				else if (itemClass != "weapon_first_aid_kit" && goMedkit && Left4Bots.Settings.pickup_medkit && !("weapon_first_aid_kit" in Left4Bots.ItemsToAvoid))
-				{
-					scope.PickupsToSearch["weapon_first_aid_kit"] <- 0;
-					scope.PickupsToSearch["weapon_first_aid_kit_spawn"] <- 0;
-				}
-			}
-			
-			// TODO: Priorities
-			if (!(INV_SLOT_PILLS in inv))
-			{
-				// If we have nothing in the pills slot we'll just pick up anything
-				
-				if (Left4Bots.Settings.pickup_pills && !("weapon_pain_pills" in Left4Bots.ItemsToAvoid))
-				{
-					scope.PickupsToSearch["weapon_pain_pills"] <- 0;
-					scope.PickupsToSearch["weapon_pain_pills_spawn"] <- 0;
-				}
-				if (Left4Bots.Settings.pickup_adrenaline && !("weapon_adrenaline" in Left4Bots.ItemsToAvoid))
-				{
-					scope.PickupsToSearch["weapon_adrenaline"] <- 0;
-					scope.PickupsToSearch["weapon_adrenaline_spawn"] <- 0;
-				}
-			}
-			
-			if (!(INV_SLOT_SECONDARY in inv) || inv[INV_SLOT_SECONDARY] == null || inv[INV_SLOT_SECONDARY].GetClassname() != "weapon_chainsaw")
-			{
-				// Bot doesn't have a chainsaw
-				
-				if (teamChainsaws < Left4Bots.Settings.team_max_chainsaws)
-				{
-					// Not enough team chainsaws
-					
-					scope.PickupsToSearch["weapon_chainsaw"] <- 0;
-					scope.PickupsToSearch["weapon_chainsaw_spawn"] <- 0;
-				}
-			}
-		}
+			bot.GetScriptScope().BotUpdatePickupToSearch();
 	}
 }
 
@@ -1292,6 +1254,55 @@ Left4Bots.OnThinker <- function (params)
 	// TODO
 }
 
+// Parse and handle chat commands
+// Returns false if the chat line must be hidden
+::Left4Bots.OnChatCommand <- function (speaker, text)
+{
+	local args = {};
+	if (text != null && text != "")
+		args = split(text, " ");
+	
+	if (args.len() < 2)
+		return true; // L4B commands have at least 2 arguments
+	
+	local arg1 = null;
+	local arg2 = null;
+	local arg3 = null;
+	
+	if (args[0] == "!l4b")
+	{
+		arg1 = args[1].tolower();
+		if (arg1 != "settings" && arg1 != "botselect")
+			return true; // !l4b chat trigger can only allow "settings" and "botselect" commands
+		
+		if (args.len() > 2)
+			arg2 = args[2].tolower();
+
+		if (args.len() > 3)
+		{
+			local tmp = args[0] + " " + args[1] + " " + args[2];
+			arg3 = strip(text.slice(text.find(tmp) + tmp.len())); // Remove the first 3 arguments from the message and take the remaining text as 3rd argument (if any)
+			if (arg3 == "")
+				arg3 = null;
+		}
+	}
+	else
+	{
+		arg1 = args[0].tolower();
+		arg2 = args[1].tolower();
+		
+		local tmp = args[0] + " " + args[1];
+		arg3 = strip(text.slice(text.find(tmp) + tmp.len())); // Remove the first 2 arguments from the message and take the remaining text as 3rd argument (if any)
+		if (arg3 == "")
+			arg3 = null;
+	}
+	
+	if (Left4Bots.OnUserCommand(speaker, arg1, arg2, arg3) && Left4Bots.Settings.hide_chat_commands)
+		return false;
+	else
+		return true;
+}
+
 /* Handle user commands
 
 botsource command [target]
@@ -1307,6 +1318,7 @@ Available commands:
 	botsource heal target		: The order is added to the given bot(s) orders queue. The bot(s) will heal the target survivor (target can also be the bot himself or the keyword "me" to heal you)
 	botsource goto				: The order is added to the given bot(s) orders queue. The bot(s) will go to the location you are looking at
 	botsource goto target		: The order is added to the given bot(s) orders queue. The bot(s) will go to the current target's position (target can be another survivor or the keyword "me" to come to you)
+	botsource come				: The order is added to the given bot(s) orders queue. The bot(s) will come to your current location (alias of "botsource goto me")
 	botsource wait				: The order is added to the given bot(s) orders queue. The bot(s) will hold his/their current position
 	botsource wait here			: The order is added to the given bot(s) orders queue. The bot(s) will hold position at your current position
 	botsource wait there		: The order is added to the given bot(s) orders queue. The bot(s) will hold position at the location you are looking at
@@ -1322,274 +1334,331 @@ Switches:
 	orders		: The given bot(s) will abort all his/their orders (current and queued ones) of any type
 	all			: (or empty) The given bot(s) will abort everything (orders, current pick-up, anything)
 
-*/
-::Left4Bots.OnUserCommand <- function (player, target, command, param)
-{
-	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnUserCommand - player: " + player.GetPlayerName() + " - target: " + target + " - command: " + command + " - param: " + param);
-	
-	local allBots = false;	// true = "bots" keyword was used, tgtBot is ignored (will be null)
-	local tgtBot = null;	// (allBots = false) null = "bot" keyword was used, tgtBot will be automatically selected - not null = "[botname]" was used, tgtBot is the selected bot
 
-	if (target == "bots")
-		allBots = true;
-	else if (target != "bot")
+botselect [botname]
+
+Selects the given bot as the destination of the following vocalizer command. If "botname" is omitted, the closest bot to your crosshair will be selected
+
+
+settings
+
+// TODO
+
+*/
+::Left4Bots.OnUserCommand <- function (player, arg1, arg2, arg3)
+{
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnUserCommand - player: " + player.GetPlayerName() + " - arg1: " + arg1 + " - arg2: " + arg2 + " - arg3: " + arg3);
+	
+	if (arg1 == "settings")
 	{
-		tgtBot = Left4Bots.GetBotByName(target);
+		if (Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) < L4U_LEVEL.Admin)
+			return false; // Only admins can change settings
+		
+		// TODO
+	}
+	else if (arg1 == "botselect")
+	{
+		local tgtBot = null;
+		if (arg2)
+			tgtBot = Left4Bots.GetBotByName(arg2);
+		else
+			tgtBot = Left4Bots.GetPickerBot(player); // player, radius = 999999, threshold = 0.95, visibleOnly = false
+		
 		if (!tgtBot)
 			return false; // Invalid target
+		
+		DoEntFire("!self", "AddContext", "subject:" + Left4Utils.GetActorFromSurvivor(tgtBot), 0, null, player);
+		DoEntFire("!self", "SpeakResponseConcept", "PlayerLook", 0, null, player);
+		DoEntFire("!self", "ClearContext", "", 0, null, player);
 	}
-	
-	switch (command)
+	else
 	{
-		case "lead":
+		// normal bot commands
+		
+		local allBots = false;	// true = "bots" keyword was used, tgtBot is ignored (will be null)
+		local tgtBot = null;	// (allBots = false) null = "bot" keyword was used, tgtBot will be automatically selected - not null = "[botname]" was used, tgtBot is the selected bot
+
+		if (arg1 == "bots")
+			allBots = true;
+		else if (arg1 != "bot")
 		{
-			if (allBots)
-			{
-				foreach (bot in Left4Bots.Bots)
-					Left4Bots.BotOrderAdd(bot, command, player);
-			}
-			else
-			{
-				if (!tgtBot)
-					tgtBot = Left4Bots.GetFirstAvailableBotForOrder(command);
-				
-				if (tgtBot)
-					Left4Bots.BotOrderAdd(tgtBot, command, player);
-				else
-					Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + command);
-			}
-			
-			return true;
+			tgtBot = Left4Bots.GetBotByName(arg1);
+			if (!tgtBot)
+				return false; // Invalid target
 		}
-		case "follow":
+		
+		switch (arg2)
 		{
-			local followEnt = null;
-			if (param)
+			case "lead":
 			{
-				if (param.tolower() == "me")
+				if (allBots)
+				{
+					foreach (bot in Left4Bots.Bots)
+						Left4Bots.BotOrderAdd(bot, arg2, player);
+				}
+				else
+				{
+					if (!tgtBot)
+						tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2);
+					
+					if (tgtBot)
+						Left4Bots.BotOrderAdd(tgtBot, arg2, player);
+					else
+						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
+				}
+				
+				return true;
+			}
+			case "follow":
+			{
+				local followEnt = null;
+				if (arg3)
+				{
+					if (arg3.tolower() == "me")
+						followEnt = player;
+					else
+						followEnt = Left4Bots.GetBotByName(arg3);
+				}
+				else
 					followEnt = player;
-				else
-					followEnt = Left4Bots.GetBotByName(param);
-			}
-			else
-				followEnt = player;
-			
-			if (!followEnt)
-			{
-				Left4Bots.Log(LOG_LEVEL_WARN, "Invalid follow target: " + param);
-				return true;
-			}
-			
-			if (allBots)
-			{
-				foreach (id, bot in Left4Bots.Bots)
-				{
-					if (id != followEnt.GetPlayerUserId())
-						Left4Bots.BotOrderAdd(bot, command, player, followEnt);
-				}
-			}
-			else
-			{
-				if (!tgtBot)
-					tgtBot = Left4Bots.GetFirstAvailableBotForOrder(command, followEnt.GetPlayerUserId(), followEnt.GetOrigin());
-
-				if (tgtBot && tgtBot.GetPlayerUserId() != followEnt.GetPlayerUserId())
-					Left4Bots.BotOrderAdd(tgtBot, command, player, followEnt);
-				else
-					Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + command);
-			}
-			
-			return true;
-		}
-		case "witch":
-		{
-			local witch = Left4Bots.GetPickerWitch(player); // TODO: Shouldn't just pick the one with the best dot, distance should also be taken into account
-			if (!witch)
-			{
-				Left4Bots.Log(LOG_LEVEL_WARN, "No target witch found for order of type: " + command);
-				return true;
-			}
-			
-			if (allBots)
-			{
-				foreach (bot in Left4Bots.Bots)
-					Left4Bots.BotOrderAdd(bot, command, player, witch, null, null, 0, false);
-			}
-			else
-			{
-				if (!tgtBot)
-					tgtBot = Left4Bots.GetFirstAvailableBotForOrder(command, null, witch.GetOrigin());
 				
-				if (tgtBot)
-					Left4Bots.BotOrderAdd(tgtBot, command, player, witch, null, null, 0, false);
-				else
-					Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + command);
-			}
-			
-			return true;
-		}
-		case "heal":
-		{
-			local healTgt = null;
-			if (param)
-			{
-				if (param.tolower() == "me")
-					healTgt = player;
-				else
-					healTgt = Left4Bots.GetBotByName(param);
-				
-				if (!healTgt)
+				if (!followEnt)
 				{
-					Left4Bots.Log(LOG_LEVEL_WARN, "Invalid heal target: " + param);
+					Left4Bots.Log(LOG_LEVEL_WARN, "Invalid follow target: " + arg3);
 					return true;
 				}
-			}
-
-			if (allBots)
-			{
-				foreach (bot in Left4Bots.Bots)
-					Left4Bots.BotOrderAdd(bot, command, player, healTgt != null ? healTgt : bot, null, null, Left4Bots.Settings.button_holdtime_heal, false);
-			}
-			else
-			{
-				if (!tgtBot)
+				
+				if (allBots)
 				{
-					if (healTgt)
-						tgtBot = Left4Bots.GetNearestBotWithMedkit(healTgt.GetOrigin());
+					foreach (id, bot in Left4Bots.Bots)
+					{
+						if (id != followEnt.GetPlayerUserId())
+							Left4Bots.BotOrderAdd(bot, arg2, player, followEnt);
+					}
+				}
+				else
+				{
+					if (!tgtBot)
+						tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2, followEnt.GetPlayerUserId(), followEnt.GetOrigin());
+
+					if (tgtBot && tgtBot.GetPlayerUserId() != followEnt.GetPlayerUserId())
+						Left4Bots.BotOrderAdd(tgtBot, arg2, player, followEnt);
 					else
-						tgtBot = Left4Bots.GetLowestHPBotWithMedkit()
+						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
 				}
-
-				if (tgtBot)
-					Left4Bots.BotOrderAdd(tgtBot, command, player, healTgt != null ? healTgt : tgtBot, null, null, Left4Bots.Settings.button_holdtime_heal, false);
-				else
-					Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + command);
-			}
-
-			return true;
-		}
-		case "goto":
-		{
-			local gotoPos = null;
-			if (param)
-			{
-				if (param.tolower() == "me")
-					gotoPos = player;
-				else
-					gotoPos = Left4Bots.GetBotByName(param);
-				if (!gotoPos)
-				{
-					Left4Bots.Log(LOG_LEVEL_WARN, "Invalid goto target: " + param);
-					return true;
-				}
-				gotoPos = gotoPos.GetOrigin();
-			}
-			else
-			{
-				gotoPos = Left4Utils.GetLookingPosition(player);
-				if (!gotoPos)
-				{
-					Left4Bots.Log(LOG_LEVEL_WARN, "Invalid goto position");
-					return true;
-				}
-			}
-			
-			if (allBots)
-			{
-				foreach (bot in Left4Bots.Bots)
-					Left4Bots.BotOrderAdd(bot, command, player, null, gotoPos);
-			}
-			else
-			{
-				if (!tgtBot)
-					tgtBot = Left4Bots.GetFirstAvailableBotForOrder(command);
 				
-				if (tgtBot)
-					Left4Bots.BotOrderAdd(tgtBot, command, player, null, gotoPos);
-				else
-					Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + command);
-			}
-			
-			return true;
-		}
-		case "wait":
-		{
-			local waitPos = null;
-			if (param)
-			{
-				if (param.tolower() == "here")
-					waitPos = player.GetOrigin();
-				else if (param.tolower() == "there")
-					waitPos = Left4Utils.GetLookingPosition(player);
-
-				if (!waitPos)
-				{
-					Left4Bots.Log(LOG_LEVEL_WARN, "Invalid wait position: " + param);
-					return true;
-				}
-			}
-			
-			if (allBots)
-			{
-				foreach (bot in Left4Bots.Bots)
-					Left4Bots.BotOrderAdd(bot, command, player, null, waitPos != null ? waitPos : bot.GetOrigin(), null, 0, !Left4Bots.Settings.wait_nopause);
-			}
-			else
-			{
-				if (!tgtBot)
-					tgtBot = Left4Bots.GetFirstAvailableBotForOrder(command);
-				
-				if (tgtBot)
-					Left4Bots.BotOrderAdd(tgtBot, command, player, null, waitPos != null ? waitPos : tgtBot.GetOrigin(), null, 0, !Left4Bots.Settings.wait_nopause);
-				else
-					Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + command);
-			}
-			
-			return true;
-		}
-		case "cancel":
-		{
-			if (!allBots && !tgtBot)
-			{
-				Left4Bots.Log(LOG_LEVEL_WARN, "Can't use the 'bot' keyword with the 'cancel' command");
 				return true;
 			}
-			
-			// param can be:
-			// - "current" to cancel the current order only
-			// - "orders" to cancel all the orders (including the current one)
-			// - "ordertype" to cancel all the orders of given type
-			// - "all" (or null) to cancel everything (orders, current pick-up, anything)
-			if (param)
-				param = param.tolower();
-			
-			if (allBots)
+			case "witch":
 			{
-				foreach (bot in ::Left4Bots.Bots)
+				local witch = Left4Bots.GetPickerWitch(player); // TODO: Shouldn't just pick the one with the best dot, distance should also be taken into account
+				if (!witch)
 				{
-					if (!param || param == "all")
-						bot.GetScriptScope().BotCancelAll();
-					else if (param == "current")
-						bot.GetScriptScope().BotCancelCurrentOrder();
-					else if (param == "orders")
-						bot.GetScriptScope().BotCancelOrders();
-					else
-						bot.GetScriptScope().BotCancelCurrentOrder(param);
+					Left4Bots.Log(LOG_LEVEL_WARN, "No target witch found for order of type: " + arg2);
+					return true;
 				}
-			}
-			else
-			{
-				if (!param || param == "all")
-					tgtBot.GetScriptScope().BotCancelAll();
-				else if (param == "current")
-					tgtBot.GetScriptScope().BotCancelCurrentOrder();
-				else if (param == "orders")
-					tgtBot.GetScriptScope().BotCancelOrders();
+				
+				if (allBots)
+				{
+					foreach (bot in Left4Bots.Bots)
+						Left4Bots.BotOrderAdd(bot, arg2, player, witch, null, null, 0, false);
+				}
 				else
-					tgtBot.GetScriptScope().BotCancelCurrentOrder(param);
+				{
+					if (!tgtBot)
+						tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2, null, witch.GetOrigin());
+					
+					if (tgtBot)
+						Left4Bots.BotOrderAdd(tgtBot, arg2, player, witch, null, null, 0, false);
+					else
+						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
+				}
+				
+				return true;
 			}
-			
-			return true;
+			case "heal":
+			{
+				local healTgt = null;
+				if (arg3)
+				{
+					if (arg3.tolower() == "me")
+						healTgt = player;
+					else
+						healTgt = Left4Bots.GetBotByName(arg3);
+					
+					if (!healTgt)
+					{
+						Left4Bots.Log(LOG_LEVEL_WARN, "Invalid heal target: " + arg3);
+						return true;
+					}
+				}
+
+				if (allBots)
+				{
+					foreach (bot in Left4Bots.Bots)
+						Left4Bots.BotOrderAdd(bot, arg2, player, healTgt != null ? healTgt : bot, null, null, Left4Bots.Settings.button_holdtime_heal, false);
+				}
+				else
+				{
+					if (!tgtBot)
+					{
+						if (healTgt)
+							tgtBot = Left4Bots.GetNearestBotWithMedkit(healTgt.GetOrigin());
+						else
+							tgtBot = Left4Bots.GetLowestHPBotWithMedkit()
+					}
+
+					if (tgtBot)
+						Left4Bots.BotOrderAdd(tgtBot, arg2, player, healTgt != null ? healTgt : tgtBot, null, null, Left4Bots.Settings.button_holdtime_heal, false);
+					else
+						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
+				}
+
+				return true;
+			}
+			case "goto":
+			{
+				local gotoPos = null;
+				if (arg3)
+				{
+					if (arg3.tolower() == "me")
+						gotoPos = player;
+					else
+						gotoPos = Left4Bots.GetBotByName(arg3);
+					if (!gotoPos)
+					{
+						Left4Bots.Log(LOG_LEVEL_WARN, "Invalid goto target: " + arg3);
+						return true;
+					}
+					gotoPos = gotoPos.GetOrigin();
+				}
+				else
+				{
+					gotoPos = Left4Utils.GetLookingPosition(player);
+					if (!gotoPos)
+					{
+						Left4Bots.Log(LOG_LEVEL_WARN, "Invalid goto position");
+						return true;
+					}
+				}
+				
+				if (allBots)
+				{
+					foreach (bot in Left4Bots.Bots)
+						Left4Bots.BotOrderAdd(bot, arg2, player, null, gotoPos);
+				}
+				else
+				{
+					if (!tgtBot)
+						tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2);
+					
+					if (tgtBot)
+						Left4Bots.BotOrderAdd(tgtBot, arg2, player, null, gotoPos);
+					else
+						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
+				}
+				
+				return true;
+			}
+			case "come":
+			{
+				if (allBots)
+				{
+					foreach (bot in Left4Bots.Bots)
+						Left4Bots.BotOrderAdd(bot, "goto", player, null, player);
+				}
+				else
+				{
+					if (!tgtBot)
+						tgtBot = Left4Bots.GetFirstAvailableBotForOrder("goto");
+					
+					if (tgtBot)
+						Left4Bots.BotOrderAdd(tgtBot, "goto", player, null, player);
+					else
+						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
+				}
+				
+				return true;
+			}
+			case "wait":
+			{
+				local waitPos = null;
+				if (arg3)
+				{
+					if (arg3.tolower() == "here")
+						waitPos = player.GetOrigin();
+					else if (arg3.tolower() == "there")
+						waitPos = Left4Utils.GetLookingPosition(player);
+
+					if (!waitPos)
+					{
+						Left4Bots.Log(LOG_LEVEL_WARN, "Invalid wait position: " + arg3);
+						return true;
+					}
+				}
+				
+				if (allBots)
+				{
+					foreach (bot in Left4Bots.Bots)
+						Left4Bots.BotOrderAdd(bot, arg2, player, null, waitPos != null ? waitPos : bot.GetOrigin(), null, 0, !Left4Bots.Settings.wait_nopause);
+				}
+				else
+				{
+					if (!tgtBot)
+						tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2);
+					
+					if (tgtBot)
+						Left4Bots.BotOrderAdd(tgtBot, arg2, player, null, waitPos != null ? waitPos : tgtBot.GetOrigin(), null, 0, !Left4Bots.Settings.wait_nopause);
+					else
+						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
+				}
+				
+				return true;
+			}
+			case "cancel":
+			{
+				if (!allBots && !tgtBot)
+				{
+					Left4Bots.Log(LOG_LEVEL_WARN, "Can't use the 'bot' keyword with the 'cancel' arg2");
+					return true;
+				}
+				
+				// arg3 can be:
+				// - "current" to cancel the current order only
+				// - "orders" to cancel all the orders (including the current one)
+				// - "ordertype" to cancel all the orders of given type
+				// - "all" (or null) to cancel everything (orders, current pick-up, anything)
+				if (arg3)
+					arg3 = arg3.tolower();
+				
+				if (allBots)
+				{
+					foreach (bot in ::Left4Bots.Bots)
+					{
+						if (!arg3 || arg3 == "all")
+							bot.GetScriptScope().BotCancelAll();
+						else if (arg3 == "current")
+							bot.GetScriptScope().BotCancelCurrentOrder();
+						else if (arg3 == "orders")
+							bot.GetScriptScope().BotCancelOrders();
+						else
+							bot.GetScriptScope().BotCancelCurrentOrder(arg3);
+					}
+				}
+				else
+				{
+					if (!arg3 || arg3 == "all")
+						tgtBot.GetScriptScope().BotCancelAll();
+					else if (arg3 == "current")
+						tgtBot.GetScriptScope().BotCancelCurrentOrder();
+					else if (arg3 == "orders")
+						tgtBot.GetScriptScope().BotCancelOrders();
+					else
+						tgtBot.GetScriptScope().BotCancelCurrentOrder(arg3);
+				}
+				
+				return true;
+			}
 		}
 	}
 	
@@ -1619,23 +1688,8 @@ Switches:
 	
 	local name = speaker.GetPlayerName() + ": ";
 	local text = strip(msg.slice(msg.find(name) + name.len())); // Remove the speaker's name part from the message
-	local args = {};
-	if (text != null && text != "")
-		args = split(text, " ");
 	
-	if (args.len() < 2)
-		return true; // L4B commands have at least 2 arguments
-	
-	name = args[0] + " " + args[1];
-	text = strip(text.slice(text.find(name) + name.len())); // Remove the first 2 arguments from the message and take the remaining text as 3rd argument (if any)
-	if (text == "")
-		text = null;
-	
-	local isCommand = Left4Bots.OnUserCommand(speaker, args[0].tolower(), args[1].tolower(), text);
-	if (isCommand && Left4Bots.Settings.hide_chat_commands)
-		return false;
-	else
-		return true;
+	return Left4Bots.OnChatCommand(speaker, text);
 }
 
 ::Left4Bots.UserConsoleCommand <- function (playerScript, arg)
@@ -1647,14 +1701,21 @@ Switches:
 	if (arg != null && arg != "")
 		args = split(arg, ",");
 	
-	if (args.len() < 3) // L4B commands have at least 2 arguments but commands via console must also start with "l4b," so there is an additional argument
+	if (args.len() < 2) // L4B commands have at least 2 arguments
 		return;
 	
 	if (args[0].tolower() != "l4b")
 		return; // Not a L4B command
 	
 	local arg1 = strip(args[1].tolower());
-	local arg2 = strip(args[2].tolower());
+	
+	if (arg1 != "settings" && arg1 != "botselect" && args.len() < 3) // Normal bot commands have at least 2 arguments (excluding 'l4b')
+		return;
+	
+	local arg2 = null;
+	if (args.len() > 2)
+		arg2 = strip(args[2].tolower());
+	
 	local arg3 = null;
 	if (args.len() > 3)
 		arg3 = strip(args[3]);
