@@ -1,9 +1,10 @@
 /* TODO:
 
+- All close saferoom door
+- Force ammo replenish while in saferoom
+- Invece di GetScriptScope... DoEntFire("!self", "RunScriptCode", "AutomaticShot()", 0.01, null, bot);  oppure  DoEntFire("!self", "CallScriptFunction", "AutomaticShot", 0.01, null, bot);
 - Weapon/Item spotted -> check dist/... and add as pickup
 - Remove cmdattack su special (bugga i bot)
-- Give order should reset pause
-- Pickup all
 - Heal da solo e rescue pure
 - sb_unstick 0 e gestire l'unstick (magari teleportarlo dietro, davanti solo se sta da solo o è indietro?)
 - auto crown witch
@@ -13,6 +14,7 @@
 
 ----- IMPROV:
 
+- Weapon preferences
 - Lead detour
 - l4u
 - close saferoom door
@@ -147,11 +149,14 @@ IncludeScript("left4bots_requirements");
 		// Name of the file containing the GG chat lines
 		file_gg = "left4bots2/cfg/gg.txt"
 		
-		// Name of the file containing the list of items to avoid
-		//file_itemstoavoid = "left4bots2/cfg/itemstoavoid.txt" // TODO: ?
+		// Name of the file containing the items that the vanilla AI should not pickup
+		file_itemstoavoid = "left4bots2/cfg/itemstoavoid.txt"
 		
 		// Name of the file with the vocalizer/command mapping
 		file_vocalizer = "left4bots2/cfg/vocalizer.txt"
+		
+		// Prefix of the name of the files with the weapon preferences (file name will be "file_weapons_prefix" + "bot name lowercase" + ".txt")
+		file_weapons_prefix = "left4bots2/cfg/weapons/"
 		
 		// When executing a 'follow' order, the bot will start pause when within move_end_radius_follow from the followed entity,
 		// but will only resume when farther than follow_pause_radius, so this has to be > than move_end_radius_follow
@@ -206,6 +211,9 @@ IncludeScript("left4bots_requirements");
 		
 		// When scanning for an actual horde, this is the minimum number of common infected to count
 		horde_nades_size = 10
+		
+		// [1/0] 1 = Reverse itemstoavoid logics (tells the vanilla AI to avoid all the items except the ones in the itemstoavoid.txt file). 0 = Normal logics (vanilla AI should avoid only the items in the file)
+		items_not_to_avoid = 1
 		
 		// (1/0) Enable/Disable the additional trace check on the ground when calculating the 'lead' path
 		lead_check_ground = 0
@@ -272,38 +280,14 @@ IncludeScript("left4bots_requirements");
 		// Maximum distance from the destination witch before starting to shoot her
 		move_end_radius_witch = 55
 		
-		// High priority MOVEs will be automatically terminated after this time, regardless the destination position (likely unreachable) was reached or not
+		// High priority MOVEs will be automatically terminated after this time, regardless the destination position was reached or not (likely unreachable position)
 		move_hipri_timeout = 5.0
 		
 		// [1/0] Enable/Disable debug chat messages when the bot starts/stops the pause
 		pause_debug = 0
 		
 		// Minimum duration of the pause. When a bot starts a pause (due to infected nearby, teammates need help etc.), the pause cannot end earlier than this, even if the conditions to stop the pause are met
-		pause_min_time = 4.0
-		
-		// Should the AI pick up the adrenaline?
-		pickup_adrenaline = 1
-		
-		// Should the AI pick up the defibrillators?
-		pickup_defib = 1
-		
-		// Should the AI pick up the medkits?
-		pickup_medkit = 1
-		
-		// Should the AI pick up the molotovs?
-		pickup_molotov = 1
-		
-		// Should the AI pick up the pain pills?
-		pickup_pills = 1
-		
-		// Should the AI pick up the pipe bombs?
-		pickup_pipebomb = 1
-		
-		// Should the AI pick up the upgrade packs?
-		pickup_upgrades = 1
-		
-		// Should the AI pick up the bile jars?
-		pickup_vomitjar = 1
+		pause_min_time = 3.0 // TODO: 4?
 		
 		// When the addon tells a bot to pickup an item, the bot does it via USE button (in order to do the hand animation)
 		// But if, for some reason, the pickup fails (too far or something) the item is forced into the bot's inventory after this delay (to prevent stuck situations)
@@ -316,12 +300,29 @@ IncludeScript("left4bots_requirements");
 		pickups_pick_range = 99
 		
 		// Items to pick up must be within this radius (and be visible to the bot)
-		pickups_scan_radius = 380
+		pickups_scan_radius = 400
+		
+		// [1/0] 1 = L4B AI will always handle the pickup logics for every item (including weapons) in the preference files
+		//       0 = L4B AI will handle pri/sec weapons in preference files only while executing orders but will ignore them while at rest (order paused or no order). Will still handle the other items, though
+		pickups_wep_always = 1
+		
+		// The bot will look for ammo stacks when the percent of ammo in his primary weapon drops below this
+		pickups_wep_ammo_replenish = 80.0
+		
+		// Minimum percent of ammo in a weapon on the ground in order for the bot to consider picking it up
+		pickups_wep_min_ammo = 10.0
+		
+		// If the ammo percent of the bot's current primary weapon drops below this value, the bot will consider replacing the weapon with any other weapon
+		pickups_wep_replace_ammo = 1.0
+		
+		// Minumum number of upgraded (incendiary/explosive) ammo loaded for ignoring deployed upgrades
+		// Basically the bot will consider using another deployed ammo upgrade pack only when the number of upgraded ammo in his weapon is below this number
+		pickups_wep_upgraded_ammo = 1
 		
 		// [1/0] Should the sounds be played on give/swap items?
 		play_sounds = 1
 		
-		// Value for the cm_ShouldHurry director option. Not sure what it does exactly, though
+		// Value for the cm_ShouldHurry director option. Not sure what it does exactly
 		should_hurry = 0 // TODO: 1
 		
 		// Delta pitch (from his feet) for aiming when shoving common infected
@@ -397,13 +398,25 @@ IncludeScript("left4bots_requirements");
 		tank_throw_deltapitch = 3
 		
 		// Max chainsaws in the team
-		team_max_chainsaws = 0
+		team_max_chainsaws = 1 // TODO: 0
 		
+		// Max melee weapons in the team
+		team_max_melee = 2
+
 		// Minimum defibrillators in the team
 		team_min_defibs = 0
 		
 		// Minimum medkits in the team
-		team_min_medkits = 4
+		team_min_medkits = 2
+		
+		// Minimum molotovs in the team
+		team_min_molotovs = 1
+		
+		// Minimum pipe bombs in the team
+		team_min_pipebombs = 1
+		
+		// Minimum vomit jars in the team
+		team_min_vomitjars = 1
 		
 		// [1/0] Enable/Disable throwing molotovs
 		throw_molotov = 1
@@ -441,6 +454,9 @@ IncludeScript("left4bots_requirements");
 		// Minimum L4U level for triggering a vocalizer response (laugh, thanks, etc.) from the bots (2 = Admin, 1 = Friend, 0 = Random player, -1 = Griefer)
 		userlevel_vocalizer = 0
 		
+		// Bot selected with 'Look' will stay selected for this amount of time. The selection will be reset after this time
+		vocalize_botselect_timeout = 4.0
+		
 		// [1/0] Enable/Disable orders via vocalizer (does not affect orders via chat/console)
 		vocalizer_commands = 1
 		
@@ -457,7 +473,7 @@ IncludeScript("left4bots_requirements");
 		vocalizer_lead_stop = "PlayerAnswerLostCall,PlayerLostCall,PlayerStayTogether,PlayerLeadOn"
 		
 		// Chance that the bot will vocalize the horde incoming warning when starting the pause for that reason
-		vocalizer_onpause_horde_chance = 50
+		vocalizer_onpause_horde_chance = 30
 		
 		// Chance that the bot will vocalize the special infected warning when starting the pause for that reason
 		vocalizer_onpause_special_chance = 80
@@ -510,7 +526,8 @@ IncludeScript("left4bots_requirements");
 	VocalizerLeadStop = []
 	VocalizerGotoStop = []
 	VocalizerYes = []
-	ItemsToAvoid = {}
+	VocalizerCommands = {}
+	VocalizerBotSelection = {}
 	BtnStatus_Shove = {}
 	GiveItemIndex1 = 0
 	GiveItemIndex2 = 0
@@ -520,6 +537,14 @@ IncludeScript("left4bots_requirements");
 	LastLeadStartVocalize = 0
 	NiceShootSurv = null
 	NiceShootTime = 0
+	ItemsToAvoid = []
+	TeamMolotovs = 0
+	TeamPipeBombs = 0
+	TeamVomitJars = 0
+	TeamMedkits = 0
+	TeamDefibs = 0
+	TeamChainsaws = 0
+	TeamMelee = 0
 }
 
 ::Left4Bots.Log <- function (level, text)
@@ -573,6 +598,42 @@ IncludeScript("left4bots_requirements");
 	if (Left4Bots.Settings.vocalizer_yes != "")
 		Left4Bots.VocalizerYes = split(Left4Bots.Settings.vocalizer_yes, ",");
 	
+	printl("[L4B][INFO] Loading items to avoid from file: " + Left4Bots.Settings.file_itemstoavoid);
+	Left4Bots.ItemsToAvoid = Left4Bots.LoadItemsToAvoidFromFile(Left4Bots.Settings.file_itemstoavoid);
+	printl("[L4B][INFO] Loaded " + Left4Bots.ItemsToAvoid.len() + " items");
+	
+	// Default vocalizer.txt file
+	if (!Left4Utils.FileExists("left4bots2/cfg/vocalizer.txt"))
+	{
+		// using array instead of table to maintain the order
+		local defaultMappingValues =
+		[
+			"PlayerLeadOn = bots lead",
+			"PlayerWaitHere = bots wait",
+			"PlayerEmphaticGo = bots goto",
+			"PlayerWarnWitch = bot witch",
+			//"PlayerHelp = move",
+			//"PlayerHurryUp = move",
+			"PlayerMoveOn = bots cancel current",
+			"PlayerStayTogether = bots cancel",
+			"PlayerFollowMe = bot follow me",
+			"iMT_PlayerSuggestHealth = bots heal",
+			//"PlayerEmphaticGo = use",
+			//"PlayerHurryUp = canceldefib",
+			"AskForHealth2 = bot heal me"
+			//"PlayerAnswerLostCall = give",
+			//"PlayerYellRun = goto"
+		];
+
+		Left4Utils.StringListToFile("left4bots2/cfg/vocalizer.txt", defaultMappingValues, false);
+				
+		Left4Bots.Log(LOG_LEVEL_INFO, "Vocalizer orders mapping file was not found and has been recreated");
+	}
+		
+	Left4Bots.Log(LOG_LEVEL_INFO, "Loading vocalizer command mapping from file: " + Left4Bots.Settings.file_vocalizer);
+	::Left4Bots.VocalizerCommands = Left4Bots.LoadVocalizerCommandsFromFile(Left4Bots.Settings.file_vocalizer);
+	Left4Bots.Log(LOG_LEVEL_INFO, "Loaded " + Left4Bots.VocalizerCommands.len() + " orders");
+	
 	Left4Bots.Initialized = true;
 	
 	try
@@ -583,6 +644,23 @@ IncludeScript("left4bots_requirements");
 	{
 		error("[L4B][ERROR] Exception in left4bots_afterinit.nut: " + exception + "\n");
 	}
+}
+
+::Left4Bots.LoadItemsToAvoidFromFile <- function (fileName)
+{
+	local ret = [];
+	
+	local items = Left4Utils.FileToStringList(fileName);
+	if (!items)
+		return ret;
+	
+	foreach (item in items)
+	{
+		item = Left4Utils.StripComments(item);
+		if (item != "")
+			ret.append(item);
+	}
+	return ret;
 }
 
 ::Left4Bots.AddonStop <- function ()
@@ -1625,23 +1703,40 @@ IncludeScript("left4bots_requirements");
 	if (!player || !player.IsValid())
 		return null;
 	
-	/*
-	local start = player.EyePosition();
-	local end = start + player.EyeAngles().Forward().Scale(radius);
-		
-	local m_trace = { start = start, end = end, ignore = player, mask = TRACE_MASK_SOLID };
-	TraceLine(m_trace);
-		
-	if (m_trace.hit && m_trace.enthit && m_trace.enthit.IsValid() && m_trace.enthit != player && m_trace.enthit.GetClassname() == "player" && )
-		return m_trace.enthit;
-	*/
-
 	local userid = player.GetPlayerUserId();
 	local orig = player.GetOrigin();
 	local facing = player.EyeAngles().Forward();
 	local bestDot = threshold;
 	local bestEnt = null;
 	foreach (id, surv in ::Left4Bots.Survivors)
+	{
+		local toEnt = surv.GetOrigin() - orig;
+		if (id != userid && toEnt.Length() <= radius)
+		{
+			toEnt.Norm();
+			local dot = facing.Dot(toEnt);
+			if (dot > bestDot && (!visibleOnly || Left4Utils.CanTraceTo(player, surv)))
+			{
+				bestDot = dot;
+				bestEnt = surv;
+			}
+		}
+	}
+	return bestEnt;
+}
+
+// Returns the bot aimed by 'player' within 'radius' and with at least 'threshold' accuracy. visibleOnly = true if the aimed bot must be visible to 'player'
+::Left4Bots.GetPickerBot <- function (player, radius = 999999, threshold = 0.95, visibleOnly = false)
+{
+	if (!player || !player.IsValid())
+		return null;
+	
+	local userid = player.GetPlayerUserId();
+	local orig = player.GetOrigin();
+	local facing = player.EyeAngles().Forward();
+	local bestDot = threshold;
+	local bestEnt = null;
+	foreach (id, surv in ::Left4Bots.Bots)
 	{
 		local toEnt = surv.GetOrigin() - orig;
 		if (id != userid && toEnt.Length() <= radius)
@@ -1723,9 +1818,6 @@ IncludeScript("left4bots_requirements");
 // Are there enough spare medkits around for the teammates who need them and for 'me'?
 ::Left4Bots.HasSpareMedkitsAround <- function (me)
 {
-	local numMedkits = Left4Utils.GetMedkitsWithin(me, 500).len();
-	Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.CountSpareMedkitsAround - me: " + me.GetPlayerName() + " - numMedkits: " + numMedkits);
-	
 	local requiredMedkits = 1;
 	foreach (surv in Left4Bots.GetOtherAliveSurvivors(me.GetPlayerUserId()))
 	{
@@ -1737,10 +1829,10 @@ IncludeScript("left4bots_requirements");
 	
 	local count = 0;
 	local ent = null;
-	while (ent = Entities.FindInSphere(ent, me.GetOrigin(), Left4Bots.Settings.heal_spare_medkits_radius))
+	// Note: we are counting both weapon_first_aid_kit and weapon_first_aid_kit_spawn
+	while (ent = Entities.FindByClassnameWithin(ent, "weapon_first_aid_kit*", me.GetOrigin(), Left4Bots.Settings.heal_spare_medkits_radius))
 	{
-		// Note: we are counting both weapon_first_aid_kit and weapon_first_aid_kit_spawn
-		if (ent.IsValid() && ent.GetClassname().find("weapon_first_aid_kit") != null && NetProps.GetPropEntity(ent, "m_hOwner") == null)
+		if (ent.IsValid() && NetProps.GetPropEntity(ent, "m_hOwner") == null)
 		{
 			if (++count >= requiredMedkits)
 				return true;
@@ -1947,6 +2039,93 @@ IncludeScript("left4bots_requirements");
 	}
 
 	return 0.01;
+}
+
+// Loads the given survivor weapon preference file and returns an array with 5 elements (one for each inventory slot)
+// Each element is a sub-array with the weapon list from the highest to the lowest priority one for that inventory slot
+::Left4Bots.LoadWeaponPreferences <- function (survivor)
+{
+	// Main array has one sub-array for each inventory slot
+	// Each sub-array contains the weapons from the highest to the lowest priority one for that inventory slot
+	local ret = [[], [], [], [], []];
+	
+	if (!survivor || !survivor.IsValid())
+		return ret;
+	
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "LoadWeaponPreferences - survivor: " + survivor.GetPlayerName());
+	
+	local lines = Left4Utils.FileToStringList(Left4Bots.Settings.file_weapons_prefix + survivor.GetPlayerName().tolower() + ".txt");
+	if (!lines)
+		return ret;
+	
+	for (local i = 0; i < lines.len(); i++)
+	{
+		local line = Left4Utils.StripComments(lines[i]);
+		if (line != "")
+		{
+			local weaps = split(line, ",");
+			for (local x = 0; x < weaps.len(); x++)
+			{
+				local id = Left4Utils.GetWeaponIdByName(weaps[x]);
+				
+				Left4Bots.Log(LOG_LEVEL_DEBUG, "LoadWeaponPreferences - i: " + i + " - w: " + weaps[x] + " - id: " + id);
+				
+				if (id > Left4Utils.WeaponId.none && id != Left4Utils.MeleeWeaponId.none && id != Left4Utils.UpgradeWeaponId.none)
+					ret[i].append(id); // valid weapon
+			}
+		}
+	}
+	
+	return ret;
+}
+
+// Loads the vocalizer-bot command mappings from the given file
+::Left4Bots.LoadVocalizerCommandsFromFile <- function (fileName)
+{
+	local ret = {};
+	
+	local mappings = Left4Utils.FileToStringList(fileName);
+	if (!mappings)
+		return ret;
+
+	foreach (mapping in mappings)
+	{
+		//Left4Bots.Log(LOG_LEVEL_DEBUG, mapping);
+		mapping = Left4Utils.StringReplace(mapping, "\\t", "");
+		mapping = Left4Utils.StripComments(mapping);
+		if (mapping && mapping != "")
+		{
+			mapping = strip(mapping);
+			//Left4Bots.Log(LOG_LEVEL_DEBUG, mapping);
+		
+			if (mapping && mapping != "")
+			{
+				local idx = mapping.find("=");
+				if (idx != null)
+				{
+					local command = mapping.slice(0, idx);
+					command = Left4Utils.StringReplace(command, "\"", "");
+					command = strip(command);
+					//Left4Bots.Log(LOG_LEVEL_DEBUG, command);
+					
+					local value = mapping.slice(idx + 1);
+					value = Left4Utils.StringReplace(value, "\"", "");
+					value = strip(value);
+					
+					Left4Bots.Log(LOG_LEVEL_DEBUG, "MAPPING: " + command + " = " + value);
+					
+					ret[command] <- value;
+					/*
+					if (!(command in ret))
+						ret[command] <- [];
+					ret[command].append(value); // Allowing multiple commands for each vocalizer line
+					*/
+				}
+			}
+		}
+	}
+	
+	return ret;
 }
 
 //

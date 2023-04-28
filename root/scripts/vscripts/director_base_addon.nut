@@ -1,20 +1,22 @@
-if (!("ShouldAvoidItem" in DirectorScript.GetDirectorOptions()))
+//if (!("ShouldAvoidItem" in DirectorScript.GetDirectorOptions()))
 {
 	DirectorScript.GetDirectorOptions().ShouldAvoidItem <- function (classname)
 	{
-		//if (classname.find("_spawn") != null)
-			Left4Bots.Log(LOG_LEVEL_DEBUG, "ShouldAvoidItem - " + classname);
-		
-		/*
-		if (Left4Bots.ItemsToAvoid.find(classname) != null)
+		foreach (item in Left4Bots.ItemsToAvoid)
 		{
-			//Left4Bots.Log(LOG_LEVEL_DEBUG, "ShouldAvoidItem - " + classname);
-			
-			return true;
+			if (classname.find(item) != null)
+			{
+				if (Left4Bots.Settings.items_not_to_avoid)
+					return false;
+				else
+					return true;
+			}
 		}
+		
+		if (Left4Bots.Settings.items_not_to_avoid)
+			return true;
 		else
 			return false;
-		*/
 	}
 }
 
