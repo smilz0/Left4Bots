@@ -1,6 +1,5 @@
 /* TODO:
 
-- All close saferoom door
 - Force ammo replenish while in saferoom
 - Invece di GetScriptScope... DoEntFire("!self", "RunScriptCode", "AutomaticShot()", 0.01, null, bot);  oppure  DoEntFire("!self", "CallScriptFunction", "AutomaticShot", 0.01, null, bot);
 - Weapon/Item spotted -> check dist/... and add as pickup
@@ -14,6 +13,7 @@
 
 ----- IMPROV:
 
+- All close saferoom door
 - Weapon preferences
 - Lead detour
 - l4u
@@ -616,17 +616,17 @@ IncludeScript("left4bots_requirements");
 			"PlayerWaitHere = bots wait",
 			"PlayerEmphaticGo = bots goto",
 			"PlayerWarnWitch = bot witch",
-			//"PlayerHelp = move",
-			//"PlayerHurryUp = move",
-			"PlayerMoveOn = bots cancel current",
+			//"PlayerMoveOn = bots cancel current",
+			"PlayerMoveOn = bot use",
 			"PlayerStayTogether = bots cancel",
 			"PlayerFollowMe = bot follow me",
 			"iMT_PlayerSuggestHealth = bots heal",
-			//"PlayerEmphaticGo = use",
+			"PlayerEmphaticGo = bots goto",
 			//"PlayerHurryUp = canceldefib",
 			"AskForHealth2 = bot heal me"
 			//"PlayerAnswerLostCall = give",
-			//"PlayerYellRun = goto"
+			//"PlayerYellRun = goto",
+			//"PlayerImWithYou = next thing to do" // TODO:
 		];
 
 		Left4Utils.StringListToFile("left4bots2/cfg/vocalizer.txt", defaultMappingValues, false);
@@ -689,12 +689,12 @@ IncludeScript("left4bots_requirements");
 	Left4Bots.ClearBotThink();
 	
 	// Clear the lists
-	Left4Bots.Survivors = {};
-	Left4Bots.Bots = {};
-	Left4Bots.Deads = {};
-	Left4Bots.Specials = {};
-	Left4Bots.Tanks = {};
-	Left4Bots.Witches = {};
+	Left4Bots.Survivors.clear();
+	Left4Bots.Bots.clear();
+	Left4Bots.Deads.clear();
+	Left4Bots.Specials.clear();
+	Left4Bots.Tanks.clear();
+	Left4Bots.Witches.clear();
 }
 
 // Is player a valid survivor? (if player is a bot also checks whether it should be handled by the AI)
@@ -1164,7 +1164,11 @@ IncludeScript("left4bots_requirements");
 	if (!bot || !bot.IsValid() || !Left4Bots.IsValidPickup(item))
 		return;
 	
-	Left4Bots.Log(LOG_LEVEL_DEBUG, "PickupFailsafe - " + bot.GetPlayerName() + " -> " + item.GetClassname());
+	local weaponid = Left4Utils.GetWeaponId(item);
+	if (Left4Utils.HasWeaponId(bot, weaponid))
+		return;
+	
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "PickupFailsafe - " + bot.GetPlayerName() + " -> " + item.GetClassname() + " (" + weaponid + ")");
 	
 	DoEntFire("!self", "Use", "", 0, bot, item); // <- make sure i pick this up even if the real pickup (with the button) fails or i will be stuck here forever
 	//TODO Left4Bots.OnPlayerUse(bot, item, 1); // ^this doesn't trigger the event so i do it myself
@@ -1804,7 +1808,7 @@ IncludeScript("left4bots_requirements");
 {
 	foreach (id, surv in ::Left4Bots.Survivors)
 	{
-		if (surv.IsValid() && id != userid)
+		if (id != userid && surv.IsValid())
 		{
 			local area = surv.GetLastKnownArea();
 			if (!area || !area.HasSpawnAttributes(NAVAREA_SPAWNATTR_CHECKPOINT))
@@ -2128,6 +2132,83 @@ IncludeScript("left4bots_requirements");
 			}
 		}
 	}
+	
+	return ret;
+}
+
+// Returns the nearest usable entity within the given radius from origin
+::Left4Bots.FindNearestUsable <- function (orig, radius)
+{
+	local ret = null;
+	local minDist = 1000000;		
+	local ent = null;
+	while (ent = Entities.FindInSphere(ent, orig, radius))
+	{
+		if (NetProps.GetPropInt(ent, "m_hOwner") <= 0)
+		{
+			local dist = (ent.GetCenter() - orig).Length();
+			local entClass = ent.GetClassname();
+			if (dist < minDist && (entClass.find("weapon_") != null || entClass.find("prop_physics") != null || entClass.find("prop_minigun") != null || entClass.find("func_button") != null || (entClass.find("trigger_finale") != null && NetProps.GetPropInt(ent, "m_bDisabled") == 0) || entClass.find("prop_door_rotating") != null))
+			{
+				ret = ent;
+				minDist = dist;
+			}
+		}
+	}
+	return ret;
+}
+
+// Finds the best position for the bot to stand while using the given use target
+::Left4Bots.FindBestUseTargetPos <- function (useTarget, orig = null, angl = null, fwdFailsafe = true, debugShow = false, debugShowTime = 15)
+{
+	local ret = null;
+	if (!useTarget || !useTarget.IsValid())
+		return ret;
+	
+	if (!orig)
+		orig = useTarget.GetCenter();
+	if (!angl)
+		angl = useTarget.GetAngles();
+	angl = QAngle(0, angl.Yaw(), 0);
+	local grounds = [];
+	
+	grounds.append(Left4Utils.FindGround(orig, angl, 315, debugShow, debugShowTime));
+	grounds.append(Left4Utils.FindGround(orig, angl, 0, debugShow, debugShowTime));
+	grounds.append(Left4Utils.FindGround(orig, angl, 45, debugShow, debugShowTime));
+	grounds.append(Left4Utils.FindGround(orig, angl, 90, debugShow, debugShowTime));
+	grounds.append(Left4Utils.FindGround(orig, angl, 135, debugShow, debugShowTime));
+	grounds.append(Left4Utils.FindGround(orig, angl, 180, debugShow, debugShowTime));
+	grounds.append(Left4Utils.FindGround(orig, angl, 225, debugShow, debugShowTime));
+	grounds.append(Left4Utils.FindGround(orig, angl, 270, debugShow, debugShowTime));
+	grounds.append(grounds[0]);
+	grounds.append(grounds[1]);
+	
+	for (local i = 1; i < grounds.len() - 1; i++)
+	{
+		if (grounds[i - 1] != null && grounds[i] != null && grounds[i + 1] != null)
+		{
+			ret = grounds[i];
+			break;
+		}
+	}
+	
+	if (ret == null)
+	{
+		for (local i = 1; i < grounds.len() - 1; i++)
+		{
+			if (grounds[i] != null)
+			{
+				ret = grounds[i];
+				break;
+			}
+		}
+	}
+	
+	if (ret == null && fwdFailsafe)
+		ret = Left4Utils.FindGroundFrom(orig + (angl.Forward() * 45), FINDGROUND_MAXHEIGHT, FINDGROUND_MINFRACTION).pos;
+	
+	if (ret != null && debugShow)
+		DebugDrawLine_vCol(orig, ret, Vector(0, 0, 255), true, debugShowTime);
 	
 	return ret;
 }

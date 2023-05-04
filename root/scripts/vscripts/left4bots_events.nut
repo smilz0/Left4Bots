@@ -356,17 +356,17 @@ Msg("Including left4bots_events...\n");
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_item_pickup - player: " + player.GetPlayerName() + " picked up: " + item);
 	
 	// Update the inventory items
-	//Left4Bots.OnInventoryManager(params);
+	Left4Bots.OnInventoryManager(params);
 	//Left4Timers.AddTimer(null, 0.1, Left4Bots.OnInventoryManager, { });
 	
 	// Temporarily clear the weapons to search to prevent swiching back and forth with the dropped weapon, until the picked weapon is fully in our inventory and the next OnInventoryManager does update it
 	//if (Left4Bots.IsHandledBot(player))
-	//	player.GetScriptScope().WeaponsToSearch <- {};
-	foreach (bot in Left4Bots.Bots)
-	{
-		if (bot.IsValid())
-			bot.GetScriptScope().WeaponsToSearch <- {};
-	}
+	//	player.GetScriptScope().WeaponsToSearch.clear();
+	//foreach (bot in Left4Bots.Bots)
+	//{
+	//	if (bot.IsValid())
+	//		bot.GetScriptScope().WeaponsToSearch.clear();
+	//}
 }
 
 ::Left4Bots.Events.OnGameEvent_weapon_fire <- function (params)
@@ -882,32 +882,6 @@ Msg("Including left4bots_events...\n");
 					}
 					Left4Bots.OnChatCommand(who, cmd);
 				}
-				/*
-				else if (concept == "PlayerStayTogether")
-					Left4Bots.OnUserCommand(who, "bots", "cancel", null);
-				else if (concept == "PlayerMoveOn")
-					Left4Bots.OnUserCommand(who, "bots", "cancel", "current");
-				else if (concept == "PlayerLeadOn")
-					Left4Bots.OnUserCommand(who, "bots", "lead", null);
-				else if (concept == "PlayerWarnWitch")
-					Left4Bots.OnUserCommand(who, "bot", "witch", null);
-				else if (concept == "PlayerFollowMe")
-					Left4Bots.OnUserCommand(who, "bot", "follow", "me");
-				else if (concept == "AskForHealth2")
-					Left4Bots.OnUserCommand(who, "bot", "heal", "me");
-				else if (concept == "PlayerWaitHere")
-					Left4Bots.OnUserCommand(who, "bots", "wait", null);
-				else if (concept == "iMT_PlayerSuggestHealth")
-				{
-					if (subject)
-						subject = Left4Bots.GetSurvivorFromActor(subject);
-
-					if (Left4Bots.IsHandledBot(subject))
-						Left4Bots.OnUserCommand(who, subject.GetPlayerName().tolower(), "heal", null);
-					else
-						Left4Bots.OnUserCommand(who, "bots", "heal", null);
-				}
-				*/
 			}
 			
 			if (lvl < Left4Bots.Settings.userlevel_vocalizer)
@@ -1322,6 +1296,7 @@ Available commands:
 	botsource wait				: The order is added to the given bot(s) orders queue. The bot(s) will hold his/their current position
 	botsource wait here			: The order is added to the given bot(s) orders queue. The bot(s) will hold position at your current position
 	botsource wait there		: The order is added to the given bot(s) orders queue. The bot(s) will hold position at the location you are looking at
+	botsource use				: The order is added to the given bot(s) orders queue. The bot(s) will use the entity (pickup item / press button etc.) you are looking at
 
 
 botsource cancel [switch]
@@ -1514,6 +1489,85 @@ settings
 						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
 				}
 
+				return true;
+			}
+			case "use":
+			{
+				local holdTime = Left4Bots.Settings.button_holdtime_tap;
+				local target = null;
+				local tTable = Left4Utils.GetLookingTargetEx(player, TRACE_MASK_NPC_SOLID);
+				if (tTable)
+				{
+					if (tTable["ent"])
+					{
+						local tClass = tTable["ent"].GetClassname();
+						if (tClass.find("weapon_") != null || tClass.find("prop_physics") != null || tClass.find("prop_minigun") != null || tClass.find("func_button") != null || tClass.find("trigger_finale") != null || tClass.find("prop_door_rotating") != null)
+							target = tTable["ent"];
+						else
+							target = Left4Bots.FindNearestUsable(tTable["pos"], 100);
+					}
+					else
+						target = Left4Bots.FindNearestUsable(tTable["pos"], 100);
+					
+					if (target)
+					{
+						local targetClass = target.GetClassname();
+						local targetPos = null;
+						
+						if (targetClass.find("weapon_") != null || targetClass.find("prop_physics") != null)
+							targetPos = null;
+						else if (targetClass.find("prop_minigun") != null)
+							targetPos = target.GetOrigin() - (target.GetAngles().Forward() * 50);
+						else if (targetClass.find("func_button") != null || targetClass.find("trigger_finale") != null || targetClass.find("prop_door_rotating") != null)
+						{
+							if (targetClass == "func_button_timed")
+								holdTime = NetProps.GetPropInt(target, "m_nUseTime") + 0.1;
+							
+							local p = tTable["pos"];
+							local a = Left4Utils.VectorAngles(player.GetCenter() - tTable["pos"]);
+							
+							if (targetClass.find("trigger_finale") != null)
+								targetPos = Left4Bots.FindBestUseTargetPos(target, p, a, true, Left4Bots.Settings.loglevel >= LOG_LEVEL_DEBUG);
+							else
+								targetPos = Left4Bots.FindBestUseTargetPos(target, p, a, false, Left4Bots.Settings.loglevel >= LOG_LEVEL_DEBUG);
+							if (!targetPos)
+								targetPos = target.GetCenter();
+							
+							if (targetClass.find("func_button") != null)
+							{
+								local glowEntName = NetProps.GetPropString(target, "m_sGlowEntity");
+								if (glowEntName && glowEntName != "")
+								{
+									local glowEnt = Entities.FindByName(null, glowEntName);
+									if (glowEnt)
+										target = glowEnt;
+								}
+							}
+						}
+						else
+							target = null;
+						
+						if (target)
+						{
+							if (allBots)
+							{
+								foreach (bot in Left4Bots.Bots)
+									Left4Bots.BotOrderAdd(bot, arg2, player, target, targetPos, null, holdTime);
+							}
+							else
+							{
+								if (!tgtBot)
+									tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2, null, target.GetCenter());
+								
+								if (tgtBot)
+									Left4Bots.BotOrderAdd(tgtBot, arg2, player, target, targetPos, null, holdTime);
+								else
+									Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
+							}
+						}
+					}
+				}
+				
 				return true;
 			}
 			case "goto":

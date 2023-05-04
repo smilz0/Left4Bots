@@ -37,6 +37,8 @@ enum AI_DOOR_ACTION {
 {
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "AddBotThink -> " + bot.GetPlayerName());
 	
+	AddThinkToEnt(bot, null);
+	
 	bot.ValidateScriptScope();
 	local scope = bot.GetScriptScope();
 	
@@ -165,12 +167,21 @@ enum AI_DOOR_ACTION {
 	if (MovePos && MoveType == AI_MOVE_TYPE.HighPriority)
 	{
 		// Lets see if we reached our high priority destination...
-		if ((Origin - MovePos).Length() <= Left4Bots.Settings.move_end_radius || (Time() - MoveTime) >= MoveTimeout)
+		if ((Origin - MovePos).Length() <= Left4Bots.Settings.move_end_radius)
 		{
 			// Yes, we did
 			
 			// No longer needed if we set sb_debug_apoproach_wait_time to something like 0.5 or even 0
 			// BotReset();
+			
+			MovePos = null;
+			MoveType = AI_MOVE_TYPE.None;
+		}
+		else if ((Time() - MoveTime) >= MoveTimeout)
+		{
+			// No but the move timed out
+			
+			BotReset();
 			
 			MovePos = null;
 			MoveType = AI_MOVE_TYPE.None;
@@ -262,7 +273,7 @@ enum AI_DOOR_ACTION {
 	
 	if (!pickup)
 	{
-		// Not item to pick up
+		// No item to pick up
 
 		if (MoveType == AI_MOVE_TYPE.Pickup)
 		{
@@ -282,6 +293,9 @@ enum AI_DOOR_ACTION {
 		
 		Left4Utils.PlayerPressButton(self, BUTTON_USE, Left4Bots.Settings.button_holdtime_tap, pickup, 0, 0, true);
 		Left4Timers.AddTimer(null, Left4Bots.Settings.pickups_failsafe_delay, @(params) Left4Bots.PickupFailsafe(params.bot, params.item), { bot = self, item = pickup });
+
+		// Apparently OnGameEvent_item_pickup comes too late sometimes, and the bot starts picking the dropped weapon over and over again
+		WeaponsToSearch.clear();
 
 		if (MoveType == AI_MOVE_TYPE.Pickup)
 		{
@@ -985,8 +999,8 @@ enum AI_DOOR_ACTION {
 // Runs in the scope of the bot entity
 ::Left4Bots.BotUpdatePickupToSearch <- function ()
 {
-	WeaponsToSearch = {};
-	UpgradesToSearch = {};
+	WeaponsToSearch.clear();
+	UpgradesToSearch.clear();
 	
 	local currWeps = [Left4Utils.WeaponId.none, Left4Utils.WeaponId.none, Left4Utils.WeaponId.none, Left4Utils.WeaponId.none, Left4Utils.WeaponId.none]; // Will be filled with the weapon ids of the bot's current weapons
 	local priAmmoPercent = 100;
@@ -994,6 +1008,7 @@ enum AI_DOOR_ACTION {
 	local hasLaserSight = true;
 	local hasPistol = false;
 	local hasDualPistol = false;
+	local hasMelee = false;
 	local hasMolotov = false;
 	local hasPipeBomb = false;
 	local hasVomitJar = false;
@@ -1033,6 +1048,7 @@ enum AI_DOOR_ACTION {
 				hasPistol = currWeps[i] == Left4Utils.WeaponId.weapon_pistol;
 				if (hasPistol)
 					hasDualPistol = NetProps.GetPropInt(inv[slot], "m_hasDualWeapons") > 0;
+				hasMelee = currWeps[i] > Left4Utils.MeleeWeaponId.none;
 			}
 			else if (i == 2)
 			{
@@ -1074,7 +1090,7 @@ enum AI_DOOR_ACTION {
 			local prefId = WeapPref[slotIdx][x];
 			if (prefId != currWeps[slotIdx] || Left4Bots.TeamChainsaws > Left4Bots.Settings.team_max_chainsaws || Left4Bots.TeamMelee > Left4Bots.Settings.team_max_melee)
 			{
-				if ((prefId == Left4Utils.WeaponId.weapon_chainsaw && Left4Bots.TeamChainsaws >= Left4Bots.Settings.team_max_chainsaws) || (prefId > Left4Utils.MeleeWeaponId.none && Left4Bots.TeamMelee >= Left4Bots.Settings.team_max_melee))
+				if ((prefId == Left4Utils.WeaponId.weapon_chainsaw && Left4Bots.TeamChainsaws >= Left4Bots.Settings.team_max_chainsaws) || (prefId > Left4Utils.MeleeWeaponId.none && Left4Bots.TeamMelee >= Left4Bots.Settings.team_max_melee && !hasMelee))
 				{
 					// Take care of the team_max_chainsaws / team_max_melee limits
 				}
@@ -1339,8 +1355,7 @@ enum AI_DOOR_ACTION {
 				// If we are moving to defib a dead survivor and we have a defibrillator in our inventory, ignore the medkit or we'll loop replacing our defibrillator with the medkit over and over again
 				if (MoveType != AI_MOVE_TYPE.Defib || weaponId != Left4Utils.WeaponId.weapon_first_aid_kit || !Left4Utils.HasDefib(self))
 				{
-					local weaponSlot = Left4Utils.GetWeaponSlotById(weaponId);
-					if (weaponSlot != 0 || Left4Utils.GetAmmoPercent(ent) >= Left4Bots.Settings.pickups_wep_min_ammo)
+					if (Left4Utils.GetWeaponSlotById(weaponId) != 0 || Left4Utils.GetAmmoPercent(ent) >= Left4Bots.Settings.pickups_wep_min_ammo)
 					{
 						local dist = (orig - ent.GetCenter()).Length();
 						if (dist < minDist && Left4Utils.CanTraceTo(self, ent, TRACE_MASK_DEFAULT, 0, "prop_health_cabinet")) // <- Apparently the trace always hits the cabinet and not the items inside, even when open
@@ -1557,7 +1572,9 @@ enum AI_DOOR_ACTION {
 		}
 		case "use":
 		{
-			// TODO
+			Left4Bots.Log(LOG_LEVEL_INFO, "[AI]" + self.GetPlayerName() + " is using " + CurrentOrder.DestEnt.GetClassname());
+			
+			Left4Utils.PlayerPressButton(self, BUTTON_USE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
 			
 			break;
 		}
@@ -1937,6 +1954,21 @@ enum AI_DOOR_ACTION {
 			//Left4Bots.SpeakRandomVocalize(bot, Left4Bots.VocalizerYes, RandomFloat(0.5, 1.0));
 			
 			order.DestRadius <- Left4Bots.Settings.move_end_radius_heal;
+			order.MaxSeparation <- 0;
+			break;
+		}
+		case "use":
+		{
+			Left4Bots.SpeakRandomVocalize(bot, Left4Bots.VocalizerYes, RandomFloat(0.5, 1.0));
+			
+			local entClass = destEnt.GetClassname();
+			if (entClass.find("weapon_") != null || entClass.find("prop_physics") != null)
+				order.DestRadius <- Left4Bots.Settings.pickups_pick_range;
+			//else if (entClass.find("func_button") != null || entClass.find("trigger_finale") != null || entClass.find("prop_door_rotating") != null)
+			//	order.DestRadius <- 50;
+			else// if (entClass == "prop_minigun")
+				order.DestRadius <- Left4Bots.Settings.move_end_radius;
+
 			order.MaxSeparation <- 0;
 			break;
 		}
