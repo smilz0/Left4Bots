@@ -1032,6 +1032,7 @@ Msg("Including left4bots_events...\n");
 ::Left4Bots.OnInventoryManager <- function (params)
 {
 	// First count how many medkits, defibs, chainsaws and throwables we already have in the team
+	Left4Bots.TeamShotguns = 0;
 	Left4Bots.TeamChainsaws = 0;
 	Left4Bots.TeamMelee = 0;
 	Left4Bots.TeamMolotovs = 0;
@@ -1046,6 +1047,12 @@ Msg("Including left4bots_events...\n");
 		{
 			local inv = {};
 			GetInvTable(surv, inv);
+			
+			if (INV_SLOT_PRIMARY in inv)
+			{
+				if (inv[INV_SLOT_PRIMARY].GetClassname().find("shotgun"))
+					Left4Bots.TeamShotguns++;
+			}
 			
 			if (INV_SLOT_SECONDARY in inv)
 			{
@@ -1271,7 +1278,7 @@ Left4Bots.OnThinker <- function (params)
 			arg3 = null;
 	}
 	
-	if (Left4Bots.OnUserCommand(speaker, arg1, arg2, arg3) && Left4Bots.Settings.hide_chat_commands)
+	if (Left4Bots.OnUserCommand(speaker, arg1, arg2, arg3) && Left4Bots.Settings.chat_hide_commands)
 		return false;
 	else
 		return true;
@@ -1329,7 +1336,58 @@ settings
 		if (Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) < L4U_LEVEL.Admin)
 			return false; // Only admins can change settings
 		
-		// TODO
+		if (arg2 in Left4Bots.Settings)
+		{
+			if (!arg3)
+				ClientPrint(player, 3, "\x01 Current value for " + arg2 + ": " + Left4Bots.Settings[arg2]);
+			else
+			{
+				try
+				{
+					local value = arg3.tointeger();
+					::Left4Bots.Settings[arg2] <- value;
+					
+					/* TODO
+					if (arg2 in ::Left4Bots.OnTankSettingsBak)
+						::Left4Bots.OnTankSettingsBak[arg2] <- value;
+					
+					local trueSettings = clone ::Left4Bots.Settings;
+					foreach (key, val in ::Left4Bots.OnTankSettingsBak)
+						trueSettings[key] <- val;
+					
+					Left4Utils.SaveSettingsToFile("left4bots/cfg/settings.txt", trueSettings, Left4Bots.Log);
+					*/
+					
+					if (arg2 == "should_hurry")
+					{
+						if (value)
+						{
+							DirectorScript.GetDirectorOptions().cm_ShouldHurry <- 1;
+
+							Left4Bots.Log(LOG_LEVEL_DEBUG, "cm_ShouldHurry = 1");
+						}
+						else
+						{
+							DirectorScript.GetDirectorOptions().cm_ShouldHurry <- 0;
+							
+							//if ("cm_ShouldHurry" in DirectorScript.GetDirectorOptions())
+							//	delete DirectorScript.GetDirectorOptions().cm_ShouldHurry;
+							
+							Left4Bots.Log(LOG_LEVEL_DEBUG, "cm_ShouldHurry = 0");
+						}
+					}
+					
+					ClientPrint(player, 3, "\x05 Value of setting " + arg2 + " changed to: " + value);
+				}
+				catch(exception)
+				{
+					Left4Bots.Log(LOG_LEVEL_ERROR, "Error changing value of setting: " + arg2 + " - new value: " + arg3 + " - error: " + exception);
+					ClientPrint(player, 3, "\x04 Error changing value of setting " + arg2);
+				}
+			}
+		}
+		else
+			ClientPrint(player, 3, "\x04 Invalid setting: " + arg2);
 	}
 	else if (arg1 == "botselect")
 	{

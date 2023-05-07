@@ -1,5 +1,6 @@
 /* TODO:
 
+- Auto warp when too far
 - Force ammo replenish while in saferoom
 - Invece di GetScriptScope... DoEntFire("!self", "RunScriptCode", "AutomaticShot()", 0.01, null, bot);  oppure  DoEntFire("!self", "CallScriptFunction", "AutomaticShot", 0.01, null, bot);
 - Weapon/Item spotted -> check dist/... and add as pickup
@@ -16,11 +17,12 @@
 - All close saferoom door
 - Weapon preferences
 - Lead detour
+- Spit/Flames not stuck
+- 'follow' (new)
+
 - l4u
 - close saferoom door
 - 'wait'
-- Spit/Flames not stuck
-- 'follow' (new)
 - dodge rock
 
 */
@@ -74,6 +76,9 @@ IncludeScript("left4bots_requirements");
 		
 		// Chance that the bot will chat one of the GG lines at the end of the campaign (if alive)
 		chat_gg_chance = 70
+		
+		// [1/0] 1 = valid chat commands given to the bot will be hidden to the other players. 0 = They are visible
+		chat_hide_commands = 1
 		
 		// [1/0] Should the last bot entering the saferoom close the door immediately?
 		close_saferoom_door = 1
@@ -145,13 +150,13 @@ IncludeScript("left4bots_requirements");
 		fall_velocity_warp = 0
 		
 		// Name of the file containing the BG chat lines
-		file_bg = "left4bots2/cfg/bg.txt"
+		file_bg = "left4bots2/cfg/bg.txt" // TODO: make the lines a setting and remove the file
 		
 		// Name of the file with the convar changes to load
 		file_convars = "left4bots2/cfg/convars.txt"
 		
 		// Name of the file containing the GG chat lines
-		file_gg = "left4bots2/cfg/gg.txt"
+		file_gg = "left4bots2/cfg/gg.txt" // TODO: make the lines a setting and remove the file
 		
 		// Name of the file containing the items that the vanilla AI should not pickup
 		file_itemstoavoid = "left4bots2/cfg/itemstoavoid.txt"
@@ -201,17 +206,14 @@ IncludeScript("left4bots_requirements");
 		// Radius for searching the spare medkits around
 		heal_spare_medkits_radius = 500
 		
-		// [1/0] 1 = valid chat commands given to the bot will be hidden to the other players. 0 = They are visible
-		hide_chat_commands = 1
-		
 		// Chance that the bot will throw the pipe bomb/bile jar at the horde (this check runs multiple times in a second, so this chance must be pretty low to have an actual chance of no throw)
 		horde_nades_chance = 30
 		
 		// When scanning for an actual horde, this is the maximum altitude difference between the bot and the common infected being counted
-		horde_nades_maxaltdiff = 200
+		horde_nades_maxaltdiff = 120
 		
 		// When scanning for an actual horde, this is the maximum distance between the bot and the common infected being counted
-		horde_nades_radius = 400
+		horde_nades_radius = 450
 		
 		// When scanning for an actual horde, this is the minimum number of common infected to count
 		horde_nades_size = 10
@@ -243,7 +245,7 @@ IncludeScript("left4bots_requirements");
 		lead_min_segment = 100
 		
 		// Vocalizer commands from vocalizer_lead_start will be played when the bot starts a 'lead' order and resumes it after a pause. This is the minimum interval between each vocalization
-		lead_vocalize_interval = 30
+		lead_vocalize_interval = 40
 		
 		// Minimum log level for the addon's log lines into the console
 		// 0 = No log
@@ -255,10 +257,10 @@ IncludeScript("left4bots_requirements");
 		
 		// [0.0 - 1.0] While executing MOVE commands, this is how straight the bot should be looking at the enemy in order to shoot it
 		// 0.0 = Even the enemies behind will be shoot (CSGO spinbot style). 1.0 = The bot will probably never shoot
-		manual_attack_mindot = 0.95
+		manual_attack_mindot = 0.94
 		
 		// While executing MOVE commands, this is the max distance of the enemies that the bot will shoot
-		manual_attack_radius = 600
+		manual_attack_radius = 950
 		
 		// Maximum distance from a generic destination position for setting the travel done
 		move_end_radius = 30
@@ -293,6 +295,7 @@ IncludeScript("left4bots_requirements");
 		// Minimum duration of the pause. When a bot starts a pause (due to infected nearby, teammates need help etc.), the pause cannot end earlier than this, even if the conditions to stop the pause are met
 		pause_min_time = 3.0 // TODO: 4?
 		
+		// TODO: remove
 		// When the addon tells a bot to pickup an item, the bot does it via USE button (in order to do the hand animation)
 		// But if, for some reason, the pickup fails (too far or something) the item is forced into the bot's inventory after this delay (to prevent stuck situations)
 		pickups_failsafe_delay = 0.15
@@ -419,6 +422,10 @@ IncludeScript("left4bots_requirements");
 		// Minimum pipe bombs in the team
 		team_min_pipebombs = 1
 		
+		// Minimum shotguns in the team
+		// NOTE: This will override the weapon preferences and it also means that this amount of bots will prefer keeping their tier1 shotguns instead of taking tier2 guns if no tier2 shotgun is found
+		team_min_shotguns = 1
+		
 		// Minimum vomit jars in the team
 		team_min_vomitjars = 1
 		
@@ -542,6 +549,7 @@ IncludeScript("left4bots_requirements");
 	NiceShootSurv = null
 	NiceShootTime = 0
 	ItemsToAvoid = []
+	TeamShotguns = 0
 	TeamMolotovs = 0
 	TeamPipeBombs = 0
 	TeamVomitJars = 0
@@ -2060,7 +2068,7 @@ IncludeScript("left4bots_requirements");
 	if (!survivor || !survivor.IsValid())
 		return ret;
 	
-	Left4Bots.Log(LOG_LEVEL_DEBUG, "LoadWeaponPreferences - survivor: " + survivor.GetPlayerName());
+	//Left4Bots.Log(LOG_LEVEL_DEBUG, "LoadWeaponPreferences - survivor: " + survivor.GetPlayerName());
 	
 	local lines = Left4Utils.FileToStringList(Left4Bots.Settings.file_weapons_prefix + survivor.GetPlayerName().tolower() + ".txt");
 	if (!lines)
@@ -2076,13 +2084,15 @@ IncludeScript("left4bots_requirements");
 			{
 				local id = Left4Utils.GetWeaponIdByName(weaps[x]);
 				
-				Left4Bots.Log(LOG_LEVEL_DEBUG, "LoadWeaponPreferences - i: " + i + " - w: " + weaps[x] + " - id: " + id);
+				//Left4Bots.Log(LOG_LEVEL_DEBUG, "LoadWeaponPreferences - i: " + i + " - w: " + weaps[x] + " - id: " + id);
 				
 				if (id > Left4Utils.WeaponId.none && id != Left4Utils.MeleeWeaponId.none && id != Left4Utils.UpgradeWeaponId.none)
 					ret[i].append(id); // valid weapon
 			}
 		}
 	}
+	
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "LoadWeaponPreferences - Loaded " + ret.len() + "preferences for survivor: " + survivor.GetPlayerName());
 	
 	return ret;
 }
@@ -2211,6 +2221,28 @@ IncludeScript("left4bots_requirements");
 		DebugDrawLine_vCol(orig, ret, Vector(0, 0, 255), true, debugShowTime);
 	
 	return ret;
+}
+
+// Returns the "range" of the weapon with the given id
+::Left4Bots.GetWeaponRangeById <- function (weaponId)
+{
+	if (weaponId > Left4Utils.MeleeWeaponId.none || weaponId == Left4Utils.WeaponId.weapon_chainsaw)
+	{
+		if (Left4Bots.Settings.manual_attack_radius < 150)
+			return Left4Bots.Settings.manual_attack_radius;
+		else
+			return 150;
+	}
+		
+	if (weaponId == Left4Utils.WeaponId.weapon_pumpshotgun || weaponId == Left4Utils.WeaponId.weapon_autoshotgun || weaponId == Left4Utils.WeaponId.weapon_shotgun_chrome || weaponId == Left4Utils.WeaponId.weapon_shotgun_spas)
+	{
+		if (Left4Bots.Settings.manual_attack_radius < 600)
+			return Left4Bots.Settings.manual_attack_radius;
+		else
+			return 600;
+	}
+	
+	return Left4Bots.Settings.manual_attack_radius;
 }
 
 //

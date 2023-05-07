@@ -57,6 +57,7 @@ enum AI_DOOR_ACTION {
 	scope.Paused <- 0; // Paused = 0 = not in pause. Paused > 0 (Time() of when the pause started) = in pause
 	scope.WeaponsToSearch <- {};
 	scope.UpgradesToSearch <- {};
+	scope.LastPickup <- 0;
 	scope.CurrentOrder <- null;
 	scope.Orders <- [];
 	scope.ThrowType <- AI_THROW_TYPE.None;
@@ -291,11 +292,23 @@ enum AI_DOOR_ACTION {
 		// Yes, pick it up
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Picking up: " + pickup.GetClassname());
 		
-		Left4Utils.PlayerPressButton(self, BUTTON_USE, Left4Bots.Settings.button_holdtime_tap, pickup, 0, 0, true);
-		Left4Timers.AddTimer(null, Left4Bots.Settings.pickups_failsafe_delay, @(params) Left4Bots.PickupFailsafe(params.bot, params.item), { bot = self, item = pickup });
-
-		// Apparently OnGameEvent_item_pickup comes too late sometimes, and the bot starts picking the dropped weapon over and over again
+		// After this item, wait till WeaponsToSearch gets updated before picking up anything else
 		WeaponsToSearch.clear();
+		
+		// This causes troubles if the bot successfully picks the item up and then replaces it with another item before the PickupFailsafe runs. The bot starts picking the two items over and over
+		//Left4Timers.AddTimer(null, Left4Bots.Settings.pickups_failsafe_delay, @(params) Left4Bots.PickupFailsafe(params.bot, params.item), { bot = self, item = pickup });
+		local entIdx = pickup.GetEntityIndex();
+		if (entIdx == LastPickup)
+		{
+			// So let's try this... Remember the id of the item we're picking up. If it happens that the first pick via PlayerPressButton fails, the second time we are here for the same item just call PickupFailsafe instead
+			LastPickup = 0;
+			Left4Bots.PickupFailsafe(self, pickup);
+		}
+		else
+		{
+			LastPickup = entIdx;
+			Left4Utils.PlayerPressButton(self, BUTTON_USE, Left4Bots.Settings.button_holdtime_tap, pickup, 0, 0, true);
+		}
 
 		if (MoveType == AI_MOVE_TYPE.Pickup)
 		{
@@ -813,12 +826,15 @@ enum AI_DOOR_ACTION {
 	else if (NetProps.GetPropInt(self, "m_hasVisibleThreats")) // m_hasVisibleThreats indicates that a threat is in the bot's current field of view. An infected behind the bot won't set this
 	{
 		local aw = self.GetActiveWeapon();
-		if (aw && aw.IsValid() && !NetProps.GetPropInt(aw, "m_bInReload"))
+		if (aw && !NetProps.GetPropInt(aw, "m_bInReload"))
 		{
-			local slot = Left4Utils.FindSlotForItemClass(self, aw.GetClassname());
-			if (slot == INV_SLOT_PRIMARY || slot == INV_SLOT_SECONDARY)
+			local wId = Left4Utils.GetWeaponId(aw);
+			//local slot = Left4Utils.FindSlotForItemClass(self, aw.GetClassname());
+			local slot = Left4Utils.GetWeaponSlotById(wId);
+			//if (slot == INV_SLOT_PRIMARY || slot == INV_SLOT_SECONDARY)
+			if (slot == 0 || slot == 1)
 			{
-				local tgt = Left4Bots.FindBotNearestEnemy(self, Origin, Left4Bots.Settings.manual_attack_radius, Left4Bots.Settings.manual_attack_mindot);
+				local tgt = Left4Bots.FindBotNearestEnemy(self, Origin, Left4Bots.GetWeaponRangeById(wId), Left4Bots.Settings.manual_attack_mindot);
 				if (tgt)
 				{
 					local v = tgt.GetCenter() - self.EyePosition();
@@ -1003,9 +1019,12 @@ enum AI_DOOR_ACTION {
 	UpgradesToSearch.clear();
 	
 	local currWeps = [Left4Utils.WeaponId.none, Left4Utils.WeaponId.none, Left4Utils.WeaponId.none, Left4Utils.WeaponId.none, Left4Utils.WeaponId.none]; // Will be filled with the weapon ids of the bot's current weapons
+	local hasT1Shotgun = false;
+	local hasT2Shotgun = false;
 	local priAmmoPercent = 100;
 	local hasAmmoUpgrade = true;
 	local hasLaserSight = true;
+	local hasChainsaw = false;
 	local hasPistol = false;
 	local hasDualPistol = false;
 	local hasMelee = false;
@@ -1039,12 +1058,15 @@ enum AI_DOOR_ACTION {
 			
 			if (i == 0)
 			{
+				hasT1Shotgun = (currWeps[i] == Left4Utils.WeaponId.weapon_shotgun_chrome) || (currWeps[i] == Left4Utils.WeaponId.weapon_pumpshotgun);
+				hasT2Shotgun = (currWeps[i] == Left4Utils.WeaponId.weapon_autoshotgun) || (currWeps[i] == Left4Utils.WeaponId.weapon_shotgun_spas);
 				priAmmoPercent = Left4Utils.GetAmmoPercent(inv[slot]);
 				hasAmmoUpgrade = NetProps.GetPropInt(inv[slot], "m_nUpgradedPrimaryAmmoLoaded") >= Left4Bots.Settings.pickups_wep_upgraded_ammo;
 				hasLaserSight = (NetProps.GetPropInt(inv[slot], "m_upgradeBitVec") & 4) != 0;
 			}
 			else if (i == 1)
 			{
+				hasChainsaw = currWeps[i] == Left4Utils.WeaponId.weapon_chainsaw;
 				hasPistol = currWeps[i] == Left4Utils.WeaponId.weapon_pistol;
 				if (hasPistol)
 					hasDualPistol = NetProps.GetPropInt(inv[slot], "m_hasDualWeapons") > 0;
@@ -1070,35 +1092,92 @@ enum AI_DOOR_ACTION {
 	if (Left4Bots.Settings.pickups_wep_always || (MovePos && MoveType == AI_MOVE_TYPE.Order && Paused == 0))
 	{
 		// Primary
-		for (local x = 0; x < WeapPref[slotIdx].len(); x++)
+		if (Left4Bots.TeamShotguns < Left4Bots.Settings.team_min_shotguns)
 		{
-			// Add all the preference weapons that have higher priority than the one we have in the inventory
-			// But add them all if ammo percent of our primary weapon is < pickups_wep_replace_ammo
-			local prefId = WeapPref[slotIdx][x];
-			if (prefId != currWeps[slotIdx] || priAmmoPercent < Left4Bots.Settings.pickups_wep_replace_ammo)
-				WeaponsToSearch[prefId] <- 0;
+			// If there are not enough team shotguns, we'll go for the shotgun
+			if (!hasT2Shotgun)
+			{
+				WeaponsToSearch[Left4Utils.WeaponId.weapon_autoshotgun] <- 0;
+				WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_spas] <- 0;
+			}
+			
+			if (!hasT1Shotgun)
+			{
+				WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_chrome] <- 0;
+				WeaponsToSearch[Left4Utils.WeaponId.weapon_pumpshotgun] <- 0;
+			}
+			
+			// If ammo percent < 95 and no laser/ammo upgrade, add the current weapon too so we can get one with full ammo
+			if (currWeps[slotIdx] > Left4Utils.WeaponId.none && priAmmoPercent < 95 && !hasLaserSight && !hasAmmoUpgrade)
+				WeaponsToSearch[currWeps[slotIdx]] <- 0;
+		}
+		else
+		{
+			if (Left4Bots.TeamShotguns == Left4Bots.Settings.team_min_shotguns && (hasT1Shotgun || hasT2Shotgun))
+			{
+				// Do nothing or TeamShotguns will drop below team_min_shotguns
+				// But go for a T2 shotgun if we have a T1 one
+				if (!hasT2Shotgun)
+				{
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_autoshotgun] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_spas] <- 0;
+				}
+				
+				// If ammo percent < 95 and no laser/ammo upgrade, add the current weapon too so we can get one with full ammo
+				if (currWeps[slotIdx] > Left4Utils.WeaponId.none && priAmmoPercent < 95 && !hasLaserSight && !hasAmmoUpgrade)
+					WeaponsToSearch[currWeps[slotIdx]] <- 0;
+			}
 			else
-				break;
+			{
+				for (local x = 0; x < WeapPref[slotIdx].len(); x++)
+				{
+					// Add all the preference weapons that have higher priority than the one we have in the inventory
+					// But add them all if ammo percent of our primary weapon is < pickups_wep_replace_ammo
+					local prefId = WeapPref[slotIdx][x];
+					if (prefId != currWeps[slotIdx] || priAmmoPercent < Left4Bots.Settings.pickups_wep_replace_ammo)
+						WeaponsToSearch[prefId] <- 0;
+					else
+						break;
+				}
+				
+				// If ammo percent < 95 and no laser/ammo upgrade, add the current weapon too so we can get one with full ammo
+				if (currWeps[slotIdx] > Left4Utils.WeaponId.none && priAmmoPercent < 95 && !hasLaserSight && !hasAmmoUpgrade)
+					WeaponsToSearch[currWeps[slotIdx]] <- 0;
+			}
 		}
 		
 		// Secondary
 		slotIdx = 1;
 		for (local x = 0; x < WeapPref[slotIdx].len(); x++)
 		{
-			// Add all the preference weapons that have higher priority than the one we have in the inventory
-			// But try to get rid of chainsaw/melee if TeamChainsaws > team_max_chainsaws or TeamMelee > team_max_melee
 			local prefId = WeapPref[slotIdx][x];
-			if (prefId != currWeps[slotIdx] || Left4Bots.TeamChainsaws > Left4Bots.Settings.team_max_chainsaws || Left4Bots.TeamMelee > Left4Bots.Settings.team_max_melee)
+			if (hasChainsaw && Left4Bots.TeamChainsaws > Left4Bots.Settings.team_max_chainsaws)
 			{
-				if ((prefId == Left4Utils.WeaponId.weapon_chainsaw && Left4Bots.TeamChainsaws >= Left4Bots.Settings.team_max_chainsaws) || (prefId > Left4Utils.MeleeWeaponId.none && Left4Bots.TeamMelee >= Left4Bots.Settings.team_max_melee && !hasMelee))
-				{
-					// Take care of the team_max_chainsaws / team_max_melee limits
-				}
-				else
+				// Try to get rid of chainsaw by replacing with anything else
+				if (prefId != Left4Utils.WeaponId.weapon_chainsaw)
+					WeaponsToSearch[prefId] <- 0;
+			}
+			else if (hasMelee && Left4Bots.TeamMelee > Left4Bots.Settings.team_max_melee)
+			{
+				// Try to get rid of melee by replacing with any non melee secondary
+				if (prefId < Left4Utils.MeleeWeaponId.none)
 					WeaponsToSearch[prefId] <- 0;
 			}
 			else
-				break;
+			{
+				// Add all the preference weapons that have higher priority than the one we have in the inventory
+				if (prefId != currWeps[slotIdx])
+				{
+					if ((prefId == Left4Utils.WeaponId.weapon_chainsaw && Left4Bots.TeamChainsaws >= Left4Bots.Settings.team_max_chainsaws) || (prefId > Left4Utils.MeleeWeaponId.none && Left4Bots.TeamMelee >= Left4Bots.Settings.team_max_melee && !hasMelee))
+					{
+						// Take care of the team_max_chainsaws / team_max_melee limits
+					}
+					else
+						WeaponsToSearch[prefId] <- 0;
+				}
+				else
+					break;
+			}
 		}
 		
 		// Handle Dual Pistols
@@ -1343,6 +1422,14 @@ enum AI_DOOR_ACTION {
 	local ent = null;
 	local orig = self.GetCenter();
 	local minDist = 1000000;
+	local priWeaponId = Left4Utils.WeaponId.none;
+	local priAmmoPercent = 100;
+	local pri = Left4Utils.GetInventoryItemInSlot(self, INV_SLOT_PRIMARY);
+	if (pri)
+	{
+		priWeaponId = Left4Utils.GetWeaponId(pri);
+		priAmmoPercent = Left4Utils.GetAmmoPercent(pri);
+	}
 	
 	if (WeaponsToSearch.len() > 0)
 	{
@@ -1355,11 +1442,26 @@ enum AI_DOOR_ACTION {
 				// If we are moving to defib a dead survivor and we have a defibrillator in our inventory, ignore the medkit or we'll loop replacing our defibrillator with the medkit over and over again
 				if (MoveType != AI_MOVE_TYPE.Defib || weaponId != Left4Utils.WeaponId.weapon_first_aid_kit || !Left4Utils.HasDefib(self))
 				{
-					if (Left4Utils.GetWeaponSlotById(weaponId) != 0 || Left4Utils.GetAmmoPercent(ent) >= Left4Bots.Settings.pickups_wep_min_ammo)
+					local dist = (orig - ent.GetCenter()).Length();
+					if (dist < minDist && Left4Utils.CanTraceTo(self, ent, TRACE_MASK_DEFAULT, 0, "prop_health_cabinet")) // <- Apparently the trace always hits the cabinet and not the items inside, even when open
 					{
-						local dist = (orig - ent.GetCenter()).Length();
-						if (dist < minDist && Left4Utils.CanTraceTo(self, ent, TRACE_MASK_DEFAULT, 0, "prop_health_cabinet")) // <- Apparently the trace always hits the cabinet and not the items inside, even when open
+						if (Left4Utils.GetWeaponSlotById(weaponId) == 0)
 						{
+							// Primary
+							
+							// If we are going to pick-up the same weapon, make sure it has more ammo than the current one
+							local ammoPercent = Left4Utils.GetAmmoPercent(ent);
+							if ((weaponId != priWeaponId && ammoPercent >= Left4Bots.Settings.pickups_wep_min_ammo) || (weaponId == priWeaponId && ammoPercent > priAmmoPercent))
+							{
+								// Any other
+								ret = ent;
+								minDist = dist;
+							}
+						}
+						else
+						{
+							// Any other
+							
 							ret = ent;
 							minDist = dist;
 						}
