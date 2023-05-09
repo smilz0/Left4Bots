@@ -96,6 +96,7 @@ enum AI_DOOR_ACTION {
 	scope["BotFinalizeCurrentOrder"] <- ::Left4Bots.BotFinalizeCurrentOrder;
 	scope["BotCancelCurrentOrder"] <- ::Left4Bots.BotCancelCurrentOrder;
 	scope["BotCancelOrders"] <- ::Left4Bots.BotCancelOrders;
+	scope["BotCancelOrdersDestEnt"] <- ::Left4Bots.BotCancelOrdersDestEnt;
 	scope["BotCancelAll"] <- ::Left4Bots.BotCancelAll;
 	scope["BotIsInPause"] <- ::Left4Bots.BotIsInPause;
 	scope["BotOnPause"] <- ::Left4Bots.BotOnPause;
@@ -1172,6 +1173,10 @@ enum AI_DOOR_ACTION {
 					{
 						// Take care of the team_max_chainsaws / team_max_melee limits
 					}
+					else if (currWeps[0] == Left4Utils.WeaponId.none && prefId > Left4Utils.MeleeWeaponId.none && !Left4Bots.Settings.pickups_melee_noprimary)
+					{
+						// Don't pickup melee weapons if we don't have a primary weapon and pickups_melee_noprimary is 0
+					}
 					else
 						WeaponsToSearch[prefId] <- 0;
 				}
@@ -1443,7 +1448,7 @@ enum AI_DOOR_ACTION {
 				if (MoveType != AI_MOVE_TYPE.Defib || weaponId != Left4Utils.WeaponId.weapon_first_aid_kit || !Left4Utils.HasDefib(self))
 				{
 					local dist = (orig - ent.GetCenter()).Length();
-					if (dist < minDist && Left4Utils.CanTraceTo(self, ent, TRACE_MASK_DEFAULT, 0, "prop_health_cabinet")) // <- Apparently the trace always hits the cabinet and not the items inside, even when open
+					if (dist < minDist && Left4Bots.CanTraceToPickup(self, ent))
 					{
 						if (Left4Utils.GetWeaponSlotById(weaponId) == 0)
 						{
@@ -1480,7 +1485,7 @@ enum AI_DOOR_ACTION {
 			if ((weaponId in UpgradesToSearch) && /*NetProps.GetPropInt(ent, "m_hOwner") <= 0 &&*/ (NetProps.GetPropInt(ent, "m_iUsedBySurvivorsMask") & (1 << CharId)) == 0)
 			{
 				local dist = (orig - ent.GetCenter()).Length();
-				if (dist < minDist && Left4Utils.CanTraceTo(self, ent))
+				if (dist < minDist && Left4Bots.CanTraceToPickup(self, ent))
 				{
 					ret = ent;
 					minDist = dist;
@@ -1804,6 +1809,22 @@ enum AI_DOOR_ACTION {
 		Orders.clear();
 		BotCancelCurrentOrder();
 	}
+	
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Orders still in queue: " + Orders.len());
+}
+
+// Cancel all the orders (current and queued) with a DestEnt of class 'destEntClass'
+::Left4Bots.BotCancelOrdersDestEnt <- function (destEntClass)
+{
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Cancelling all the orders with DestEnt of class: " + destEntClass);
+	
+	for (local i = Orders.len() - 1; i >= 0; i--)
+	{
+		if (Orders[i].DestEnt && Orders[i].DestEnt.GetClassname() == destEntClass)
+			Orders.remove(i);
+	}
+	if (CurrentOrder && CurrentOrder.DestEnt && CurrentOrder.DestEnt.GetClassname() == destEntClass)
+		BotCancelCurrentOrder();
 	
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Orders still in queue: " + Orders.len());
 }
@@ -2294,6 +2315,26 @@ enum AI_DOOR_ACTION {
 	for (local i = 0; i < scope.Orders.len(); i++)
 	{
 		if (scope.Orders[i].OrderType == orderType)
+			return true;
+	}
+	
+	return false;
+}
+
+// Does 'bot' have an order with a DestEnt of class 'destEntClass'?
+// true = yes, false = no, null = invalid bot
+::Left4Bots.BotHasOrderDestEnt <- function (bot, destEntClass)
+{
+	if (!Left4Bots.IsHandledBot(bot))
+		return null;
+	
+	local scope = bot.GetScriptScope();
+	if (scope.CurrentOrder && scope.CurrentOrder.DestEnt && scope.CurrentOrder.DestEnt.GetClassname() == destEntClass)
+		return true;
+	
+	for (local i = 0; i < scope.Orders.len(); i++)
+	{
+		if (scope.Orders[i].DestEnt && scope.Orders[i].DestEnt.GetClassname() == destEntClass)
 			return true;
 	}
 	

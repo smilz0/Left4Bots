@@ -74,8 +74,14 @@ IncludeScript("left4bots_requirements");
 		// Chance that the bot will chat one of the BG lines at the end of the campaign (if dead or incapped)
 		chat_bg_chance = 50
 		
+		// Bot will chat one of these BG lines at the end of the campaign (if dead or incapped)
+		chat_bg_lines = "bg,:(,:'("
+		
 		// Chance that the bot will chat one of the GG lines at the end of the campaign (if alive)
 		chat_gg_chance = 70
+		
+		// Bot will chat one of these GG lines at the end of the campaign (if alive)
+		chat_gg_lines = "gg,GG,gg,GGG,gg"
 		
 		// [1/0] 1 = valid chat commands given to the bot will be hidden to the other players. 0 = They are visible
 		chat_hide_commands = 1
@@ -150,13 +156,13 @@ IncludeScript("left4bots_requirements");
 		fall_velocity_warp = 0
 		
 		// Name of the file containing the BG chat lines
-		file_bg = "left4bots2/cfg/bg.txt" // TODO: make the lines a setting and remove the file
+//		file_bg = "left4bots2/cfg/bg.txt" // TODO: remove
 		
 		// Name of the file with the convar changes to load
 		file_convars = "left4bots2/cfg/convars.txt"
 		
 		// Name of the file containing the GG chat lines
-		file_gg = "left4bots2/cfg/gg.txt" // TODO: make the lines a setting and remove the file
+//		file_gg = "left4bots2/cfg/gg.txt" // TODO: remove
 		
 		// Name of the file containing the items that the vanilla AI should not pickup
 		file_itemstoavoid = "left4bots2/cfg/itemstoavoid.txt"
@@ -293,15 +299,18 @@ IncludeScript("left4bots_requirements");
 		pause_debug = 0
 		
 		// Minimum duration of the pause. When a bot starts a pause (due to infected nearby, teammates need help etc.), the pause cannot end earlier than this, even if the conditions to stop the pause are met
-		pause_min_time = 3.0 // TODO: 4?
+		pause_min_time = 3.0
 		
 		// TODO: remove
 		// When the addon tells a bot to pickup an item, the bot does it via USE button (in order to do the hand animation)
 		// But if, for some reason, the pickup fails (too far or something) the item is forced into the bot's inventory after this delay (to prevent stuck situations)
-		pickups_failsafe_delay = 0.15
+//		pickups_failsafe_delay = 0.15
 		
 		// Only move for a pick-up if there is at least one human survivor within this range (0 = no limit)
 		pickups_max_separation = 600
+		
+		// [1/0] 0 = Bots will not pickup melee weapons if they don't have a primary weapon. 1 = Always
+		pickups_melee_noprimary = 1
 		
 		// Pick up the item we are looking for when within this range
 		pickups_pick_range = 99
@@ -330,7 +339,7 @@ IncludeScript("left4bots_requirements");
 		play_sounds = 1
 		
 		// Value for the cm_ShouldHurry director option. Not sure what it does exactly
-		should_hurry = 0 // TODO: 1
+		should_hurry = 1
 		
 		// Delta pitch (from his feet) for aiming when shoving common infected
 		shove_commons_deltapitch = -6.0
@@ -355,12 +364,6 @@ IncludeScript("left4bots_requirements");
 		
 		// Bots will shove tongue victim teammates within this radius (set 0 to disable)
 		shove_tonguevictim_radius = 90
-		
-		// Sound scripts to play when a survivor gives an item to another survivor
-		// UI/BigReward.wav	(played on the giver)
-		sound_give_giver = "Hint.BigReward"
-		// UI/LittleReward.wav (Played on all the players except the giver)
-		sound_give_others = "Hint.LittleReward"
 		
 		// [1/0] Enable/Disable debug chat messages of the stuck detection algorithm
 		stuck_debug = 0
@@ -405,7 +408,7 @@ IncludeScript("left4bots_requirements");
 		tank_throw_deltapitch = 3
 		
 		// Max chainsaws in the team
-		team_max_chainsaws = 1 // TODO: 0
+		team_max_chainsaws = 0
 		
 		// Max melee weapons in the team
 		team_max_melee = 2
@@ -427,7 +430,7 @@ IncludeScript("left4bots_requirements");
 		team_min_shotguns = 1
 		
 		// Minimum vomit jars in the team
-		team_min_vomitjars = 1
+		team_min_vomitjars = 0
 		
 		// [1/0] Enable/Disable throwing molotovs
 		throw_molotov = 1
@@ -533,6 +536,8 @@ IncludeScript("left4bots_requirements");
 	Witches = {}	// Guess what? ^
 	ModeStarted = false
 	EscapeStarted = false
+	ChatBGLines = []
+	ChatGGLines = []
 	VocalizerLeadStart = []
 	VocalizerLeadStop = []
 	VocalizerGotoStop = []
@@ -610,6 +615,12 @@ IncludeScript("left4bots_requirements");
 	if (Left4Bots.Settings.vocalizer_yes != "")
 		Left4Bots.VocalizerYes = split(Left4Bots.Settings.vocalizer_yes, ",");
 	
+	// And the BG/GG chat lines too
+	if (Left4Bots.Settings.chat_bg_lines != "")
+		Left4Bots.ChatBGLines = split(Left4Bots.Settings.chat_bg_lines, ",");
+	if (Left4Bots.Settings.chat_gg_lines != "")
+		Left4Bots.ChatGGLines = split(Left4Bots.Settings.chat_gg_lines, ",");
+
 	printl("[L4B][INFO] Loading items to avoid from file: " + Left4Bots.Settings.file_itemstoavoid);
 	Left4Bots.ItemsToAvoid = Left4Bots.LoadItemsToAvoidFromFile(Left4Bots.Settings.file_itemstoavoid);
 	printl("[L4B][INFO] Loaded " + Left4Bots.ItemsToAvoid.len() + " items");
@@ -1362,12 +1373,12 @@ IncludeScript("left4bots_requirements");
 		if (player1 && player1.IsValid())
 		{
 			if (!IsPlayerABot(player1))
-				EmitSoundOnClient(Left4Bots.Settings.sound_give_giver, player1);
+				EmitSoundOnClient("Hint.BigReward", player1);
 			
 			foreach (id, surv in ::Left4Bots.Survivors)
 			{
 				if (surv.IsValid() && !IsPlayerABot(surv) && id != player1.GetPlayerUserId())
-					EmitSoundOnClient(Left4Bots.Settings.sound_give_others, surv);
+					EmitSoundOnClient("Hint.LittleReward", surv);
 			}
 		}
 	}
@@ -1394,14 +1405,14 @@ IncludeScript("left4bots_requirements");
 		if (player1 && player1.IsValid())
 		{
 			if (!IsPlayerABot(player1))
-				EmitSoundOnClient(Left4Bots.Settings.sound_give_giver, player1);
+				EmitSoundOnClient("Hint.BigReward", player1);
 			if (!IsPlayerABot(player2))
-				EmitSoundOnClient(Left4Bots.Settings.sound_give_giver, player2);
+				EmitSoundOnClient("Hint.BigReward", player2);
 			
 			foreach (id, surv in ::Left4Bots.Survivors)
 			{
 				if (surv.IsValid() && !IsPlayerABot(surv) && id != player1.GetPlayerUserId() && id != player2.GetPlayerUserId())
-					EmitSoundOnClient(Left4Bots.Settings.sound_give_others, surv);
+					EmitSoundOnClient("Hint.LittleReward", surv);
 			}
 		}
 	}
@@ -2243,6 +2254,23 @@ IncludeScript("left4bots_requirements");
 	}
 	
 	return Left4Bots.Settings.manual_attack_radius;
+}
+
+// Returns whether the given bot has visibility on the given pickup item
+::Left4Bots.CanTraceToPickup <- function (bot, item)
+{
+	local mask = 0x1 | /*0x8 |*/ 0x40 | 0x2000 | 0x4000  | 0x8000000; // CONTENTS_SOLID | CONTENTS_GRATE | CONTENTS_BLOCKLOS | CONTENTS_IGNORE_NODRAW_OPAQUE | CONTENTS_MOVEABLE | CONTENTS_DETAIL
+	local traceTable = { start = bot.EyePosition(), end = item.GetCenter(), ignore = bot, mask = mask };
+	
+	TraceLine(traceTable);
+	
+	//printl("fraction: " + traceTable.fraction);
+	//DebugDrawCircle(traceTable.pos, Vector(0, 0, 255), 255, 10, true, 0.1);
+	
+	if (traceTable.fraction > 0.98 || !traceTable.hit || !traceTable.enthit || traceTable.enthit == item || traceTable.enthit.GetClassname() == "prop_health_cabinet")
+		return true;
+	
+	return false;
 }
 
 //

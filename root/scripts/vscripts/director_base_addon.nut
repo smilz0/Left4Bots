@@ -21,8 +21,4 @@
 }
 
 if (Left4Bots.Settings.should_hurry)
-{
 	DirectorScript.GetDirectorOptions().cm_ShouldHurry <- 1;
-	
-	Left4Bots.Log(LOG_LEVEL_DEBUG, "cm_ShouldHurry = 1");
-}

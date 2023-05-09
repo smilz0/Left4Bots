@@ -90,8 +90,9 @@ Msg("Including left4bots_events...\n");
 		else if (Left4Bots.Settings.play_sounds)
 		{
 			// Precache sounds for human players
-			player.PrecacheScriptSound(Left4Bots.Settings.sound_give_giver);
-			player.PrecacheScriptSound(Left4Bots.Settings.sound_give_others);
+			player.PrecacheScriptSound("Hint.BigReward");
+			player.PrecacheScriptSound("Hint.LittleReward");
+			player.PrecacheScriptSound("BaseCombatCharacter.AmmoPickup");
 		}
 		
 		Left4Bots.PrintSurvivorsCount();
@@ -641,7 +642,7 @@ Msg("Including left4bots_events...\n");
 ::Left4Bots.Events.OnGameEvent_finale_win <- function (params)
 {
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_finale_win");
-	
+	/*
 	local ggLines = Left4Utils.FileToStringList(Left4Bots.Settings.file_gg);
 	local bgLines = Left4Utils.FileToStringList(Left4Bots.Settings.file_bg);
 	
@@ -659,6 +660,28 @@ Msg("Including left4bots_events...\n");
 			{
 				if (bgLines && bgLines.len() > 0 && RandomInt(1, 100) <= Left4Bots.Settings.chat_bg_chance)
 					line = bgLines[RandomInt(0, bgLines.len() - 1)];
+			}
+			
+			if (line)
+				Left4Timers.AddTimer(null, RandomFloat(2.0, 5.0), @(params) Left4Bots.SayGG(params.bot, params.line), { bot = bot, line = line });
+		}
+	}
+	*/
+	
+	foreach (id, bot in ::Left4Utils.GetAllSurvivors())
+	{
+		if (bot && bot.IsValid() && IsPlayerABot(bot))
+		{
+			local line = null;
+			if (!bot.IsIncapacitated() && !bot.IsDead() && !bot.IsDying())
+			{
+				if (Left4Bots.ChatGGLines.len() > 0 && RandomInt(1, 100) <= Left4Bots.Settings.chat_gg_chance)
+					line = Left4Bots.ChatGGLines[RandomInt(0, Left4Bots.ChatGGLines.len() - 1)];
+			}
+			else
+			{
+				if (Left4Bots.ChatBGLines.len() > 0 && RandomInt(1, 100) <= Left4Bots.Settings.chat_bg_chance)
+					line = Left4Bots.ChatBGLines[RandomInt(0, Left4Bots.ChatBGLines.len() - 1)];
 			}
 			
 			if (line)
@@ -732,9 +755,70 @@ Msg("Including left4bots_events...\n");
 			local maxAmmo = Left4Utils.GetMaxAmmo(ammoType);
 			NetProps.SetPropIntArray(player, "m_iAmmo", maxAmmo + (pWeapon.GetMaxClip1() - pWeapon.Clip1()), ammoType);
 			
+			if (!IsPlayerABot(player))
+				EmitSoundOnClient("BaseCombatCharacter.AmmoPickup", player);
+			
 			Left4Bots.Log(LOG_LEVEL_INFO, "Player: " + player.GetPlayerName() + " replenished ammo for T3 weapon " + cWeapon);
 		}
 	}
+}
+
+::Left4Bots.Events.OnGameEvent_survivor_call_for_help <- function (params)
+{
+	local player = null;
+	if ("userid" in params)
+		player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+	
+	if (!player || !player.IsValid())
+		return;
+	
+	// info_survivor_rescue
+	local subject = null;
+	if ("subject" in params)
+		subject = EntIndexToHScript(params["subject"]);
+	
+	if (!subject || !subject.IsValid())
+		return;
+	
+	//Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_survivor_call_for_help - player: " + player.GetPlayerName() + " - pos: " + subject.GetOrigin());
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_survivor_call_for_help - player: " + player.GetPlayerName() + " - " + player.GetOrigin() + " - " + subject.GetClassname() + ": " + subject.GetOrigin());
+	
+	foreach (bot in Left4Bots.Bots)
+	{
+		if (!Left4Bots.BotHasOrderDestEnt(bot, "info_survivor_rescue"))
+			Left4Bots.BotOrderAdd(bot, "goto", null, subject);
+	}
+}
+
+::Left4Bots.Events.OnGameEvent_survivor_rescued <- function (params)
+{
+	//local rescuer = null;
+	//if ("rescuer" in params)
+	//	rescuer = g_MapScript.GetPlayerFromUserID(params["rescuer"]);
+	
+	local victim = null;
+	if ("victim" in params)
+		victim = g_MapScript.GetPlayerFromUserID(params["victim"]);
+	
+	if (!victim || !victim.IsValid())
+		return;
+	
+	//local door = null;
+	//if ("dooridx" in params)
+	//	door = EntIndexToHScript(params["dooridx"]);
+		
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_survivor_rescued - victim: " + victim.GetPlayerName());
+	
+	foreach (bot in Left4Bots.Bots)
+		bot.GetScriptScope().BotCancelOrdersDestEnt("info_survivor_rescue");
+}
+
+::Left4Bots.Events.OnGameEvent_survivor_rescue_abandoned <- function (params)
+{
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_survivor_rescue_abandoned");
+	
+	foreach (bot in Left4Bots.Bots)
+		bot.GetScriptScope().BotCancelOrdersDestEnt("info_survivor_rescue");
 }
 
 //
