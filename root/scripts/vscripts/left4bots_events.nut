@@ -685,7 +685,7 @@ Msg("Including left4bots_events...\n");
 			}
 			
 			if (line)
-				Left4Timers.AddTimer(null, RandomFloat(2.0, 5.0), @(params) Left4Bots.SayGG(params.bot, params.line), { bot = bot, line = line });
+				Left4Timers.AddTimer(null, RandomFloat(1.0, 7.0), @(params) Left4Bots.SayGG(params.bot, params.line), { bot = bot, line = line });
 		}
 	}
 }

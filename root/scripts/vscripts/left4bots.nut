@@ -12,6 +12,13 @@
 - Reset should reset pause?
 - Cancel heal near saferoom
 
+- [L4D][INFO]   900 |                             prop_physics |                                            barricade_gas_can | -05355.0000,-00964.0000,000016.0000 | models/props_unique/wooden_barricade_gascans.mdl
+
+- [L4D][INFO]   254 |                              func_button |                                                bridge_button | 000123.5000,005638.0000,000305.0600 | *21
+- [L4D][INFO]   255 |                           func_breakable |                                                 bridge_dummy | 000123.5000,005637.0000,000305.0600 | *22
+- [L4D][INFO]   331 |                             prop_dynamic |                                               bridge_barrels | 000124.3540,005650.7798,000280.0000 | models/props/de_train/pallet_barrels.mdl
+
+
 ----- IMPROV:
 
 - All close saferoom door
@@ -516,6 +523,9 @@ IncludeScript("left4bots_requirements");
 		// [1/0] If 1, the bots will not pause the 'wait' order
 		// This means that they will keep holding their positions even if there are special infected around, teammates who need help etc. But they will still move to do higher priority tasks (like charger/spit dodging, defib, etc.)
 		wait_nopause = 0
+		
+		// [1/0] 1 = If the bot pauses an order due to a nearby witch and the bot is holding a shotgun, he will automatically get ordered to crown that witch
+		witch_autocrown = 1
 	}
 	OrderPriorities = // Orders and their priorities (orders with lower priority are shifted back in the queue when orders with higher priority are added)
 	{

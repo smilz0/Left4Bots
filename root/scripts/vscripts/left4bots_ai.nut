@@ -236,21 +236,39 @@ enum AI_DOOR_ACTION {
 	}
 	else
 	{
-		if (Time() >= NetProps.GetPropFloat(self, "m_flNextShoveTime"))
-		{
+		//if (Time() >= NetProps.GetPropFloat(self, "m_flNextShoveTime"))
+		//{
+			// Can shove
 			local target = null;
+			local targetDeltaPitch = Left4Bots.Settings.shove_commons_deltapitch;
+			
+			// Is there any tongue victim teammate to shove?
 			if (Left4Bots.Settings.shove_tonguevictim_radius > 0)
 				target = Left4Bots.GetTongueVictimToShove(self, Origin);
 			
 			if (target)
-				Left4Utils.PlayerPressButton(self, BUTTON_SHOVE, Left4Bots.Settings.button_holdtime_tap, target, Left4Bots.Settings.shove_tonguevictim_deltapitch, 0, false);
+				targetDeltaPitch = Left4Bots.Settings.shove_tonguevictim_deltapitch; // Yes
 			else if (Left4Bots.Settings.shove_specials_radius > 0)
 			{
+				// No. Any special infected?
 				target = Left4Bots.GetSpecialInfectedToShove(self, Origin);
 				if (target)
-					Left4Utils.PlayerPressButton(self, BUTTON_SHOVE, Left4Bots.Settings.button_holdtime_tap, target, Left4Bots.Settings.shove_specials_deltapitch, 0, false);
+					targetDeltaPitch = Left4Bots.Settings.shove_specials_deltapitch; // Yes
+				else if (Left4Bots.Settings.shove_commons_radius > 0)
+					target = Left4Utils.GetFirstVisibleCommonInfectedWithin(self, Left4Bots.Settings.shove_commons_radius); // No. Any common?
 			}
-		}
+			
+			if (target)
+			{
+				local aw = self.GetActiveWeapon();
+				local toTarget = target.GetOrigin() - Origin;
+				toTarget.Norm();
+				if (aw && aw.GetClassname() == "weapon_melee" && self.EyeAngles().Forward().Dot(toTarget) >= 0.7 && Time() >= NetProps.GetPropFloat(aw, "m_flNextPrimaryAttack"))
+					Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, Left4Bots.Settings.button_holdtime_tap, target, targetDeltaPitch, 0, false);
+				else if (Time() >= NetProps.GetPropFloat(self, "m_flNextShoveTime"))
+					Left4Utils.PlayerPressButton(self, BUTTON_SHOVE, Left4Bots.Settings.button_holdtime_tap, target, targetDeltaPitch, 0, false);
+			}
+		//}
 		
 		Left4Utils.PlayerEnableButton(self, BUTTON_RELOAD);
 	}
@@ -800,8 +818,8 @@ enum AI_DOOR_ACTION {
 {
 	local target = null;
 	local targetDeltaPitch = Left4Bots.Settings.shove_commons_deltapitch;
-	if (Time() >= NetProps.GetPropFloat(self, "m_flNextShoveTime"))
-	{
+	//if (Time() >= NetProps.GetPropFloat(self, "m_flNextShoveTime"))
+	//{
 		// Can shove
 		
 		// Is there any tongue victim teammate to shove?
@@ -819,11 +837,22 @@ enum AI_DOOR_ACTION {
 			else if (Left4Bots.Settings.shove_commons_radius > 0)
 				target = Left4Utils.GetFirstVisibleCommonInfectedWithin(self, Left4Bots.Settings.shove_commons_radius); // No. Any common?
 		}
-	}
+	//}
 	
 	// Shove or shoot
 	if (target)
-		Left4Utils.PlayerPressButton(self, BUTTON_SHOVE, Left4Bots.Settings.button_holdtime_tap, target, targetDeltaPitch, 0, false);
+	{
+		//Left4Utils.PlayerPressButton(self, BUTTON_SHOVE, Left4Bots.Settings.button_holdtime_tap, target, targetDeltaPitch, 0, false);
+		
+		local aw = self.GetActiveWeapon();
+		local toTarget = target.GetOrigin() - Origin;
+		toTarget.Norm();
+		if (aw && aw.GetClassname() == "weapon_melee" && self.EyeAngles().Forward().Dot(toTarget) >= 0.7 && Time() >= NetProps.GetPropFloat(aw, "m_flNextPrimaryAttack"))
+			Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, Left4Bots.Settings.button_holdtime_tap, target, targetDeltaPitch, 0, false);
+		else if (Time() >= NetProps.GetPropFloat(self, "m_flNextShoveTime"))
+			Left4Utils.PlayerPressButton(self, BUTTON_SHOVE, Left4Bots.Settings.button_holdtime_tap, target, targetDeltaPitch, 0, false);
+		
+	}
 	else if (NetProps.GetPropInt(self, "m_hasVisibleThreats")) // m_hasVisibleThreats indicates that a threat is in the bot's current field of view. An infected behind the bot won't set this
 	{
 		local aw = self.GetActiveWeapon();
@@ -999,7 +1028,7 @@ enum AI_DOOR_ACTION {
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - RESET");
 		
 		// TODO: Should we send delayed resets or not? It seems that they can get the bots stuck sometimes. Need to verify
-		if (!isDelayed)
+		//if (!isDelayed)
 			Left4Utils.BotCmdReset(self);
 		
 		DelayedReset = false;
@@ -1092,62 +1121,51 @@ enum AI_DOOR_ACTION {
 	local slotIdx = 0;
 	if (Left4Bots.Settings.pickups_wep_always || (MovePos && MoveType == AI_MOVE_TYPE.Order && Paused == 0))
 	{
-		// Primary
-		if (Left4Bots.TeamShotguns < Left4Bots.Settings.team_min_shotguns)
+		// PRIMARY
+		if (Left4Bots.TeamShotguns <= Left4Bots.Settings.team_min_shotguns && (hasT1Shotgun || hasT2Shotgun))
 		{
-			// If there are not enough team shotguns, we'll go for the shotgun
+			// We have a shotgun but TeamShotguns <= team_min_shotguns so we need to make sure to keep it. Just upgrade it if needed
+			
 			if (!hasT2Shotgun)
 			{
 				WeaponsToSearch[Left4Utils.WeaponId.weapon_autoshotgun] <- 0;
 				WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_spas] <- 0;
 			}
+		}
+		else
+		{
+			// We either don't have a shotgun or TeamShotguns > team_min_shotguns so we can follow our preference and try to get an higher priority weapon
 			
-			if (!hasT1Shotgun)
+			for (local x = 0; x < WeapPref[slotIdx].len(); x++)
 			{
-				WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_chrome] <- 0;
+				// Add all the preference weapons that have higher priority than the one we have in the inventory
+				// But add them all if ammo percent of our primary weapon is < pickups_wep_replace_ammo
+				local prefId = WeapPref[slotIdx][x];
+				if (prefId != currWeps[slotIdx] || priAmmoPercent < Left4Bots.Settings.pickups_wep_replace_ammo)
+					WeaponsToSearch[prefId] <- 0;
+				else
+					break;
+			}
+			
+			// But if TeamShotguns < team_min_shotguns we must also make sure to try to get a shotgun as we currently don't have one
+			if (Left4Bots.TeamShotguns < Left4Bots.Settings.team_min_shotguns)
+			{
+				WeaponsToSearch[Left4Utils.WeaponId.weapon_autoshotgun] <- 0;
+				WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_spas] <- 0;
 				WeaponsToSearch[Left4Utils.WeaponId.weapon_pumpshotgun] <- 0;
+				WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_chrome] <- 0;
 			}
 			
 			// If ammo percent < 95 and no laser/ammo upgrade, add the current weapon too so we can get one with full ammo
 			if (currWeps[slotIdx] > Left4Utils.WeaponId.none && priAmmoPercent < 95 && !hasLaserSight && !hasAmmoUpgrade)
 				WeaponsToSearch[currWeps[slotIdx]] <- 0;
 		}
-		else
-		{
-			if (Left4Bots.TeamShotguns == Left4Bots.Settings.team_min_shotguns && (hasT1Shotgun || hasT2Shotgun))
-			{
-				// Do nothing or TeamShotguns will drop below team_min_shotguns
-				// But go for a T2 shotgun if we have a T1 one
-				if (!hasT2Shotgun)
-				{
-					WeaponsToSearch[Left4Utils.WeaponId.weapon_autoshotgun] <- 0;
-					WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_spas] <- 0;
-				}
-				
-				// If ammo percent < 95 and no laser/ammo upgrade, add the current weapon too so we can get one with full ammo
-				if (currWeps[slotIdx] > Left4Utils.WeaponId.none && priAmmoPercent < 95 && !hasLaserSight && !hasAmmoUpgrade)
-					WeaponsToSearch[currWeps[slotIdx]] <- 0;
-			}
-			else
-			{
-				for (local x = 0; x < WeapPref[slotIdx].len(); x++)
-				{
-					// Add all the preference weapons that have higher priority than the one we have in the inventory
-					// But add them all if ammo percent of our primary weapon is < pickups_wep_replace_ammo
-					local prefId = WeapPref[slotIdx][x];
-					if (prefId != currWeps[slotIdx] || priAmmoPercent < Left4Bots.Settings.pickups_wep_replace_ammo)
-						WeaponsToSearch[prefId] <- 0;
-					else
-						break;
-				}
-				
-				// If ammo percent < 95 and no laser/ammo upgrade, add the current weapon too so we can get one with full ammo
-				if (currWeps[slotIdx] > Left4Utils.WeaponId.none && priAmmoPercent < 95 && !hasLaserSight && !hasAmmoUpgrade)
-					WeaponsToSearch[currWeps[slotIdx]] <- 0;
-			}
-		}
 		
-		// Secondary
+		// If ammo percent < 95 and no laser/ammo upgrade, add the current weapon too so we can get one with full ammo
+		if (currWeps[slotIdx] > Left4Utils.WeaponId.none && priAmmoPercent < 95 && !hasLaserSight && !hasAmmoUpgrade)
+			WeaponsToSearch[currWeps[slotIdx]] <- 0;
+		
+		// SECONDARY
 		slotIdx = 1;
 		for (local x = 0; x < WeapPref[slotIdx].len(); x++)
 		{
@@ -1193,7 +1211,7 @@ enum AI_DOOR_ACTION {
 		}
 	}
 	
-	// Throwable
+	// THROWABLES
 	slotIdx = 2;
 	for (local x = 0; x < WeapPref[slotIdx].len(); x++)
 	{
@@ -1214,7 +1232,7 @@ enum AI_DOOR_ACTION {
 			break;
 	}
 
-	// Medkit
+	// MEDKIT
 	slotIdx = 3;
 	for (local x = 0; x < WeapPref[slotIdx].len(); x++)
 	{
@@ -1238,7 +1256,7 @@ enum AI_DOOR_ACTION {
 			break;
 	}
 
-	// Pills
+	// PILLS
 	slotIdx = 4;
 	for (local x = 0; x < WeapPref[slotIdx].len(); x++)
 	{
@@ -1919,7 +1937,12 @@ enum AI_DOOR_ACTION {
 	{
 		if (reason.GetClassname() == "witch")
 		{
-			// TODO? auto crown
+			if (Left4Bots.Settings.witch_autocrown)
+			{
+				local aw = self.GetActiveWeapon();
+				if (aw && aw.GetClassname().find("shotgun") != null)
+					Left4Bots.BotOrderAdd(self, "witch", null, reason, null, null, 0, false);
+			}
 			
 			reason = "witch";
 			if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_onpause_witch_chance)
