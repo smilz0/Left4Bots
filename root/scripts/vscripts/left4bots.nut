@@ -308,13 +308,16 @@ IncludeScript("left4bots_requirements");
 		// Minimum duration of the pause. When a bot starts a pause (due to infected nearby, teammates need help etc.), the pause cannot end earlier than this, even if the conditions to stop the pause are met
 		pause_min_time = 3.0
 		
+		// Minimum interval between each pick-up
+		pickups_min_interval = 0.8
+		
 		// TODO: remove
 		// When the addon tells a bot to pickup an item, the bot does it via USE button (in order to do the hand animation)
 		// But if, for some reason, the pickup fails (too far or something) the item is forced into the bot's inventory after this delay (to prevent stuck situations)
-//		pickups_failsafe_delay = 0.15
+		pickups_failsafe_delay = 0.15
 		
 		// Only move for a pick-up if there is at least one human survivor within this range (0 = no limit)
-		pickups_max_separation = 600
+		pickups_max_separation = 800
 		
 		// [1/0] 0 = Bots will not pickup melee weapons if they don't have a primary weapon. 1 = Always
 		pickups_melee_noprimary = 1

@@ -57,6 +57,7 @@ enum AI_DOOR_ACTION {
 	scope.Paused <- 0; // Paused = 0 = not in pause. Paused > 0 (Time() of when the pause started) = in pause
 	scope.WeaponsToSearch <- {};
 	scope.UpgradesToSearch <- {};
+	scope.TimePickup <- 0;
 	scope.LastPickup <- 0;
 	scope.CurrentOrder <- null;
 	scope.Orders <- [];
@@ -283,6 +284,9 @@ enum AI_DOOR_ACTION {
 // Runs in the scope of the bot entity
 ::Left4Bots.BotThink_Pickup <- function ()	// TODO fix: The sacrifice finale, Francis near the fence started moving for the medkit, while walking around the fence the pickup went too far and stopped, then started again and again.
 {
+	if ((Time() - TimePickup) < Left4Bots.Settings.pickups_min_interval)
+		return;
+	
 	// Don't do this here. Let the bot pick up items that can be picked up directly (without a MOVE command) even if we are moving for something else
 	//if (MoveType > AI_MOVE_TYPE.Pickup)
 	//	return; // Do nothing if there is an ongoing MOVE with higher priority
@@ -314,20 +318,22 @@ enum AI_DOOR_ACTION {
 		// After this item, wait till WeaponsToSearch gets updated before picking up anything else
 		WeaponsToSearch.clear();
 		
+		TimePickup = Time();
+		
 		// This causes troubles if the bot successfully picks the item up and then replaces it with another item before the PickupFailsafe runs. The bot starts picking the two items over and over
-		//Left4Timers.AddTimer(null, Left4Bots.Settings.pickups_failsafe_delay, @(params) Left4Bots.PickupFailsafe(params.bot, params.item), { bot = self, item = pickup });
-		local entIdx = pickup.GetEntityIndex();
-		if (entIdx == LastPickup)
-		{
-			// So let's try this... Remember the id of the item we're picking up. If it happens that the first pick via PlayerPressButton fails, the second time we are here for the same item just call PickupFailsafe instead
-			LastPickup = 0;
-			Left4Bots.PickupFailsafe(self, pickup);
-		}
-		else
-		{
-			LastPickup = entIdx;
+		Left4Timers.AddTimer(null, Left4Bots.Settings.pickups_failsafe_delay, @(params) Left4Bots.PickupFailsafe(params.bot, params.item), { bot = self, item = pickup });
+		//local entIdx = pickup.GetEntityIndex();
+		//if (entIdx == LastPickup)
+		//{
+		//	// So let's try this... Remember the id of the item we're picking up. If it happens that the first pick via PlayerPressButton fails, the second time we are here for the same item just call PickupFailsafe instead
+		//	LastPickup = 0;
+		//	Left4Bots.PickupFailsafe(self, pickup);
+		//}
+		//else
+		//{
+		//	LastPickup = entIdx;
 			Left4Utils.PlayerPressButton(self, BUTTON_USE, Left4Bots.Settings.button_holdtime_tap, pickup, 0, 0, true);
-		}
+		//}
 
 		if (MoveType == AI_MOVE_TYPE.Pickup)
 		{
@@ -1174,13 +1180,27 @@ enum AI_DOOR_ACTION {
 			{
 				// Try to get rid of chainsaw by replacing with anything else
 				if (prefId != Left4Utils.WeaponId.weapon_chainsaw)
-					WeaponsToSearch[prefId] <- 0;
+				{
+					if (prefId > Left4Utils.MeleeWeaponId.none && Left4Bots.TeamMelee >= Left4Bots.Settings.team_max_melee)
+					{
+						// But always take care of the team_max_chainsaws / team_max_melee limits
+					}
+					else
+						WeaponsToSearch[prefId] <- 0;
+				}
 			}
 			else if (hasMelee && Left4Bots.TeamMelee > Left4Bots.Settings.team_max_melee)
 			{
 				// Try to get rid of melee by replacing with any non melee secondary
 				if (prefId < Left4Utils.MeleeWeaponId.none)
-					WeaponsToSearch[prefId] <- 0;
+				{
+					if (prefId == Left4Utils.WeaponId.weapon_chainsaw && Left4Bots.TeamChainsaws >= Left4Bots.Settings.team_max_chainsaws)
+					{
+						// But always take care of the team_max_chainsaws / team_max_melee limits
+					}
+					else
+						WeaponsToSearch[prefId] <- 0;
+				}
 			}
 			else
 			{

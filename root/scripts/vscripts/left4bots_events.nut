@@ -1761,7 +1761,7 @@ settings
 				if (allBots)
 				{
 					foreach (bot in Left4Bots.Bots)
-						Left4Bots.BotOrderAdd(bot, "goto", player, null, player);
+						Left4Bots.BotOrderAdd(bot, "goto", player, null, player.GetOrigin());
 				}
 				else
 				{
@@ -1769,7 +1769,7 @@ settings
 						tgtBot = Left4Bots.GetFirstAvailableBotForOrder("goto");
 					
 					if (tgtBot)
-						Left4Bots.BotOrderAdd(tgtBot, "goto", player, null, player);
+						Left4Bots.BotOrderAdd(tgtBot, "goto", player, null, player.GetOrigin());
 					else
 						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
 				}
