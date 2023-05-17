@@ -662,6 +662,22 @@ enum AI_DOOR_ACTION {
 		return;
 	}
 	
+	if (CurrentOrder.OrderType == "scavenge" && CurrentOrder.DestPos)
+	{
+		// We are going to the scavenge pour target and so we are supposed to be carrying the scavenge item. Let's check if we still have it or we lost it
+		
+		local aw = self.GetActiveWeapon();
+		if (!aw || !aw.IsValid() || (aw.GetClassname() != "weapon_gascan" && aw.GetClassname() != "weapon_cola_bottles"))
+		{
+			// Nope, we lost it. Cancel the order
+			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - CurrentOrder's scavenge item was dropped: " + Left4Bots.BotOrderToString(CurrentOrder));
+		
+			BotCancelCurrentOrder();
+
+			return;
+		}
+	}
+	
 	// Execute CurrentOrder
 	
 	if (CurrentOrder.OrderType == "follow")
@@ -1682,20 +1698,6 @@ enum AI_DOOR_ACTION {
 			}
 			break;
 		}
-		case "follow":
-		{
-			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Followed ent is in range");
-
-			// Start the Pause if needed
-			if (Paused == 0)
-			{
-				Paused = Time();
-				BotOnPause();
-			}
-			orderComplete = false;
-
-			break;
-		}
 		case "witch":
 		{
 			if (CurrentOrder.DestEnt && CurrentOrder.DestEnt.IsValid() && ("LookupAttachment" in CurrentOrder.DestEnt))
@@ -1721,6 +1723,65 @@ enum AI_DOOR_ACTION {
 			
 			Left4Utils.PlayerPressButton(self, BUTTON_USE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
 			
+			break;
+		}
+		case "scavenge":
+		{
+			if (CurrentOrder.DestEnt && !CurrentOrder.DestPos)
+			{
+				// If DestPos (the pour target pos) is not set it means that we reached the scavenge item and we need to pick it up
+				
+				// Pick-up
+				Left4Timers.AddTimer(null, Left4Bots.Settings.pickups_failsafe_delay, @(params) Left4Bots.PickupFailsafe(params.bot, params.item), { bot = self, item = CurrentOrder.DestEnt });
+				Left4Utils.PlayerPressButton(self, BUTTON_USE, Left4Bots.Settings.button_holdtime_tap, CurrentOrder.DestEnt, 0, 0, true);
+				
+				// Go to pour target
+				CurrentOrder.DestEnt = null;
+				CurrentOrder.DestPos = Left4Bots.ScavengeUseTargetPos;
+				if (Left4Bots.Settings.scavenge_pour)
+					CurrentOrder.DestRadius <- Left4Bots.Settings.move_end_radius_pour;
+				else
+					CurrentOrder.DestRadius <- Left4Bots.Settings.scavenge_drop_radius - 20;
+				
+				BotMoveTo(CurrentOrder.DestPos, true);
+				
+				orderComplete = false;
+			}
+			else if (CurrentOrder.DestPos)
+			{
+				// Here we are supposed to be near the pour target with the scavenge item in our hands
+				
+				// Do we still have it?
+				local aw = self.GetActiveWeapon();
+				if (aw && aw.IsValid() && (aw.GetClassname() == "weapon_gascan" || aw.GetClassname() == "weapon_cola_bottles"))
+				{
+					// Yes. Do we have to pour or drop?
+					if (Left4Bots.Settings.scavenge_pour)
+					{
+						// Pour
+						if (NetProps.GetPropInt(Left4Bots.ScavengeUseTarget, "m_useActionOwner") > 0)
+						{
+							Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " can't pour; pour target is busy");
+							
+							orderComplete = false;
+						}
+						else
+						{
+							Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " is pouring");
+					
+							Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, Left4Bots.Settings.button_holdtime_pour, Left4Bots.ScavengeUseTarget, 0, 0, true);
+						}
+					}
+					else
+					{
+						// Drop
+						Left4Utils.PlayerPressButton(self, BUTTON_USE, Left4Bots.Settings.button_holdtime_tap, Left4Bots.ScavengeUseTarget, 0, 0, true);
+					}
+				}
+				else
+					Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - CurrentOrder's scavenge item was dropped: " + Left4Bots.BotOrderToString(CurrentOrder));
+			}
+
 			break;
 		}
 		case "heal":
@@ -1764,6 +1825,20 @@ enum AI_DOOR_ACTION {
 		{
 			Left4Bots.SpeakRandomVocalize(self, Left4Bots.VocalizerGotoStop, RandomFloat(0.1, 0.6));
 			
+			break;
+		}
+		case "follow":
+		{
+			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Followed ent is in range");
+
+			// Start the Pause if needed
+			if (Paused == 0)
+			{
+				Paused = Time();
+				BotOnPause();
+			}
+			orderComplete = false;
+
 			break;
 		}
 		case "wait":
@@ -2049,6 +2124,13 @@ enum AI_DOOR_ACTION {
 		}
 	}
 	
+	local aw = self.GetActiveWeapon();
+	if (aw && aw.IsValid() && Left4Utils.GetWeaponSlotById(Left4Utils.GetWeaponId(aw)) == 5) // <- Carry item
+	{
+		// Drop it
+		Left4Utils.PlayerPressButton(self, BUTTON_USE, Left4Bots.Settings.button_holdtime_tap);
+	}
+	
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " [P] (" + reason + ")");
 	if (Left4Bots.Settings.pause_debug)
 		Say(self, "[P] (" + reason + ")", false);
@@ -2101,12 +2183,6 @@ enum AI_DOOR_ACTION {
 			order.MaxSeparation <- Left4Bots.Settings.lead_max_separation;
 			break;
 		}
-		case "follow":
-		{
-			order.DestRadius <- Left4Bots.Settings.move_end_radius_follow;
-			order.MaxSeparation <- 0;
-			break;
-		}
 		case "witch":
 		{
 			Left4Bots.SpeakRandomVocalize(bot, Left4Bots.VocalizerYes, RandomFloat(0.5, 1.0));
@@ -2135,6 +2211,18 @@ enum AI_DOOR_ACTION {
 			else// if (entClass == "prop_minigun")
 				order.DestRadius <- Left4Bots.Settings.move_end_radius;
 
+			order.MaxSeparation <- 0;
+			break;
+		}
+		case "scavenge":
+		{
+			order.DestRadius <- Left4Bots.Settings.move_end_radius_scavenge;
+			order.MaxSeparation <- 0;
+			break;
+		}
+		case "follow":
+		{
+			order.DestRadius <- Left4Bots.Settings.move_end_radius_follow;
 			order.MaxSeparation <- 0;
 			break;
 		}
@@ -2384,6 +2472,28 @@ enum AI_DOOR_ACTION {
 	return false;
 }
 
+// Does any bot have any order with 'destEnt' as DestEnt?
+::Left4Bots.BotsHaveOrderDestEnt <- function (destEnt)
+{
+	if (!destEnt || !destEnt.IsValid())
+		return false;
+	
+	foreach (bot in Left4Bots.Bots)
+	{
+		local scope = bot.GetScriptScope();
+		if (scope.CurrentOrder && scope.CurrentOrder.DestEnt && scope.CurrentOrder.DestEnt.IsValid() && scope.CurrentOrder.DestEnt.GetEntityIndex() == destEnt.GetEntityIndex())
+			return true;
+		
+		for (local i = 0; i < scope.Orders.len(); i++)
+		{
+			if (scope.Orders[i].DestEnt && scope.Orders[i].DestEnt.IsValid() && scope.Orders[i].DestEnt.GetEntityIndex() == destEnt.GetEntityIndex())
+				return true;
+		}
+	}
+	
+	return false;
+}
+
 // Returns the first available bot to add an order of type 'orderType' to his queue (null = no bot available)
 // if 'ignoreUserid' is not null, the bot with that userid will be ignored
 ::Left4Bots.GetFirstAvailableBotForOrder <- function (orderType, ignoreUserid = null, closestTo = null)
@@ -2395,7 +2505,7 @@ enum AI_DOOR_ACTION {
 	{
 		// If orderType = "witch", then the bot must also be holding a shotgun
 		// If orderType = "lead" or "follow", then the bots can't have another order of that type in the queue
-		if (bot.IsValid() && (!ignoreUserid || id != ignoreUserid) && (orderType != "witch" || (bot.GetActiveWeapon() && bot.GetActiveWeapon().GetClassname().find("shotgun") != null)) && ((orderType != "lead" && orderType != "follow") || !Left4Bots.BotHasOrderOfType(bot, orderType)))
+		if (bot.IsValid() && (!ignoreUserid || id != ignoreUserid) && (orderType != "scavenge" || !(bot.GetPlayerUserId() in Left4Bots.ScavengeBots)) && (orderType != "witch" || (bot.GetActiveWeapon() && bot.GetActiveWeapon().GetClassname().find("shotgun") != null)) && ((orderType != "lead" && orderType != "follow") || !Left4Bots.BotHasOrderOfType(bot, orderType)))
 		{
 			local scope = bot.GetScriptScope();
 			local q = scope.Orders.len();

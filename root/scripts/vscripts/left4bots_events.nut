@@ -966,6 +966,10 @@ Msg("Including left4bots_events...\n");
 					}
 					Left4Bots.OnChatCommand(who, cmd);
 				}
+				else if (concept == "PlayerImWithYou") // TODO
+				{
+					Left4Bots.ScavengeStart();
+				}
 			}
 			
 			if (lvl < Left4Bots.Settings.userlevel_vocalizer)
@@ -1002,6 +1006,28 @@ Msg("Including left4bots_events...\n");
 			}
 			/// ...
 		}
+		
+		if (concept == "PlayerPourFinished")
+		{
+			local score = null;
+			local towin = null;
+			
+			if ("Score" in query)
+				score = query.Score.tointeger();
+			if ("towin" in query)
+				towin = query.towin.tointeger();
+			
+			if (score != null && towin != null)
+				Left4Bots.Log(LOG_LEVEL_INFO, "Poured: " + score + " - Left: " + towin);
+			
+			if (Left4Bots.ScavengeStarted && towin == 0)
+			{
+				Left4Bots.Log(LOG_LEVEL_INFO, "Scavenge complete");
+				
+				Left4Bots.ScavengeStop();
+			}
+		}
+		/// ...
 	}
 }
 
@@ -1177,6 +1203,91 @@ Msg("Including left4bots_events...\n");
 	{
 		if (bot.IsValid())
 			bot.GetScriptScope().BotUpdatePickupToSearch();
+	}
+}
+
+// Coordinates the scavenge process
+::Left4Bots.OnScavengeManager <- function (params)
+{
+	//Left4Bots.Log(LOG_LEVEL_DEBUG, "OnScavengeManager");
+	
+	if (!Left4Bots.ScavengeStarted)
+	{
+		// This isn't supposed to happen, but...
+		Left4Timers.RemoveTimer("ScavengeManager");
+		return;
+	}
+	
+	if (Left4Bots.ScavengeUseTarget == null || !Left4Bots.ScavengeUseTarget.IsValid())
+	{
+		Left4Bots.Log(LOG_LEVEL_WARN, "ScavengeUseTarget is no longer valid. Stopping the scavenge process..");
+		
+		Left4Bots.ScavengeStop();
+		return;
+	}
+	
+	local num_bots = Left4Bots.Settings.scavenge_max_bots;
+	//if (Left4Bots.MapName == "c1m2_streets")
+	//	num_bots = 1;
+	
+	// Add the required bots
+	while (Left4Bots.ScavengeBots.len() < num_bots && Left4Bots.ScavengeBots.len() < Left4Bots.Bots.len())
+	{
+		local bot = Left4Bots.GetFirstAvailableBotForOrder("scavenge");
+		if (!bot)
+			break;
+		
+		Left4Bots.ScavengeBots[bot.GetPlayerUserId()] <- bot;
+		
+		Left4Bots.Log(LOG_LEVEL_INFO, "Added scavenge order slot for bot " + bot.GetPlayerName());
+		
+		Left4Bots.SpeakRandomVocalize(bot, Left4Bots.VocalizerYes, RandomFloat(0.2, 1.0));
+	}
+	
+	// Remove the excess
+	foreach (id, bot in Left4Bots.ScavengeBots)
+	{
+		if (Left4Bots.ScavengeBots.len() <= Left4Bots.Settings.scavenge_max_bots)
+			break;
+		
+		delete ::Left4Bots.ScavengeBots[id];
+		
+		Left4Bots.Log(LOG_LEVEL_INFO, "Removed scavenge order slot for bot " + bot.GetPlayerName());
+	}
+	
+	//Left4Bots.Log(LOG_LEVEL_DEBUG, "ScavengeBots len is " + Left4Bots.ScavengeBots.len());
+	
+	if (Left4Bots.ScavengeBots.len() <= 0)
+		return; // No bot is available for scavenge
+	
+	local scavengeItems = Left4Bots.GetAvailableScavengeItems(Left4Bots.ScavengeUseType);
+	if (scavengeItems.len() <= 0)
+		return; // nothing to do here
+	
+	foreach (id, bot in Left4Bots.ScavengeBots)
+	{
+		if (!bot || !bot.IsValid() || bot.IsDead() || bot.IsDying())
+			delete Left4Bots.ScavengeBots[id]; // Remove invalid/dead bots
+		else if (!Left4Bots.BotHasOrderOfType(bot, "scavenge"))
+		{
+			// Assign the order
+			while (scavengeItems.len() > 0)
+			{
+				local idx = Left4Utils.GetNearestEntityInList(bot, scavengeItems); // TODO: add option to search by shortest path
+				local item = scavengeItems[idx];
+			
+				delete scavengeItems[idx];
+			
+				if (!Left4Bots.BotsHaveOrderDestEnt(item))
+				{
+					Left4Bots.BotOrderAdd(bot, "scavenge", null, item);
+			
+					Left4Bots.Log(LOG_LEVEL_INFO, "Assigned a scavenge order to bot " + bot.GetPlayerName());
+					
+					break;
+				}
+			}
+		}
 	}
 }
 
@@ -1840,6 +1951,10 @@ settings
 						else
 							bot.GetScriptScope().BotCancelCurrentOrder(arg3);
 					}
+					
+					// With 'bots cancel all' we also stop the scavenge
+					if (!arg3 || arg3 == "all")
+						Left4Bots.ScavengeStop();
 				}
 				else
 				{

@@ -75,6 +75,9 @@ IncludeScript("left4bots_requirements");
 		// How long do the bots hold down the button to heal
 		button_holdtime_heal = 5.3
 		
+		// How long do the bots hold down the button to pour gascans/cola
+		button_holdtime_pour = 2.2
+		
 		// How long do the bots hold down a button to do single tap button press (it needs to last at least 2 ticks, so it must be greater than 0.033333 or the weapons firing can fail)
 		button_holdtime_tap = 0.04
 		
@@ -88,7 +91,7 @@ IncludeScript("left4bots_requirements");
 		chat_gg_chance = 70
 		
 		// Bot will chat one of these GG lines at the end of the campaign (if alive)
-		chat_gg_lines = "gg,GG,gg,GGG,gg"
+		chat_gg_lines = "gg,GG,gg,GGG,gg,ggs,gg"
 		
 		// [1/0] 1 = valid chat commands given to the bot will be hidden to the other players. 0 = They are visible
 		chat_hide_commands = 1
@@ -283,6 +286,9 @@ IncludeScript("left4bots_requirements");
 		
 		// Maximum distance from the destination door before open/close it
 		move_end_radius_door = 100
+
+		// Maximum distance from the followed entity for setting the 'follow' travel done
+		move_end_radius_follow = 100
 		
 		// Maximum distance from the destination teammate before starting to heal him
 		move_end_radius_heal = 80
@@ -290,8 +296,11 @@ IncludeScript("left4bots_requirements");
 		// Maximum distance from the destination position for setting the 'lead' travel done
 		move_end_radius_lead = 110
 		
-		// Maximum distance from the followed entity for setting the 'follow' travel done
-		move_end_radius_follow = 100
+		// Maximum distance from the destination pour position before starting to pour
+		move_end_radius_pour = 20
+		
+		// Maximum distance from the destination scavenge item before picking it up
+		move_end_radius_scavenge = 80
 		
 		// Maximum distance from the 'wait' position before stopping
 		move_end_radius_wait = 150
@@ -347,6 +356,18 @@ IncludeScript("left4bots_requirements");
 		
 		// [1/0] Should the sounds be played on give/swap items?
 		play_sounds = 1
+		
+		// If 'scavenge_pour' is '0' the bots will drop gascans and cola bottles within this radius from the pour target
+		scavenge_drop_radius = 200
+		
+		// Interval of the logic that coordinates the scavenge process
+		scavenge_manager_interval = 1
+		
+		// Max number of bots that will go scavenge gascans/cola bottles
+		scavenge_max_bots = 2
+
+		// [1/0] 1 = Bots will pour the scavenge items they collect. 0 = Bots will drop the collected scavenge items near the use target
+		scavenge_pour = 1
 		
 		// Value for the cm_ShouldHurry director option. Not sure what it does exactly
 		should_hurry = 1
@@ -534,6 +555,7 @@ IncludeScript("left4bots_requirements");
 	{
 		lead = 0
 		follow = 0
+		scavenge = 0
 		goto = 1
 		wait = 1
 		use = 2
@@ -575,6 +597,11 @@ IncludeScript("left4bots_requirements");
 	TeamDefibs = 0
 	TeamChainsaws = 0
 	TeamMelee = 0
+	ScavengeStarted = false
+	ScavengeUseTarget = null
+	ScavengeUseTargetPos = null
+	ScavengeUseType = 0
+	ScavengeBots = {}
 }
 
 ::Left4Bots.Log <- function (level, text)
@@ -706,6 +733,9 @@ IncludeScript("left4bots_requirements");
 	
 	// Stop the inventory manager
 	Left4Timers.RemoveTimer("InventoryManager");
+	
+	// Stop the scavenge logics
+	Left4Bots.ScavengeStop();
 	
 	// Stop the cleaner
 	Left4Timers.RemoveTimer("Cleaner");
@@ -2284,6 +2314,108 @@ IncludeScript("left4bots_requirements");
 		return true;
 	
 	return false;
+}
+
+// Starts the scavenge logics
+::Left4Bots.ScavengeStart <- function ()
+{
+	if (Left4Bots.ScavengeStarted)
+		return; // Already started
+	
+	if (!Left4Bots.SetScavengeUseTarget())
+		return; // No use target/pos available
+
+	Left4Bots.ScavengeStarted = true;
+	
+	// Start the scavenge manager
+	Left4Timers.AddTimer("ScavengeManager", Left4Bots.Settings.scavenge_manager_interval, Left4Bots.OnScavengeManager, {}, true);
+	
+	Left4Bots.Log(LOG_LEVEL_INFO, "Scavenge started");
+}
+
+// Stops the scavenge logics
+::Left4Bots.ScavengeStop <- function ()
+{
+	if (!Left4Bots.ScavengeStarted)
+		return; // Already stopped
+	
+	Left4Bots.ScavengeStarted = false;
+	
+	// Stop the scavenge manager
+	Left4Timers.RemoveTimer("ScavengeManager");
+	
+	Left4Bots.ScavengeUseTarget = null;
+	Left4Bots.ScavengeUseTargetPos = null;
+	Left4Bots.ScavengeUseType = 0;
+	Left4Bots.ScavengeBots.clear();
+	
+	// Cancel any pending scavenge order
+	foreach (bot in ::Left4Bots.Bots)
+	{
+		if (bot && bot.IsValid())
+			bot.GetScriptScope().BotCancelOrders("scavenge");
+	}
+	
+	Left4Bots.Log(LOG_LEVEL_INFO, "Scavenge stopped");
+}
+
+// Finds/Sets the scavenge use target
+::Left4Bots.SetScavengeUseTarget <- function ()
+{
+	//Left4Bots.Log(LOG_LEVEL_DEBUG, "SetScavengeUseTarget");
+	
+	// TODO: get it from automation?
+	Left4Bots.ScavengeUseTarget = Entities.FindByClassname(null, "point_prop_use_target");
+	if (!Left4Bots.ScavengeUseTarget)
+		return false;
+	
+	Left4Bots.ScavengeUseType = NetProps.GetPropInt(Left4Bots.ScavengeUseTarget, "m_spawnflags");
+	
+	if (Left4Bots.ScavengeUseType == SCAV_TYPE_GASCAN)
+		Left4Bots.Log(LOG_LEVEL_INFO, "Scavenge use target found (type: Gascan)");
+	else if (Left4Bots.ScavengeUseType == SCAV_TYPE_COLA)
+		Left4Bots.Log(LOG_LEVEL_INFO, "Scavenge use target found (type: Cola)");
+	else
+	{
+		Left4Bots.Log(LOG_LEVEL_WARN, "Unsupported scavenge use target type: " + Left4Bots.ScavengeUseType + "; switching to type: Gascan");
+		
+		Left4Bots.ScavengeUseType = SCAV_TYPE_GASCAN;
+	}
+	
+	// TODO: get it from automation
+	Left4Bots.ScavengeUseTargetPos = Left4Bots.FindBestUseTargetPos(Left4Bots.ScavengeUseTarget, null, null, true, Left4Bots.Settings.loglevel >= LOG_LEVEL_DEBUG);
+	if (!Left4Bots.ScavengeUseTargetPos)
+	{
+		Left4Bots.ScavengeUseTarget = null;
+		Left4Bots.ScavengeUseType = 0;
+		return false;
+	}
+
+	return true;
+}
+
+// Returns the list of scavenge items of type 'type'
+::Left4Bots.GetAvailableScavengeItems <- function (type)
+{
+	//	- Spawned gascans have class "weapon_gascan" when they have been picked up by players; after spawn too but i'm not 100% sure.
+	//	  They can have different m_nSkin (default is 0).
+	//	  In scavenge maps (regardless the gamemode) they are spawned by weapon_scavenge_item_spawn
+	//	
+	//	- cola's class can be "prop_physics" after spawn but it becomes "weapon_cola_bottles" after being picked up by a player; model should be always the same.
+	
+	local model = "models/props_junk/gascan001a.mdl";
+	if (type == SCAV_TYPE_COLA)
+		model = "models/w_models/weapons/w_cola.mdl";
+	
+	local t = {};
+	local ent = null;
+	local i = -1;
+	while (ent = Entities.FindByModel(ent, model))
+	{
+		if (ent.IsValid() && (Left4Bots.Settings.scavenge_pour || (ent.GetOrigin() - Left4Bots.ScavengeUseTarget.GetOrigin()).Length() >= Left4Bots.Settings.scavenge_drop_radius) && NetProps.GetPropInt(ent, "m_hOwner") <= 0 && !Left4Bots.BotsHaveOrderDestEnt(ent))
+			t[++i] <- ent;
+	}
+	return t;
 }
 
 //
