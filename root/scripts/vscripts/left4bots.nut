@@ -1,5 +1,6 @@
 /* TODO:
 
+- Auto follow
 - Auto warp when too far
 - Force ammo replenish while in saferoom
 - Invece di GetScriptScope... DoEntFire("!self", "RunScriptCode", "AutomaticShot()", 0.01, null, bot);  oppure  DoEntFire("!self", "CallScriptFunction", "AutomaticShot", 0.01, null, bot);
@@ -7,7 +8,6 @@
 - Remove cmdattack su special (bugga i bot)
 - Heal da solo e rescue pure
 - sb_unstick 0 e gestire l'unstick (magari teleportarlo dietro, davanti solo se sta da solo o è indietro?)
-- auto crown witch
 - manual attack headshot
 - Reset should reset pause?
 - Cancel heal near saferoom
@@ -21,8 +21,8 @@
 
 ----- IMPROV:
 
+- auto crown witch
 - All close saferoom door
-- Weapon preferences
 - Lead detour
 - Spit/Flames not stuck
 - 'follow' (new)
@@ -31,6 +31,7 @@
 - close saferoom door
 - 'wait'
 - dodge rock
+- Weapon preferences
 
 */
 
@@ -92,6 +93,15 @@ IncludeScript("left4bots_requirements");
 		
 		// Bot will chat one of these GG lines at the end of the campaign (if alive)
 		chat_gg_lines = "gg,GG,gg,GGG,gg,ggs,gg"
+		
+		// Chance that the bot will reply to a 'hello' trigger from a player who just joined
+		chat_hello_chance =  85
+		
+		// The bot will reply to the 'hello' triggers with one of these
+		chat_hello_replies = "hi,hello,hey,hi dude,wassup,hi,hello,hi,ciao"
+		
+		// List of 'hello' lines that can trigger the reply
+		chat_hello_triggers = "hi,hello,hey,hi guys,yo,ciao"
 		
 		// [1/0] 1 = valid chat commands given to the bot will be hidden to the other players. 0 = They are visible
 		chat_hide_commands = 1
@@ -573,6 +583,8 @@ IncludeScript("left4bots_requirements");
 	EscapeStarted = false
 	ChatBGLines = []
 	ChatGGLines = []
+	ChatHelloReplies = []
+	ChatHelloAlreadyReplied = {}
 	VocalizerLeadStart = []
 	VocalizerLeadStop = []
 	VocalizerGotoStop = []
@@ -660,6 +672,9 @@ IncludeScript("left4bots_requirements");
 		Left4Bots.ChatBGLines = split(Left4Bots.Settings.chat_bg_lines, ",");
 	if (Left4Bots.Settings.chat_gg_lines != "")
 		Left4Bots.ChatGGLines = split(Left4Bots.Settings.chat_gg_lines, ",");
+
+	if (Left4Bots.Settings.chat_hello_replies != "")
+		Left4Bots.ChatHelloReplies = split(Left4Bots.Settings.chat_hello_replies, ",");
 
 	printl("[L4B][INFO] Loading items to avoid from file: " + Left4Bots.Settings.file_itemstoavoid);
 	Left4Bots.ItemsToAvoid = Left4Bots.LoadItemsToAvoidFromFile(Left4Bots.Settings.file_itemstoavoid);
@@ -1912,7 +1927,7 @@ IncludeScript("left4bots_requirements");
 }
 
 // Makes the given bot say the given line in chat
-::Left4Bots.SayGG <- function (bot, line)
+::Left4Bots.SayLine <- function (bot, line)
 {
 	if (bot && bot.IsValid())
 		Say(bot, line, false);

@@ -663,7 +663,7 @@ Msg("Including left4bots_events...\n");
 			}
 			
 			if (line)
-				Left4Timers.AddTimer(null, RandomFloat(2.0, 5.0), @(params) Left4Bots.SayGG(params.bot, params.line), { bot = bot, line = line });
+				Left4Timers.AddTimer(null, RandomFloat(2.0, 5.0), @(params) Left4Bots.SayLine(params.bot, params.line), { bot = bot, line = line });
 		}
 	}
 	*/
@@ -685,7 +685,7 @@ Msg("Including left4bots_events...\n");
 			}
 			
 			if (line)
-				Left4Timers.AddTimer(null, RandomFloat(1.0, 7.0), @(params) Left4Bots.SayGG(params.bot, params.line), { bot = bot, line = line });
+				Left4Timers.AddTimer(null, RandomFloat(1.0, 7.0), @(params) Left4Bots.SayLine(params.bot, params.line), { bot = bot, line = line });
 		}
 	}
 }
@@ -1992,13 +1992,29 @@ settings
 		return true;
 	}
 	
-	if (Left4Users.GetOnlineUserLevel(speaker.GetPlayerUserId()) < Left4Bots.Settings.userlevel_orders)
-		return true;
-	
-	Left4Bots.Log(LOG_LEVEL_DEBUG, "InterceptChat - speaker: " + speaker.GetPlayerName() + " - msg: " + msg);
-	
 	local name = speaker.GetPlayerName() + ": ";
 	local text = strip(msg.slice(msg.find(name) + name.len())); // Remove the speaker's name part from the message
+	
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "InterceptChat - speaker: " + speaker.GetPlayerName() + " - text: " + text);
+	
+	local speakerid = speaker.GetPlayerUserId();
+	if (Left4Bots.ChatHelloReplies.len() > 0 && Left4Bots.Bots.len() > 0 && Left4Users.IsJustJoined(speakerid) && !(speakerid in Left4Bots.ChatHelloAlreadyReplied))
+	{
+		local helloTriggers = "," + Left4Bots.Settings.chat_hello_triggers + ",";
+		if (helloTriggers.find("," + text.tolower() + ",") != null)
+		{
+			Left4Bots.Log(LOG_LEVEL_DEBUG, "InterceptChat - Hello triggered");
+			foreach (bot in Left4Bots.Bots)
+			{
+				if (RandomInt(1, 100) <= Left4Bots.Settings.chat_hello_chance)
+					Left4Timers.AddTimer(null, RandomFloat(2.5, 6.5), @(params) Left4Bots.SayLine(params.bot, params.line), { bot = bot, line = Left4Bots.ChatHelloReplies[RandomInt(0, Left4Bots.ChatHelloReplies.len() - 1)] });
+			}
+			Left4Bots.ChatHelloAlreadyReplied[speakerid] <- 1;
+		}
+	}
+	
+	if (Left4Users.GetOnlineUserLevel(speaker.GetPlayerUserId()) < Left4Bots.Settings.userlevel_orders)
+		return true;
 	
 	return Left4Bots.OnChatCommand(speaker, text);
 }
