@@ -75,7 +75,15 @@ Msg("Including left4bots_events...\n");
 	if (!player || !player.IsValid())
 		return;
 
-	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_player_spawn - player: " + player.GetPlayerName());
+	Left4Timers.AddTimer(null, 0.01, @(params) Left4Bots.OnPostPlayerSpawn(params.player), { player = player });
+}
+
+::Left4Bots.OnPostPlayerSpawn <- function (player)
+{
+	if (!player || !player.IsValid())
+		return;
+
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnPostPlayerSpawn - player: " + player.GetPlayerName());
 		
 	if (Left4Bots.IsValidSurvivor(player))
 	{
@@ -354,6 +362,9 @@ Msg("Including left4bots_events...\n");
 	local player = g_MapScript.GetPlayerFromUserID(params["userid"]);
 	local item = params["item"];
 	
+	if (!Left4Bots.IsHandledSurvivor(player))
+		return;
+	
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_item_pickup - player: " + player.GetPlayerName() + " picked up: " + item);
 	
 	// Update the inventory items
@@ -491,7 +502,7 @@ Msg("Including left4bots_events...\n");
 	if ("userid" in params)
 		player = g_MapScript.GetPlayerFromUserID(params["userid"]);
 	
-	if (!player || !player.IsValid() || !Left4Bots.IsValidSurvivor(player))
+	if (!Left4Bots.IsHandledSurvivor(player))
 		return;
 
 	local door = null;

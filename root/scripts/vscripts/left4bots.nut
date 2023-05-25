@@ -95,7 +95,7 @@ IncludeScript("left4bots_requirements");
 		chat_gg_lines = "gg,GG,gg,GGG,gg,ggs,gg"
 		
 		// Chance that the bot will reply to a 'hello' trigger from a player who just joined
-		chat_hello_chance =  85
+		chat_hello_chance = 0 // TODO 85
 		
 		// The bot will reply to the 'hello' triggers with one of these
 		chat_hello_replies = "hi,hello,hey,hi dude,wassup,hi,hello,hi,ciao"
@@ -777,7 +777,10 @@ IncludeScript("left4bots_requirements");
 // Is player a valid survivor? (if player is a bot also checks whether it should be handled by the AI)
 ::Left4Bots.IsValidSurvivor <- function (player)
 {
-	local team = NetProps.GetPropInt(player, "m_iTeamNum");
+	if (player.GetZombieType() != 9)
+		return false; // Not a survivor
+	
+	local team = NetProps.GetPropInt(player, "m_iTeamNum"); // Certain mutations for some reason can spawn special infected with TEAM_SURVIVORS 
 	if (team == TEAM_SURVIVORS)
 	{
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "IsValidSurvivor - " + player.GetPlayerName() + " is a valid survivor");
@@ -794,12 +797,22 @@ IncludeScript("left4bots_requirements");
 	return false;
 }
 
-// Is bot an AI handled survivor bot?
+// Is survivor an handled survivor? (basically is survivor in Left4Bots.Survivors?)
+::Left4Bots.IsHandledSurvivor <- function (survivor)
+{
+	if (!survivor || !survivor.IsValid())
+		return false;
+	
+	return (survivor.GetPlayerUserId() in Left4Bots.Survivors);
+}
+
+// Is bot an AI handled survivor bot? (basically is bot in Left4Bots.Bots?)
 ::Left4Bots.IsHandledBot <- function (bot)
 {
 	if (!bot || !bot.IsValid())
 		return false;
 	
+	/*
 	local userid = bot.GetPlayerUserId();
 	foreach (id, b in ::Left4Bots.Bots)
 	{
@@ -808,6 +821,9 @@ IncludeScript("left4bots_requirements");
 	}
 	
 	return false;
+	*/
+	
+	return (bot.GetPlayerUserId() in Left4Bots.Bots);
 }
 
 ::Left4Bots.PrintSurvivorsCount <- function ()
