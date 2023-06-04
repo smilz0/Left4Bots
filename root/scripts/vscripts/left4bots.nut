@@ -379,6 +379,9 @@ IncludeScript("left4bots_requirements");
 		// [1/0] 1 = Bots will pour the scavenge items they collect. 0 = Bots will drop the collected scavenge items near the use target
 		scavenge_pour = 1
 		
+		// [1/0] Enable/Disable debug visualization of the found scavenge use target
+		scavenge_usetarget_debug = 0
+		
 		// Value for the cm_ShouldHurry director option. Not sure what it does exactly
 		should_hurry = 1
 		
@@ -2416,7 +2419,7 @@ IncludeScript("left4bots_requirements");
 	}
 	
 	// TODO: get it from automation
-	Left4Bots.ScavengeUseTargetPos = Left4Bots.FindBestUseTargetPos(Left4Bots.ScavengeUseTarget, null, null, true, Left4Bots.Settings.loglevel >= LOG_LEVEL_DEBUG);
+	Left4Bots.ScavengeUseTargetPos = Left4Bots.FindBestUseTargetPos(Left4Bots.ScavengeUseTarget, null, null, true, Left4Bots.Settings.scavenge_usetarget_debug);
 	if (!Left4Bots.ScavengeUseTargetPos)
 	{
 		Left4Bots.ScavengeUseTarget = null;

@@ -1510,6 +1510,11 @@ Available commands:
 	botsource wait here			: The order is added to the given bot(s) orders queue. The bot(s) will hold position at your current position
 	botsource wait there		: The order is added to the given bot(s) orders queue. The bot(s) will hold position at the location you are looking at
 	botsource use				: The order is added to the given bot(s) orders queue. The bot(s) will use the entity (pickup item / press button etc.) you are looking at
+	botsource warp				: The order is executed immediately. The bot(s) will teleport to your position
+	botsource warp here			: The order is executed immediately. The bot(s) will teleport to your position
+	botsource warp there		: The order is executed immediately. The bot(s) will teleport to the location you are looking at
+	botsource scavenge start	: Starts the scavenge process. The botsource parameter is ignored, the scavenge bot(s) are always selected automatically
+	botsource scavenge stop		: Stops the scavenge process. The botsource parameter is ignored, the scavenge bot(s) are always selected automatically
 
 
 botsource cancel [switch]
@@ -1791,9 +1796,9 @@ settings
 							local a = Left4Utils.VectorAngles(player.GetCenter() - tTable["pos"]);
 							
 							if (targetClass.find("trigger_finale") != null)
-								targetPos = Left4Bots.FindBestUseTargetPos(target, p, a, true, Left4Bots.Settings.loglevel >= LOG_LEVEL_DEBUG);
+								targetPos = Left4Bots.FindBestUseTargetPos(target, p, a, true, Left4Bots.Settings.scavenge_usetarget_debug);
 							else
-								targetPos = Left4Bots.FindBestUseTargetPos(target, p, a, false, Left4Bots.Settings.loglevel >= LOG_LEVEL_DEBUG);
+								targetPos = Left4Bots.FindBestUseTargetPos(target, p, a, false, Left4Bots.Settings.scavenge_usetarget_debug);
 							if (!targetPos)
 								targetPos = target.GetCenter();
 							
@@ -1929,6 +1934,55 @@ settings
 						Left4Bots.BotOrderAdd(tgtBot, arg2, player, null, waitPos != null ? waitPos : tgtBot.GetOrigin(), null, 0, !Left4Bots.Settings.wait_nopause);
 					else
 						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
+				}
+				
+				return true;
+			}
+			case "warp":
+			{
+				local warpPos = null;
+				if (arg3)
+				{
+					if (arg3.tolower() == "here")
+						warpPos = player.GetOrigin();
+					else if (arg3.tolower() == "there")
+						warpPos = Left4Utils.GetLookingPosition(player);
+
+					if (!warpPos)
+					{
+						Left4Bots.Log(LOG_LEVEL_WARN, "Invalid wait position: " + arg3);
+						return true;
+					}
+				}
+				else
+					warpPos = player.GetOrigin();
+				
+				if (allBots)
+				{
+					foreach (bot in Left4Bots.Bots)
+						bot.SetOrigin(warpPos);
+				}
+				else
+				{
+					if (!tgtBot)
+						tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2);
+					
+					if (tgtBot)
+						tgtBot.SetOrigin(warpPos);
+					else
+						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
+				}
+				
+				return true;
+			}
+			case "scavenge":
+			{
+				if (arg3)
+				{
+					if (arg3.tolower() == "start")
+						Left4Bots.ScavengeStart();
+					else if (arg3.tolower() == "stop")
+						Left4Bots.ScavengeStop();
 				}
 				
 				return true;
