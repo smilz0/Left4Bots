@@ -655,6 +655,8 @@ IncludeScript("left4bots_requirements");
 	// TODO: convars
 	Convars.SetValue("sb_debug_apoproach_wait_time", 0.5);
 	Convars.SetValue("sb_enforce_proximity_range", 20000);
+	Convars.SetValue("allow_all_bot_survivor_team", 1);
+	Convars.SetValue("sb_all_bot_game", 1);
 	// Convars.SetValue("sb_unstick", 0);  // TODO: Posso farlo unstickare io
 	
 	// Put the vocalizer lines into arrays
