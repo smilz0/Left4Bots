@@ -117,7 +117,8 @@ const ALLOW_BASH_NONE = 2;
 	{
 		local player = g_MapScript.GetPlayerFromUserID(params["userid"]);
 	
-		Left4Bots.OnPlayerSpawn(player, params);
+		//Left4Bots.OnPlayerSpawn(player, params);
+		Left4Timers.AddTimer(null, 0.01, @(params) Left4Bots.OnPlayerSpawn(params.player, params.params), { player = player, params = params });
 	}
 }
 
@@ -278,7 +279,8 @@ long	type	damage type
 	local player = g_MapScript.GetPlayerFromUserID(params["userid"]);
 	local item = params["item"];
 	
-	Left4Bots.OnItemPickup(player, item, params);
+	if (Left4Bots.IsHandledSurvivor(player))
+		Left4Bots.OnItemPickup(player, item, params);
 }
 
 ::Left4Bots.Events.OnGameEvent_player_entered_checkpoint <- function (params)
@@ -298,7 +300,8 @@ long	type	damage type
 	if ("area" in params)
 		area = params["area"];
 	
-	Left4Bots.OnPlayerEnteredCheckpoint(player, door, doorname, area, params);
+	if (Left4Bots.IsHandledSurvivor(player))
+		Left4Bots.OnPlayerEnteredCheckpoint(player, door, doorname, area, params);
 }
 
 ::Left4Bots.Events.OnGameEvent_player_left_checkpoint <- function (params)
@@ -312,7 +315,8 @@ long	type	damage type
 	if ("area" in params)
 		area = params["area"];		
 	
-	Left4Bots.OnPlayerLeftCheckpoint(player, area, params);
+	if (Left4Bots.IsHandledSurvivor(player))
+		Left4Bots.OnPlayerLeftCheckpoint(player, area, params);
 }
 
 ::Left4Bots.Events.OnGameEvent_friendly_fire <- function (params)

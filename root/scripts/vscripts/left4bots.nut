@@ -599,6 +599,14 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		}
 	}
 
+	::Left4Bots.IsHandledSurvivor <- function (survivor)
+	{
+		if (!survivor || !survivor.IsValid() || !("GetPlayerUserId" in survivor))
+			return false;
+		
+		return (survivor.GetPlayerUserId() in Left4Bots.Survivors);
+	}
+
 	::Left4Bots.LoadOnTankSettingsFromFile <- function (fileName)
 	{
 		Left4Bots.OnTankSettings.clear();
@@ -816,6 +824,11 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.OnRoundStart - MapName: " + Left4Bots.MapName + " - MapNumber: " + Director.GetMapNumber());
 
 		Left4Bots.RoundStarted = true;
+
+		// Apparently, when scriptedmode is enabled and this director option isn't set, there is a big stutter (for the host)
+		// when a witch is chasing a survivor and that survivor enters the saferoom. Simply having a value for this key, removes the stutter
+		if (!("AllowWitchesInCheckpoints" in DirectorScript.GetDirectorOptions()))
+			DirectorScript.GetDirectorOptions().AllowWitchesInCheckpoints <- false;
 
 		if ("Left4Fun" in getroottable() && "PingEnt" in ::Left4Fun)
 		{
@@ -1658,79 +1671,6 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		}
 	}
 
-/*
-	::Left4Bots.OnBash <- function (attacker, victim)
-	{
-		if(!attacker || !victim)
-			return;
-		
-		if (!Left4Bots.Settings.nades_give)
-			return;
-		
-		if (!("IsPlayer" in victim) || !victim.IsPlayer())
-			return;
-		
-		if (NetProps.GetPropInt(attacker, "m_iTeamNum") != TEAM_SURVIVORS || NetProps.GetPropInt(victim, "m_iTeamNum") != TEAM_SURVIVORS)
-			return;
-		
-		local attackerItem = attacker.GetActiveWeapon();
-		if (!attackerItem)
-			return;
-		
-		local attackerItemClass = attackerItem.GetClassname();
-		local attackerItemSkin = NetProps.GetPropInt(attackerItem, "m_nSkin");
-		
-		Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.OnBash - attacker: " + attacker.GetPlayerName() + " - victim: " + victim.GetPlayerName() + " - weapon: " + attackerItemClass);
-		
-		if (attackerItemClass == "weapon_pipe_bomb" || attackerItemClass == "weapon_molotov" || attackerItemClass == "weapon_vomitjar")
-		{
-			local victimItem = Left4Utils.GetInventoryItemInSlot(victim, INV_SLOT_THROW);
-			if (!victimItem)
-			{
-				DoEntFire("!self", "SpeakResponseConcept", "PlayerAlertGiveItem", 0, null, attacker);
-				
-				Left4Bots.GiveItemIndex1 = attackerItem.GetEntityIndex();
-				
-				attacker.DropItem(attackerItemClass);
-
-				//victim.GiveItemWithSkin(attackerItemClass, attackerItemSkin);
-				Left4Utils.GiveItemWithSkin(victim, attackerItemClass, attackerItemSkin);
-				
-				Left4Timers.AddTimer(null, 0.1, Left4Bots.GiveNade, { player1 = attacker, player2 = victim, weapon = attackerItem });
-				
-				if (IsPlayerABot(victim))
-					Left4Bots.LastGiveItemTime = Time();
-			}
-			else if (IsPlayerABot(victim))
-			{
-				// Swap
-				local victimItemClass = victimItem.GetClassname();
-				local victimItemSkin = NetProps.GetPropInt(victimItem, "m_nSkin");
-				
-				if (victimItemClass != attackerItemClass)
-				{
-					DoEntFire("!self", "SpeakResponseConcept", "PlayerAlertGiveItem", 0, null, attacker);
-					DoEntFire("!self", "SpeakResponseConcept", "PlayerAlertGiveItem", 0, null, victim);
-					
-					Left4Bots.GiveItemIndex1 = attackerItem.GetEntityIndex();
-					Left4Bots.GiveItemIndex2 = victimItem.GetEntityIndex();
-					
-					attacker.DropItem(attackerItemClass);
-					victim.DropItem(victimItemClass);
-					
-					//attacker.GiveItemWithSkin(victimItemClass, victimItemSkin);
-					Left4Utils.GiveItemWithSkin(attacker, victimItemClass, victimItemSkin);
-					//victim.GiveItemWithSkin(attackerItemClass, attackerItemSkin);
-					Left4Utils.GiveItemWithSkin(victim, attackerItemClass, attackerItemSkin);
-					
-					Left4Timers.AddTimer(null, 0.1, Left4Bots.SwapNades, { player1 = attacker, weapon1 = victimItem, player2 = victim, weapon2 = attackerItem });
-				}
-			}
-			return ALLOW_BASH_NONE;
-		}
-	}
-*/
-
 	::Left4Bots.OnReviveBegin <- function (player, subject, params)
 	{
 		if (!IsPlayerABot(player))
@@ -1797,7 +1737,10 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 
 	::Left4Bots.IsValidSurvivor <- function (player)
 	{
-		local team = NetProps.GetPropInt(player, "m_iTeamNum");
+		if (player.GetZombieType() != 9)
+			return false; // Not a survivor
+		
+		local team = NetProps.GetPropInt(player, "m_iTeamNum"); // Certain mutations for some reason can spawn special infected with TEAM_SURVIVORS 
 		if (team == TEAM_SURVIVORS)
 		{
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "IsValidSurvivor - " + player.GetPlayerName() + " is a valid survivor");
@@ -1810,12 +1753,15 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			return true;
 		}
 		
-		Left4Bots.Log(LOG_LEVEL_DEBUG, "IsValidSurvivor - " + player.GetPlayerName() + " is not a valid survivor");
+		//Left4Bots.Log(LOG_LEVEL_DEBUG, "IsValidSurvivor - " + player.GetPlayerName() + " is not a valid survivor");
 		return false;
 	}
 
 	::Left4Bots.OnPlayerSpawn <- function (player, params)
 	{
+		if (!player || !player.IsValid())
+			return;
+		
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.OnPlayerSpawn - player: " + player.GetPlayerName());
 		
 		Left4Bots.PlayerIn(player);
@@ -2469,18 +2415,6 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 						Left4Bots.TryDodgeCharger(bot, charger, charger.EyeAngles().Left(), d > 0);
 				}
 			}
-		
-			/*
-			foreach (id, bot in ::Left4Bots.Bots)
-			{
-				if (bot.IsValid())
-				{
-					Left4Bots.Log(LOG_LEVEL_DEBUG, bot.GetPlayerName() + " RETREAT " + charger.GetPlayerName());
-					
-					Left4Utils.BotCmdRetreat(bot, charger); // Does it even work? - TODO: check
-				}
-			}
-			*/
 		}
 	}
 	
@@ -2876,7 +2810,7 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		}
 		Left4Bots.Team_Medkits = kits;
 		Left4Bots.Team_Defibs = defs;
-		Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.Team_Medkits: " + Team_Medkits + " - Team_Defibs: " + Left4Bots.Team_Defibs);
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "Team_Medkits: " + Left4Bots.Team_Medkits + " - Team_Defibs: " + Left4Bots.Team_Defibs);
 
 		if (!IsPlayerABot(player))
 			return;
@@ -3837,7 +3771,7 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 							minDist = dist;
 						}
 					}
-					else if (!ent.IsDead() && !ent.IsDying()) // player
+					else if (NetProps.GetPropInt(ent, "m_iTeamNum") == TEAM_INFECTED && !ent.IsDead() && !ent.IsDying()) // player
 					{
 						ret = ent;
 						minDist = dist;
@@ -4464,7 +4398,7 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 					//who.GiveItemWithSkin(itemClass, itemSkin);
 					Left4Utils.GiveItemWithSkin(who, itemClass, itemSkin);
 								
-					Left4Timers.AddTimer(null, 0.1, Left4Bots.GiveNade, { player1 = subject, player2 = who, weapon = item });						
+					Left4Timers.AddTimer(null, 0.1, Left4Bots.GiveNade, { player1 = subject, player2 = who, weapon = item });
 				}
 				
 				// Give medkits to admins / upgrades
@@ -5703,6 +5637,7 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		}
 	}
 	
+	// TODO: Left4Utils???
 	::Left4Utils.AreOtherSurvivorsNearby <- function (player, origin, radius = 150)
 	{
 		foreach (id, surv in ::Left4Bots.Survivors)
@@ -5716,6 +5651,7 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		return false;
 	}
 	
+	// TODO: Left4Utils???
 	::Left4Utils.IsSomeoneElseHolding <- function (player, weaponClass)
 	{
 		foreach (id, surv in ::Left4Bots.Survivors)
@@ -6931,7 +6867,6 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		}
 		
 		return death;
-		
 	}
 	
 	// Runs in the scope of the bot entity
