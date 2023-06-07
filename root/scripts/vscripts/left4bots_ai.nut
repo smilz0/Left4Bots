@@ -106,6 +106,51 @@ enum AI_DOOR_ACTION {
 	AddThinkToEnt(bot, "BotThink_Main");
 }
 
+// Add the main AI think function to the given extra L4D1 bot and initialize it
+::Left4Bots.AddL4D1BotThink <- function (bot)
+{
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "AddL4D1BotThink -> " + bot.GetPlayerName());
+	
+	AddThinkToEnt(bot, null);
+	
+	bot.ValidateScriptScope();
+	local scope = bot.GetScriptScope();
+	
+	scope.CharId <- NetProps.GetPropInt(bot, "m_survivorCharacter");
+	scope.FuncI <- scope.CharId % 5; // <- this makes the bots start the sub-think functions in different order so they don't "Use" pickups or do things at the exact same time
+	scope.UserId <- bot.GetPlayerUserId();
+	scope.Origin <- bot.GetOrigin(); // This will be updated each tick by the BotThink_Main think function. It is meant to replace all the self.GetOrigin() used by the various funcs
+	scope.MoveEnt <- null;
+	scope.MovePos <- null;
+	scope.MoveType <- AI_MOVE_TYPE.None;
+	scope.MoveTime <- 0;
+	scope.MoveTimeout <- 0;
+	scope.NeedMove <- 0;
+	scope.CanReset <- true;
+	scope.DelayedReset <- false;
+	scope.Paused <- 0; // Paused = 0 = not in pause. Paused > 0 (Time() of when the pause started) = in pause
+	scope.WeaponsToSearch <- {};
+	scope.UpgradesToSearch <- {};
+	scope.TimePickup <- 0;
+	scope.LastPickup <- 0;
+	scope.ThrowType <- AI_THROW_TYPE.None;
+	scope.ThrowTarget <- null;
+	scope.ThrowStartedOn <- 0;
+	scope.Waiting <- false;
+	scope.WeapPref <- Left4Bots.LoadWeaponPreferences(bot);
+	
+	scope["BotThink_Main"] <- ::Left4Bots.BotThink_Main_L4D1;
+	scope["BotThink_Pickup"] <- ::Left4Bots.BotThink_Pickup;
+	scope["BotThink_Throw"] <- ::Left4Bots.BotThink_Throw;
+	scope["BotMoveTo"] <- ::Left4Bots.BotMoveTo;
+	scope["BotMoveReset"] <- ::Left4Bots.BotMoveReset;
+	scope["BotReset"] <- ::Left4Bots.BotReset;
+	scope["BotUpdatePickupToSearch"] <- ::Left4Bots.BotUpdatePickupToSearch;
+	scope["BotGetNearestPickupWithin"] <- ::Left4Bots.BotGetNearestPickupWithin;
+	
+	AddThinkToEnt(bot, "BotThink_Main");
+}
+
 ::Left4Bots.RemoveBotThink <- function (bot)
 {
 	AddThinkToEnt(bot, null);
@@ -128,7 +173,19 @@ enum AI_DOOR_ACTION {
 	
 	// Can't do anything at the moment
 	if (Left4Bots.SurvivorCantMove(self, Waiting))
+	{
+		if (!CanReset)
+		{
+			CanReset = true; // Now we can safely send RESET commands again
+		
+			Left4Bots.Log(LOG_LEVEL_DEBUG, "Bot " + self.GetPlayerName() + " CanReset = true");
+		
+			// Delayed resets are executed as soon as we can reset again
+			if (DelayedReset)
+				BotReset(true);
+		}
 		return Left4Bots.Settings.bot_think_interval;
+	}
 	
 	// Don't do anything if the bot is on a ladder or the mode hasn't started yet
 	if (NetProps.GetPropInt(self, "movetype") == 9 /* MOVETYPE_LADDER */ || !Left4Bots.ModeStarted)
@@ -177,17 +234,19 @@ enum AI_DOOR_ACTION {
 			// No longer needed if we set sb_debug_apoproach_wait_time to something like 0.5 or even 0
 			// BotReset();
 			
-			MovePos = null;
-			MoveType = AI_MOVE_TYPE.None;
+			BotMoveReset();
+			//MovePos = null;
+			//MoveType = AI_MOVE_TYPE.None;
 		}
 		else if ((Time() - MoveTime) >= MoveTimeout)
 		{
 			// No but the move timed out
 			
-			BotReset();
+			//BotReset();
 			
-			MovePos = null;
-			MoveType = AI_MOVE_TYPE.None;
+			BotMoveReset();
+			//MovePos = null;
+			//MoveType = AI_MOVE_TYPE.None;
 		}
 		else
 			BotMoveTo(MovePos); // No, keep moving
@@ -264,7 +323,7 @@ enum AI_DOOR_ACTION {
 				local aw = self.GetActiveWeapon();
 				local toTarget = target.GetOrigin() - Origin;
 				toTarget.Norm();
-				if (aw && aw.GetClassname() == "weapon_melee" && self.EyeAngles().Forward().Dot(toTarget) >= 0.7 && Time() >= NetProps.GetPropFloat(aw, "m_flNextPrimaryAttack"))
+				if (aw && aw.GetClassname() == "weapon_melee" && self.EyeAngles().Forward().Dot(toTarget) >= 0.6 && Time() >= NetProps.GetPropFloat(aw, "m_flNextPrimaryAttack"))
 					Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, Left4Bots.Settings.button_holdtime_tap, target, targetDeltaPitch, 0, false);
 				else if (Time() >= NetProps.GetPropFloat(self, "m_flNextShoveTime"))
 					Left4Utils.PlayerPressButton(self, BUTTON_SHOVE, Left4Bots.Settings.button_holdtime_tap, target, targetDeltaPitch, 0, false);
@@ -273,6 +332,100 @@ enum AI_DOOR_ACTION {
 		
 		Left4Utils.PlayerEnableButton(self, BUTTON_RELOAD);
 	}
+	
+	if (++FuncI > 5)
+		FuncI = 1;
+	
+	return Left4Bots.Settings.bot_think_interval;
+}
+
+// Main bot think function for the extra L4D1 bots
+// Runs in the scope of the bot entity
+::Left4Bots.BotThink_Main_L4D1 <- function ()
+{
+	Origin = self.GetOrigin();
+	
+	// Can't do anything at the moment
+	if (Left4Bots.SurvivorCantMove(self, Waiting))
+	{
+		if (!CanReset)
+		{
+			CanReset = true; // Now we can safely send RESET commands again
+		
+			Left4Bots.Log(LOG_LEVEL_DEBUG, "L4D1 Bot " + self.GetPlayerName() + " CanReset = true");
+		
+			// Delayed resets are executed as soon as we can reset again
+			if (DelayedReset)
+				BotReset(true);
+		}
+		return Left4Bots.Settings.bot_think_interval;
+	}
+	
+	// Don't do anything if the bot is on a ladder or the mode hasn't started yet
+	if (NetProps.GetPropInt(self, "movetype") == 9 /* MOVETYPE_LADDER */ || !Left4Bots.ModeStarted)
+		return Left4Bots.Settings.bot_think_interval;
+
+	// Don't do anything while frozen
+	if ((NetProps.GetPropInt(self, "m_fFlags") & (1 << 5)))
+	{
+		// If the bot has FL_FROZEN flag set, CommandABot will fail even though it still returns true
+		// Make sure to send at least one extra move command to the bot after the FL_FROZEN flag is unset
+		if (MovePos)
+			NeedMove = 2;
+
+		return Left4Bots.Settings.bot_think_interval;
+	}
+	
+	//if (Left4Bots.Settings.stuck_detection)
+	//	BotStuckMonitor();
+	
+	switch (FuncI)
+	{
+		case 1:
+		{
+			BotThink_Pickup();
+			break;
+		}
+		case 3:
+		{
+			BotThink_Throw();
+			break;
+		}
+	}
+	
+	//if (Time() >= NetProps.GetPropFloat(self, "m_flNextShoveTime"))
+	//{
+		// Can shove
+		local target = null;
+		local targetDeltaPitch = Left4Bots.Settings.shove_commons_deltapitch;
+		
+		// Is there any tongue victim teammate to shove?
+		if (Left4Bots.Settings.shove_tonguevictim_radius > 0)
+			target = Left4Bots.GetTongueVictimToShove(self, Origin);
+		
+		if (target)
+			targetDeltaPitch = Left4Bots.Settings.shove_tonguevictim_deltapitch; // Yes
+		else if (Left4Bots.Settings.shove_specials_radius > 0)
+		{
+			// No. Any special infected?
+			target = Left4Bots.GetSpecialInfectedToShove(self, Origin);
+			if (target)
+				targetDeltaPitch = Left4Bots.Settings.shove_specials_deltapitch; // Yes
+			else if (Left4Bots.Settings.shove_commons_radius > 0)
+				target = Left4Utils.GetFirstVisibleCommonInfectedWithin(self, Left4Bots.Settings.shove_commons_radius); // No. Any common?
+		}
+		
+		if (target)
+		{
+			local aw = self.GetActiveWeapon();
+			local toTarget = target.GetOrigin() - Origin;
+			toTarget.Norm();
+			if (aw && aw.GetClassname() == "weapon_melee" && self.EyeAngles().Forward().Dot(toTarget) >= 0.6 && Time() >= NetProps.GetPropFloat(aw, "m_flNextPrimaryAttack"))
+				Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, Left4Bots.Settings.button_holdtime_tap, target, targetDeltaPitch, 0, false);
+			else if (Time() >= NetProps.GetPropFloat(self, "m_flNextShoveTime"))
+				Left4Utils.PlayerPressButton(self, BUTTON_SHOVE, Left4Bots.Settings.button_holdtime_tap, target, targetDeltaPitch, 0, false);
+		}
+	//}
 	
 	if (++FuncI > 5)
 		FuncI = 1;
@@ -320,20 +473,8 @@ enum AI_DOOR_ACTION {
 		
 		TimePickup = Time();
 		
-		// This causes troubles if the bot successfully picks the item up and then replaces it with another item before the PickupFailsafe runs. The bot starts picking the two items over and over
 		Left4Timers.AddTimer(null, Left4Bots.Settings.pickups_failsafe_delay, @(params) Left4Bots.PickupFailsafe(params.bot, params.item), { bot = self, item = pickup });
-		//local entIdx = pickup.GetEntityIndex();
-		//if (entIdx == LastPickup)
-		//{
-		//	// So let's try this... Remember the id of the item we're picking up. If it happens that the first pick via PlayerPressButton fails, the second time we are here for the same item just call PickupFailsafe instead
-		//	LastPickup = 0;
-		//	Left4Bots.PickupFailsafe(self, pickup);
-		//}
-		//else
-		//{
-		//	LastPickup = entIdx;
-			Left4Utils.PlayerPressButton(self, BUTTON_USE, Left4Bots.Settings.button_holdtime_tap, pickup, 0, 0, true);
-		//}
+		Left4Utils.PlayerPressButton(self, BUTTON_USE, Left4Bots.Settings.button_holdtime_tap, pickup, 0, 0, true);
 
 		if (MoveType == AI_MOVE_TYPE.Pickup)
 		{

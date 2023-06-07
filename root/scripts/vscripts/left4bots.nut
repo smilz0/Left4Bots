@@ -1,12 +1,13 @@
 /* TODO:
 
+- "use_nopause" etc.
+- Check if gascans nearby and scavenge started before throwing molotov
 - Auto follow
 - Auto warp when too far
 - Force ammo replenish while in saferoom
 - Invece di GetScriptScope... DoEntFire("!self", "RunScriptCode", "AutomaticShot()", 0.01, null, bot);  oppure  DoEntFire("!self", "CallScriptFunction", "AutomaticShot", 0.01, null, bot);
 - Weapon/Item spotted -> check dist/... and add as pickup
-- Remove cmdattack su special (bugga i bot)
-- Heal da solo e rescue pure
+- Remove cmdattack su special (bugga i bot)?
 - sb_unstick 0 e gestire l'unstick (magari teleportarlo dietro, davanti solo se sta da solo o è indietro?)
 - manual attack headshot
 - Reset should reset pause?
@@ -218,16 +219,19 @@ IncludeScript("left4bots_requirements");
 		// Maximum distance from the other survivors for giving them items
 		give_max_range = 270
 		
-		// (1/0) Should the L4B AI handle the extra L4D1 survivors (spawned in some maps like "The Passing" or manually by some admin addon)?
-		// This does only apply when the main team is the L4D2 one, it has no effect when the L4D1 survivors are spawned as the main team
-		handle_l4d1_survivors = 0
+		// [0/1/2] Should the L4B AI handle the extra L4D1 survivors (spawned in some maps like "The Passing" or manually by some admin addon)?
+		// 0 = No
+		// 1 = Yes but for the items pickup/throw only (can be useful considering that the itemstoavoid logics also affect the L4D1 bots and will likely make them not pickup any weapon with vanilla AI)
+		// 2 = Yes (full AI like the main bots)
+		// NOTE: This does only apply when the main team is the L4D2 one, it has no effect when the L4D1 survivors are spawned as the main team
+		handle_l4d1_survivors = 1
 		
 		// When the bot tries to heal with health >= this (usually they do it in the start saferoom) the addon will interrupt it, unless there is no human in the team
 		// or there are enough spare medkits around for the bot and the teammates who also need it
 		heal_interrupt_minhealth = 50
 		
 		// [1/0] 1 = The bot will be forced to heal without interrupting when healing himself (unless there are enough infected nearby). 0 = The bot can interrupt healing if not feeling safe enough (vanilla behavior)
-		heal_force = 1
+		heal_force = 0
 		
 		// Radius for searching the spare medkits around
 		heal_spare_medkits_radius = 500
@@ -576,12 +580,13 @@ IncludeScript("left4bots_requirements");
 		witch = 3
 	}
 	Events = {}
-	Survivors = {}	// Used for performance reasons, instead of doing (very slow) Entities search every time
-	Bots = {}		// Same as above ^
-	Deads = {}		// Same ^
-	Specials = {}	// Idem ^
-	Tanks = {}		// ^
-	Witches = {}	// Guess what? ^
+	Survivors = {}		// Used for performance reasons, instead of doing (very slow) Entities search every time
+	Bots = {}			// Same as above ^
+	Deads = {}			// Same ^
+	Specials = {}		// Idem ^
+	Tanks = {}			// ^
+	Witches = {}		// Guess what? ^
+	L4D1Survivors = {}	// Used to store the extra L4D1 bots when handle_l4d1_survivors = 1
 	ModeStarted = false
 	EscapeStarted = false
 	ChatBGLines = []
@@ -792,7 +797,7 @@ IncludeScript("left4bots_requirements");
 		return true;
 	}
 		
-	if (team == TEAM_L4D1_SURVIVORS && Left4Bots.Settings.handle_l4d1_survivors)
+	if (team == TEAM_L4D1_SURVIVORS && Left4Bots.Settings.handle_l4d1_survivors == 2)
 	{
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "IsValidSurvivor - " + player.GetPlayerName() + " is a valid survivor (L4D1)");
 		return true;
@@ -831,12 +836,27 @@ IncludeScript("left4bots_requirements");
 	return (bot.GetPlayerUserId() in Left4Bots.Bots);
 }
 
+// Is bot an AI handled extra L4D1 survivor bot? (basically is bot in Left4Bots.L4D1Survivors?)
+::Left4Bots.IsHandledL4D1Bot <- function (bot)
+{
+	if (!bot || !bot.IsValid())
+		return false;
+	
+	return (bot.GetPlayerUserId() in Left4Bots.L4D1Survivors);
+}
+
 ::Left4Bots.PrintSurvivorsCount <- function ()
 {
 	local sn = ::Left4Bots.Survivors.len();
 	local bn = ::Left4Bots.Bots.len();
 	local hn = sn - bn;
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[Alive survivors: " + sn + " - " + bn + " bot(s) - " + hn + " human(s)]");
+}
+
+::Left4Bots.PrintL4D1SurvivorsCount <- function ()
+{
+	local sn = ::Left4Bots.L4D1Survivors.len();
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "[L4D1 bots: " + sn + "]");
 }
 
 // Returns the entity (if found) of the survivor with that actor name
@@ -904,7 +924,12 @@ IncludeScript("left4bots_requirements");
 // Returns the entity (if found) of the survivor with that character id
 ::Left4Bots.GetSurvivorByCharacter <- function (character)
 {
-	foreach (id, surv in ::Left4Bots.Survivors)
+	foreach (surv in ::Left4Bots.Survivors)
+	{
+		if (surv.IsValid() && NetProps.GetPropInt(surv, "m_survivorCharacter") == character)
+			return surv;
+	}
+	foreach (surv in ::Left4Bots.L4D1Survivors)
 	{
 		if (surv.IsValid() && NetProps.GetPropInt(surv, "m_survivorCharacter") == character)
 			return surv;

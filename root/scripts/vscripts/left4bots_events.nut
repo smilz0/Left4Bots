@@ -105,20 +105,34 @@ Msg("Including left4bots_events...\n");
 		
 		Left4Bots.PrintSurvivorsCount();
 	}
-	else if (player.GetZombieType() == Z_TANK)
-	{
-		::Left4Bots.Tanks[player.GetPlayerUserId()] <- player;
-		
-		if (Left4Bots.Tanks.len() == 1) // At least 1 tank has spawned
-			Left4Bots.OnTankActive();
-		
-		Left4Bots.Log(LOG_LEVEL_DEBUG, "Active tanks: " + ::Left4Bots.Tanks.len());
-	}
 	else
 	{
-		::Left4Bots.Specials[player.GetPlayerUserId()] <- player;
-		
-		Left4Bots.Log(LOG_LEVEL_DEBUG, "Active specials: " + ::Left4Bots.Specials.len());
+		local team = NetProps.GetPropInt(player, "m_iTeamNum");
+		if (team == TEAM_INFECTED)
+		{
+			if (player.GetZombieType() == Z_TANK)
+			{
+				::Left4Bots.Tanks[player.GetPlayerUserId()] <- player;
+				
+				if (Left4Bots.Tanks.len() == 1) // At least 1 tank has spawned
+					Left4Bots.OnTankActive();
+				
+				Left4Bots.Log(LOG_LEVEL_DEBUG, "Active tanks: " + ::Left4Bots.Tanks.len());
+			}
+			else
+			{
+				::Left4Bots.Specials[player.GetPlayerUserId()] <- player;
+				
+				Left4Bots.Log(LOG_LEVEL_DEBUG, "Active specials: " + ::Left4Bots.Specials.len());
+			}
+		}
+		else if (team == TEAM_L4D1_SURVIVORS && Left4Bots.Settings.handle_l4d1_survivors == 1)
+		{
+			::Left4Bots.L4D1Survivors[player.GetPlayerUserId()] <- player;
+			Left4Bots.AddL4D1BotThink(player);
+
+			Left4Bots.PrintL4D1SurvivorsCount();
+		}
 	}
 }
 
@@ -286,13 +300,20 @@ Msg("Including left4bots_events...\n");
 		local sdm = Left4Utils.GetSurvivorDeathModelByChar(chr);
 		if (sdm)
 		{
-			if (attacker && !attackerIsPlayer && attackerName == "trigger_hurt" && (Left4Utils.DamageContains(type, DMG_DROWN) || Left4Utils.DamageContains(type, DMG_CRUSH)))
+			if (attacker && !attackerIsPlayer && attackerName == "trigger_hurt" /*&& (Left4Utils.DamageContains(type, DMG_DROWN) || Left4Utils.DamageContains(type, DMG_CRUSH))*/)
 				Left4Bots.Log(LOG_LEVEL_INFO, "Ignored possible unreachable survivor_death_model for dead survivor: " + victim.GetPlayerName());
 			else
 				Left4Bots.Deads[chr] <- { dmodel = sdm, player = victim };
 		}
 		else
 			Left4Bots.Log(LOG_LEVEL_WARN, "Couldn't find a survivor_death_model for the dead survivor: " + victim.GetPlayerName() + "!!!");
+	}
+	else if (victimTeam == TEAM_L4D1_SURVIVORS && victimIsPlayer)
+	{
+		if (victimUserId in ::Left4Bots.L4D1Survivors)
+			delete ::Left4Bots.L4D1Survivors[victimUserId];
+		
+		Left4Bots.RemoveBotThink(victim);
 	}
 }
 
@@ -933,6 +954,56 @@ Msg("Including left4bots_events...\n");
 			
 			// ...
 		}
+		else if (Left4Bots.IsHandledL4D1Bot(who))
+		{
+			if (concept == "SurvivorBotEscapingFlames")
+			{
+				local scope = who.GetScriptScope();
+				if (scope.CanReset)
+				{
+					scope.CanReset = false; // Do not send RESET commands to the bot if the bot is trying to escape from the fire or the spitter's spit or it will get stuck there
+				
+					Left4Bots.Log(LOG_LEVEL_DEBUG, "L4D1 Bot " + who.GetPlayerName() + " CanReset = false");
+				}
+			}
+			else if (concept == "SurvivorBotHasEscapedSpit" || concept == "SurvivorBotHasEscapedFlames")
+			{
+				local scope = who.GetScriptScope();
+				if (!scope.CanReset)
+				{
+					scope.CanReset = true; // Now we can safely send RESET commands again
+				
+					Left4Bots.Log(LOG_LEVEL_DEBUG, "L4D1 Bot " + who.GetPlayerName() + " CanReset = true");
+				
+					// Delayed resets are executed as soon as we can reset again
+					if (scope.DelayedReset)
+						Left4Timers.AddTimer(null, 0.01, @(params) params.scope.BotReset(true), { scope = scope });
+				}
+				
+				// Bot's vanilla escape flames/spit algorithm interfered with any previous MOVE so the MOVE must be refreshed
+				if (scope.MovePos && scope.NeedMove <= 0)
+					scope.NeedMove = 2;
+			}
+			else if (concept == "SurvivorBotRegroupWithTeam")
+			{
+				local scope = who.GetScriptScope();
+				if (!scope.CanReset)
+				{
+					scope.CanReset = true; // Now we can safely send RESET commands again
+				
+					Left4Bots.Log(LOG_LEVEL_DEBUG, "L4D1 Bot " + who.GetPlayerName() + " CanReset = true");
+				
+					// Delayed resets are executed as soon as we can reset again
+					if (scope.DelayedReset)
+						Left4Timers.AddTimer(null, 0.01, @(params) params.scope.BotReset(true), { scope = scope });
+				}
+				
+				// Receiving this concept from a bot who is executing a move command means that the bot got nav stuck and teleported somewhere.
+				// After the teleport the move command is lost and needs to be refreshed.
+				if (scope.MovePos && scope.NeedMove <= 0 && !scope.Paused)
+					scope.NeedMove = 2;
+			}
+		}
 		else
 		{
 			// WHO is a human
@@ -1137,6 +1208,16 @@ Msg("Including left4bots_events...\n");
 		}
 	}
 	
+	// Extra L4D2 Survivors
+	foreach (id, surv in ::Left4Bots.L4D1Survivors)
+	{
+		if (!surv || !surv.IsValid())
+		{
+			delete ::Left4Bots.L4D1Survivors[id];
+			Left4Bots.Log(LOG_LEVEL_DEBUG, "Removed an invalid L4D1 survivor from ::Left4Bots.L4D1Survivors");
+		}
+	}
+	
 	// Vocalizer bot selections
 	foreach (id, sel in ::Left4Bots.VocalizerBotSelection)
 	{
@@ -1211,6 +1292,12 @@ Msg("Including left4bots_events...\n");
 	
 	// Then decide what we need
 	foreach (bot in ::Left4Bots.Bots)
+	{
+		if (bot.IsValid())
+			bot.GetScriptScope().BotUpdatePickupToSearch();
+	}
+	
+	foreach (bot in ::Left4Bots.L4D1Survivors)
 	{
 		if (bot.IsValid())
 			bot.GetScriptScope().BotUpdatePickupToSearch();
@@ -2014,7 +2101,7 @@ settings
 						else if (arg3 == "orders")
 							bot.GetScriptScope().BotCancelOrders();
 						else
-							bot.GetScriptScope().BotCancelCurrentOrder(arg3);
+							bot.GetScriptScope().BotCancelOrders(arg3);
 					}
 					
 					// With 'bots cancel all' we also stop the scavenge
@@ -2030,7 +2117,7 @@ settings
 					else if (arg3 == "orders")
 						tgtBot.GetScriptScope().BotCancelOrders();
 					else
-						tgtBot.GetScriptScope().BotCancelCurrentOrder(arg3);
+						tgtBot.GetScriptScope().BotCancelOrders(arg3);
 				}
 				
 				return true;
