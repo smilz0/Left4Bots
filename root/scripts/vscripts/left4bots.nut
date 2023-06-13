@@ -96,7 +96,7 @@ IncludeScript("left4bots_requirements");
 		chat_gg_lines = "gg,GG,gg,GGG,gg,ggs,gg"
 		
 		// Chance that the bot will reply to a 'hello' trigger from a player who just joined
-		chat_hello_chance = 0 // TODO 85
+		chat_hello_chance = 85
 		
 		// The bot will reply to the 'hello' triggers with one of these
 		chat_hello_replies = "hi,hello,hey,hi dude,wassup,hi,hello,hi,ciao"

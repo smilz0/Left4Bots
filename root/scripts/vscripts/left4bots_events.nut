@@ -2034,6 +2034,8 @@ settings
 						warpPos = player.GetOrigin();
 					else if (arg3.tolower() == "there")
 						warpPos = Left4Utils.GetLookingPosition(player);
+					else if (arg3.tolower() == "move")
+						warpPos = "move";
 
 					if (!warpPos)
 					{
@@ -2047,7 +2049,16 @@ settings
 				if (allBots)
 				{
 					foreach (bot in Left4Bots.Bots)
-						bot.SetOrigin(warpPos);
+					{
+						if (warpPos == "move")
+						{
+							local movepos = bot.GetScriptScope().MovePos;
+							if (movepos)
+								bot.SetOrigin(movepos);
+						}
+						else
+							bot.SetOrigin(warpPos);
+					}
 				}
 				else
 				{
@@ -2055,7 +2066,16 @@ settings
 						tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2);
 					
 					if (tgtBot)
-						tgtBot.SetOrigin(warpPos);
+					{
+						if (warpPos == "move")
+						{
+							local movepos = tgtBot.GetScriptScope().MovePos;
+							if (movepos)
+								tgtBot.SetOrigin(movepos);
+						}
+						else
+							tgtBot.SetOrigin(warpPos);
+					}
 					else
 						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
 				}
