@@ -1600,6 +1600,7 @@ Available commands:
 	botsource warp				: The order is executed immediately. The bot(s) will teleport to your position
 	botsource warp here			: The order is executed immediately. The bot(s) will teleport to your position
 	botsource warp there		: The order is executed immediately. The bot(s) will teleport to the location you are looking at
+	botsource warp move			: The order is executed immediately. The bot(s) will teleport to the current MOVE location (if any)
 	botsource scavenge start	: Starts the scavenge process. The botsource parameter is ignored, the scavenge bot(s) are always selected automatically
 	botsource scavenge stop		: Stops the scavenge process. The botsource parameter is ignored, the scavenge bot(s) are always selected automatically
 

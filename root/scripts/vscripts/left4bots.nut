@@ -64,7 +64,7 @@ IncludeScript("left4bots_requirements");
 	Difficulty = "" // easy, normal, hard, impossible
 	Settings =
 	{
-		// Prevents (at least will try) the infamous bug of the pipe bomb thrown right before transitioning to the next chapter, the bots will bug out and do nothing for the entire next chapter
+		// [1/0] 1 = Prevents (at least will try) the infamous bug of the pipe bomb thrown right before transitioning to the next chapter, the bots will bug out and do nothing for the entire next chapter
 		anti_pipebomb_bug = 1
 		
 		// Interval of the main bot Think function (default is 0.1 which means 10 ticks per second)
