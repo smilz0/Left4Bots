@@ -18,8 +18,8 @@ Msg("Including left4bots_events...\n");
 	::ConceptsHub.SetHandler("Left4Bots", Left4Bots.OnConcept);
 	
 	// Start receiving user commands
-	::HooksHub.SetUserConsoleCommand("Left4Bots", ::Left4Bots.UserConsoleCommand);
-	::HooksHub.SetInterceptChat("Left4Bots", ::Left4Bots.InterceptChat);
+	::HooksHub.SetChatCommandHandler("l4b", ::Left4Bots.HandleCommand);
+	::HooksHub.SetConsoleCommandHandler("l4b", ::Left4Bots.HandleCommand);
 	
 	// Start the cleaner
 	Left4Timers.AddTimer("Cleaner", 0.5, Left4Bots.OnCleaner, {}, true);
@@ -853,6 +853,60 @@ Msg("Including left4bots_events...\n");
 		bot.GetScriptScope().BotCancelOrdersDestEnt("info_survivor_rescue");
 }
 
+::Left4Bots.Events.OnGameEvent_player_say <- function (params)
+{
+	local player = 0;
+	if ("userid" in params)
+		player = params["userid"];
+	if (player != 0)
+		player = g_MapScript.GetPlayerFromUserID(player);
+	else
+		player = null;
+	local text = params["text"];
+	
+	if (!player || !text || !player.IsValid() || IsPlayerABot(player))
+		return;
+	
+	// Handle 'hello' replies
+	local playerid = player.GetPlayerUserId();
+	if (Left4Bots.ChatHelloReplies.len() > 0 && Left4Bots.Bots.len() > 0 && Left4Users.IsJustJoined(playerid) && !(playerid in Left4Bots.ChatHelloAlreadyReplied))
+	{
+		local helloTriggers = "," + Left4Bots.Settings.chat_hello_triggers + ",";
+		if (helloTriggers.find("," + text.tolower() + ",") != null)
+		{
+			Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_player_say - Hello triggered");
+			foreach (bot in Left4Bots.Bots)
+			{
+				if (RandomInt(1, 100) <= Left4Bots.Settings.chat_hello_chance)
+					Left4Timers.AddTimer(null, RandomFloat(2.5, 6.5), @(params) Left4Bots.SayLine(params.bot, params.line), { bot = bot, line = Left4Bots.ChatHelloReplies[RandomInt(0, Left4Bots.ChatHelloReplies.len() - 1)] });
+			}
+			Left4Bots.ChatHelloAlreadyReplied[playerid] <- 1;
+		}
+	}
+	
+	// Also handle chat bot commands given without chat trigger
+	if (Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) < Left4Bots.Settings.userlevel_orders)
+		return;
+	
+	local args = split(text, " ");
+	if (args.len() < 2)
+		return;
+	
+	local arg1 = strip(args[0].tolower());
+	if (arg1 != "bot" && arg1 != "bots" && Left4Bots.GetBotByName(arg1) == null)
+		return;
+	
+	local arg2 = strip(args[1].tolower());
+	if (!(arg2 in ::Left4Bots.AllCommands))
+		return;
+	
+	local arg3 = null;
+	if (args.len() > 2)
+		args3 = strip(args[2]);
+	
+	Left4Bots.OnUserCommand(player, arg1, arg2, arg3);
+}
+
 //
 
 ::Left4Bots.OnConcept <- function (concept, query)
@@ -1046,7 +1100,9 @@ Msg("Including left4bots_events...\n");
 						cmd = Left4Utils.StringReplace(cmd, "bot ", botname + " ");
 						cmd = Left4Utils.StringReplace(cmd, "bots ", botname + " ");
 					}
-					Left4Bots.OnChatCommand(who, cmd);
+					cmd = "!l4b " + cmd;
+					local args = split(cmd, " ");
+					Left4Bots.HandleCommand(who, args[1], args, cmd);
 				}
 				else if (concept == "PlayerImWithYou") // TODO
 				{
@@ -1526,55 +1582,6 @@ Left4Bots.OnThinker <- function (params)
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnTankGone");
 	
 	// TODO
-}
-
-// Parse and handle chat commands
-// Returns false if the chat line must be hidden
-::Left4Bots.OnChatCommand <- function (speaker, text)
-{
-	local args = {};
-	if (text != null && text != "")
-		args = split(text, " ");
-	
-	if (args.len() < 2)
-		return true; // L4B commands have at least 2 arguments
-	
-	local arg1 = null;
-	local arg2 = null;
-	local arg3 = null;
-	
-	if (args[0] == "!l4b")
-	{
-		arg1 = args[1].tolower();
-		if (arg1 != "settings" && arg1 != "botselect")
-			return true; // !l4b chat trigger can only allow "settings" and "botselect" commands
-		
-		if (args.len() > 2)
-			arg2 = args[2].tolower();
-
-		if (args.len() > 3)
-		{
-			local tmp = args[0] + " " + args[1] + " " + args[2];
-			arg3 = strip(text.slice(text.find(tmp) + tmp.len())); // Remove the first 3 arguments from the message and take the remaining text as 3rd argument (if any)
-			if (arg3 == "")
-				arg3 = null;
-		}
-	}
-	else
-	{
-		arg1 = args[0].tolower();
-		arg2 = args[1].tolower();
-		
-		local tmp = args[0] + " " + args[1];
-		arg3 = strip(text.slice(text.find(tmp) + tmp.len())); // Remove the first 2 arguments from the message and take the remaining text as 3rd argument (if any)
-		if (arg3 == "")
-			arg3 = null;
-	}
-	
-	if (Left4Bots.OnUserCommand(speaker, arg1, arg2, arg3) && Left4Bots.Settings.chat_hide_commands)
-		return false;
-	else
-		return true;
 }
 
 /* Handle user commands
@@ -2151,65 +2158,12 @@ settings
 
 //
 
-::Left4Bots.InterceptChat <- function (msg, speaker)
+::Left4Bots.HandleCommand <- function (player, cmd, args, text)
 {
-	// Removing the ending \r\n
-	if (msg.find("\n", msg.len() - 1) != null || msg.find("\r", msg.len() - 1) != null)
-		msg = msg.slice(0, msg.len() - 1);
-	if (msg.find("\n", msg.len() - 1) != null || msg.find("\r", msg.len() - 1) != null)
-		msg = msg.slice(0, msg.len() - 1);
-	
-	if (!speaker || !speaker.IsValid())
-	{
-		Left4Bots.Log(LOG_LEVEL_WARN, "Got InterceptChat with invalid speaker: " + msg);
-		return true;
-	}
-	
-	local name = speaker.GetPlayerName() + ": ";
-	local text = strip(msg.slice(msg.find(name) + name.len())); // Remove the speaker's name part from the message
-	
-	Left4Bots.Log(LOG_LEVEL_DEBUG, "InterceptChat - speaker: " + speaker.GetPlayerName() + " - text: " + text);
-	
-	local speakerid = speaker.GetPlayerUserId();
-	if (Left4Bots.ChatHelloReplies.len() > 0 && Left4Bots.Bots.len() > 0 && Left4Users.IsJustJoined(speakerid) && !(speakerid in Left4Bots.ChatHelloAlreadyReplied))
-	{
-		local helloTriggers = "," + Left4Bots.Settings.chat_hello_triggers + ",";
-		if (helloTriggers.find("," + text.tolower() + ",") != null)
-		{
-			Left4Bots.Log(LOG_LEVEL_DEBUG, "InterceptChat - Hello triggered");
-			foreach (bot in Left4Bots.Bots)
-			{
-				if (RandomInt(1, 100) <= Left4Bots.Settings.chat_hello_chance)
-					Left4Timers.AddTimer(null, RandomFloat(2.5, 6.5), @(params) Left4Bots.SayLine(params.bot, params.line), { bot = bot, line = Left4Bots.ChatHelloReplies[RandomInt(0, Left4Bots.ChatHelloReplies.len() - 1)] });
-			}
-			Left4Bots.ChatHelloAlreadyReplied[speakerid] <- 1;
-		}
-	}
-	
-	if (Left4Users.GetOnlineUserLevel(speaker.GetPlayerUserId()) < Left4Bots.Settings.userlevel_orders)
-		return true;
-	
-	return Left4Bots.OnChatCommand(speaker, text);
-}
-
-::Left4Bots.UserConsoleCommand <- function (playerScript, arg)
-{
-	if (Left4Users.GetOnlineUserLevel(playerScript.GetPlayerUserId()) < Left4Bots.Settings.userlevel_orders)
-		return true;
-	
-	local args = {};
-	if (arg != null && arg != "")
-		args = split(arg, ",");
-	
-	if (args.len() < 2) // L4B commands have at least 2 arguments
+	if (!player || !player.IsValid() || IsPlayerABot(player) || Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) < Left4Bots.Settings.userlevel_orders)
 		return;
 	
-	if (args[0].tolower() != "l4b")
-		return; // Not a L4B command
-	
-	local arg1 = strip(args[1].tolower());
-	
-	if (arg1 != "settings" && arg1 != "botselect" && args.len() < 3) // Normal bot commands have at least 2 arguments (excluding 'l4b')
+	if (cmd != "settings" && cmd != "botselect" && args.len() < 3) // Normal bot commands have at least 2 arguments (excluding 'l4b')
 		return;
 	
 	local arg2 = null;
@@ -2220,7 +2174,7 @@ settings
 	if (args.len() > 3)
 		arg3 = strip(args[3]);
 	
-	Left4Bots.OnUserCommand(playerScript, arg1, arg2, arg3);
+	Left4Bots.OnUserCommand(player, cmd, arg2, arg3);
 }
 
 // Moved to left4bots.nut

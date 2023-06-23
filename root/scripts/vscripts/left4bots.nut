@@ -43,18 +43,21 @@
 
 Msg("Including left4bots...\n");
 
-if (!IncludeScript("left4lib_utils"))
-	error("[L4B][ERROR] Failed to include 'left4lib_utils', please make sure the 'Left 4 Lib' addon is installed and enabled!\n");
+if (!IncludeScript("left4lib_users"))
+	error("[L4B][ERROR] Failed to include 'left4lib_users', please make sure the 'Left 4 Lib' addon is installed and enabled!\n");
 if (!IncludeScript("left4lib_timers"))
 	error("[L4B][ERROR] Failed to include 'left4lib_timers', please make sure the 'Left 4 Lib' addon is installed and enabled!\n");
 if (!IncludeScript("left4lib_concepts"))
 	error("[L4B][ERROR] Failed to include 'left4lib_concepts', please make sure the 'Left 4 Lib' addon is installed and enabled!\n");
-if (!IncludeScript("left4lib_hooks"))
-	error("[L4B][ERROR] Failed to include 'left4lib_hooks', please make sure the 'Left 4 Lib' addon is installed and enabled!\n");
-if (!IncludeScript("left4lib_users"))
-	error("[L4B][ERROR] Failed to include 'left4lib_users', please make sure the 'Left 4 Lib' addon is installed and enabled!\n");
 
 IncludeScript("left4bots_requirements");
+
+// Log levels
+const LOG_LEVEL_NONE = 0; // Log always
+const LOG_LEVEL_ERROR = 1;
+const LOG_LEVEL_WARN = 2;
+const LOG_LEVEL_INFO = 3;
+const LOG_LEVEL_DEBUG = 4;
 
 ::Left4Bots <-
 {
@@ -103,9 +106,6 @@ IncludeScript("left4bots_requirements");
 		
 		// List of 'hello' lines that can trigger the reply
 		chat_hello_triggers = "hi,hello,hey,hi guys,yo,ciao"
-		
-		// [1/0] 1 = valid chat commands given to the bot will be hidden to the other players. 0 = They are visible
-		chat_hide_commands = 1
 		
 		// [1/0] Should the last bot entering the saferoom close the door immediately?
 		close_saferoom_door = 1
@@ -579,6 +579,21 @@ IncludeScript("left4bots_requirements");
 		heal = 2
 		witch = 3
 	}
+	AllCommands = 
+	{
+		lead = 0
+		follow = 0
+		witch = 0
+		heal = 0
+		goto = 0
+		come = 0
+		wait = 0
+		use = 0
+		warp = 0
+		scavenge = 0
+		cancel = 0
+	}
+	
 	Events = {}
 	Survivors = {}		// Used for performance reasons, instead of doing (very slow) Entities search every time
 	Bots = {}			// Same as above ^
@@ -646,9 +661,7 @@ IncludeScript("left4bots_requirements");
 {
 	if (Left4Bots.Initialized)
 	{
-		// LOG_LEVEL* consts contained in left4lib are not available yet...
-		printl("[L4B][DEBUG] Already initialized");
-		
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots already initialized");
 		return;
 	}
 	
@@ -656,7 +669,7 @@ IncludeScript("left4bots_requirements");
 	Left4Bots.MapName = SessionState.MapName;
 	Left4Bots.Difficulty = Convars.GetStr("z_difficulty").tolower();
 	
-	printl("[L4B][INFO] Initializing for game mode: " + Left4Bots.ModeName + " - map name: " + Left4Bots.MapName + " - difficulty: " + Left4Bots.Difficulty);
+	Left4Bots.Log(LOG_LEVEL_INFO, "Initializing for game mode: " + Left4Bots.ModeName + " - map name: " + Left4Bots.MapName + " - difficulty: " + Left4Bots.Difficulty);
 	
 	// TODO: settings
 	
@@ -686,9 +699,9 @@ IncludeScript("left4bots_requirements");
 	if (Left4Bots.Settings.chat_hello_replies != "")
 		Left4Bots.ChatHelloReplies = split(Left4Bots.Settings.chat_hello_replies, ",");
 
-	printl("[L4B][INFO] Loading items to avoid from file: " + Left4Bots.Settings.file_itemstoavoid);
+	Left4Bots.Log(LOG_LEVEL_INFO, "Loading items to avoid from file: " + Left4Bots.Settings.file_itemstoavoid);
 	Left4Bots.ItemsToAvoid = Left4Bots.LoadItemsToAvoidFromFile(Left4Bots.Settings.file_itemstoavoid);
-	printl("[L4B][INFO] Loaded " + Left4Bots.ItemsToAvoid.len() + " items");
+	Left4Bots.Log(LOG_LEVEL_INFO, "Loaded " + Left4Bots.ItemsToAvoid.len() + " items");
 	
 	// Default vocalizer.txt file
 	if (!Left4Utils.FileExists("left4bots2/cfg/vocalizer.txt"))
@@ -715,12 +728,12 @@ IncludeScript("left4bots_requirements");
 
 		Left4Utils.StringListToFile("left4bots2/cfg/vocalizer.txt", defaultMappingValues, false);
 				
-		printl("[L4B][INFO] Vocalizer orders mapping file was not found and has been recreated");
+		Left4Bots.Log(LOG_LEVEL_INFO, "Vocalizer orders mapping file was not found and has been recreated");
 	}
 		
-	printl("[L4B][INFO] Loading vocalizer command mapping from file: " + Left4Bots.Settings.file_vocalizer);
+	Left4Bots.Log(LOG_LEVEL_INFO, "Loading vocalizer command mapping from file: " + Left4Bots.Settings.file_vocalizer);
 	::Left4Bots.VocalizerCommands = Left4Bots.LoadVocalizerCommandsFromFile(Left4Bots.Settings.file_vocalizer);
-	printl("[L4B][INFO] Loaded " + Left4Bots.VocalizerCommands.len() + " orders");
+	Left4Bots.Log(LOG_LEVEL_INFO, "Loaded " + Left4Bots.VocalizerCommands.len() + " orders");
 	
 	Left4Bots.Initialized = true;
 	
@@ -769,8 +782,8 @@ IncludeScript("left4bots_requirements");
 	::ConceptsHub.RemoveHandler("Left4Bots");
 	
 	// Stop receiving user commands
-	::HooksHub.RemoveUserConsoleCommand("Left4Bots");
-	::HooksHub.RemoveInterceptChat("Left4Bots");
+	::HooksHub.RemoveChatCommandHandler("l4b");
+	::HooksHub.RemoveConsoleCommandHandler("l4b");
 	
 	// Remove all the bots think functions
 	Left4Bots.ClearBotThink();
