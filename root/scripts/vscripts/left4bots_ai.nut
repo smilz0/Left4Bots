@@ -1939,10 +1939,10 @@ enum AI_DOOR_ACTION {
 						Left4Bots.Log(LOG_LEVEL_INFO, "[AI]" + self.GetPlayerName() + " is healing " + CurrentOrder.DestEnt.GetPlayerName());
 						
 						if (CurrentOrder.DestEnt.GetPlayerUserId() == self.GetPlayerUserId())
-							Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, CurrentOrder.HoldTime/*, null, 0, 0, true*/);
+							Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, CurrentOrder.HoldTime, null, 0, 0, true); // <- NOTE: Vanilla AI will likely interrupt the healing if lockLook is false
 						else
 						{
-							Left4Utils.PlayerPressButton(self, BUTTON_SHOVE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter()/*, 0, 0, true*/);
+							Left4Utils.PlayerPressButton(self, BUTTON_SHOVE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
 							
 							// This will check if the healing started and the healing target is the right target. If not, it will abort the healing and the current order and will re-add the order to try again
 							Left4Timers.AddTimer(null, 0.8, @(params) Left4Bots.CheckHealingTarget(params.bot, params.order), { bot = self, order = CurrentOrder });
