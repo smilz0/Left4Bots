@@ -902,7 +902,7 @@ Msg("Including left4bots_events...\n");
 	
 	local arg3 = null;
 	if (args.len() > 2)
-		args3 = strip(args[2]);
+		arg3 = strip(args[2]);
 	
 	Left4Bots.OnUserCommand(player, arg1, arg2, arg3);
 }
