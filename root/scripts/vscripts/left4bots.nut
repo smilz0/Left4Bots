@@ -65,6 +65,7 @@ const LOG_LEVEL_DEBUG = 4;
 	ModeName = ""
 	MapName = ""
 	Difficulty = "" // easy, normal, hard, impossible
+	SurvivorSet = 2
 	Settings =
 	{
 		// [1/0] 1 = Prevents (at least will try) the infamous bug of the pipe bomb thrown right before transitioning to the next chapter, the bots will bug out and do nothing for the entire next chapter
@@ -668,6 +669,7 @@ const LOG_LEVEL_DEBUG = 4;
 	Left4Bots.ModeName = SessionState.ModeName;
 	Left4Bots.MapName = SessionState.MapName;
 	Left4Bots.Difficulty = Convars.GetStr("z_difficulty").tolower();
+	Left4Bots.SurvivorSet = Director.GetSurvivorSet();
 	
 	Left4Bots.Log(LOG_LEVEL_INFO, "Initializing for game mode: " + Left4Bots.ModeName + " - map name: " + Left4Bots.MapName + " - difficulty: " + Left4Bots.Difficulty);
 	
@@ -873,65 +875,24 @@ const LOG_LEVEL_DEBUG = 4;
 }
 
 // Returns the entity (if found) of the survivor with that actor name
-::Left4Bots.GetSurvivorFromActor <- function (actor)
+// useRR = whether to use rr_GetResponseTargets or not
+// ^ Apparently rr_GetResponseTargets returns the wrong chars for the L4D1 suvivors in L4D1 maps when extra L4D2 bots are spawned by the "VScript Survivor Manager" addon
+::Left4Bots.GetSurvivorFromActor <- function (actor, useRR = false)
 {
-	local ret = Left4Utils.GetSurvivorFromActor(actor);
-	if (ret != null)
-		return ret;
-	
-	switch (actor)
+	local r;
+
+	if (useRR)
 	{
-		case "TeenGirl":
-		{
-			ret = Left4Bots.GetSurvivorByCharacter(EXTRA_S_ZOEY);
-			if (ret == null)
-				ret = Left4Bots.GetSurvivorByCharacter(S_ZOEY);
-			break;
-		}
-		case "NamVet":
-		{
-			ret = Left4Bots.GetSurvivorByCharacter(EXTRA_S_BILL);
-			if (ret == null)
-				ret = Left4Bots.GetSurvivorByCharacter(S_BILL);
-			break;
-		}
-		case "Manager":
-		{
-			ret = Left4Bots.GetSurvivorByCharacter(EXTRA_S_LOUIS);
-			if (ret == null)
-				ret = Left4Bots.GetSurvivorByCharacter(S_LOUIS);
-			break;
-		}
-		case "Biker":
-		{
-			ret = Left4Bots.GetSurvivorByCharacter(EXTRA_S_FRANCIS);
-			if (ret == null)
-				ret = Left4Bots.GetSurvivorByCharacter(S_FRANCIS);
-			break;
-		}
-		case "Gambler":
-		{
-			ret = Left4Bots.GetSurvivorByCharacter(S_NICK);
-			break;
-		}
-		case "Producer":
-		{
-			ret = Left4Bots.GetSurvivorByCharacter(S_ROCHELLE);
-			break;
-		}
-		case "Coach":
-		{
-			ret = Left4Bots.GetSurvivorByCharacter(S_COACH);
-			break;
-		}
-		case "Mechanic":
-		{
-			ret = Left4Bots.GetSurvivorByCharacter(S_ELLIS);
-			break;
-		}
+		r = Left4Utils.GetSurvivorFromActor(actor);
+		if (r != null)
+			return r;
 	}
 	
-	return ret;
+	r = Left4Utils.GetCharacterFromActor(actor, Left4Bots.SurvivorSet);
+	if (r == null)
+		return null;
+
+	return Left4Bots.GetSurvivorByCharacter(r);
 }
 
 // Returns the entity (if found) of the survivor with that character id
@@ -2124,7 +2085,7 @@ const LOG_LEVEL_DEBUG = 4;
 }
 
 // Think function that is attached to any spawned tank rock
-// It triggers the dodging for the bots who are in it's trajectory
+// It triggers the dodging for the bots who are in its trajectory
 ::Left4Bots.L4B_RockThink <- function ()
 {
 	/*
