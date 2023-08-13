@@ -97,7 +97,7 @@ const LOG_LEVEL_DEBUG = 4;
 		chat_gg_chance = 70
 		
 		// Bot will chat one of these GG lines at the end of the campaign (if alive)
-		chat_gg_lines = "gg,GG,gg,GGG,gg,ggs,gg"
+		chat_gg_lines = "gg,GG,gg,GGG,gg,ggs,gg,GG,gg"
 		
 		// Chance that the bot will reply to a 'hello' trigger from a player who just joined
 		chat_hello_chance = 85
@@ -106,7 +106,7 @@ const LOG_LEVEL_DEBUG = 4;
 		chat_hello_replies = "hi,hello,hey,hi dude,wassup,hi,hello,hi,ciao"
 		
 		// List of 'hello' lines that can trigger the reply
-		chat_hello_triggers = "hi,hello,hey,hi guys,yo,ciao"
+		chat_hello_triggers = "hi,hello,hey,hi guys,hey guys,yo,ciao"
 		
 		// [1/0] Should the last bot entering the saferoom close the door immediately?
 		close_saferoom_door = 1
