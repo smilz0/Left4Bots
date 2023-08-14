@@ -2,8 +2,8 @@
 {
   addonSteamAppID   	550
   addontitle		"Left 4 Bots 2"
-  addonversion	    	"1.0"
+  addonversion	    	"0.1"
   addonauthor 	   	"smilzo"
-  addonDescription  	"Human-like improvements for the survivor bots"
+  addonDescription  	"Make the survivor bots more 'human'"
   addonContent_Script 	1
 }
