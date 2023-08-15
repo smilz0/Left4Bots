@@ -172,15 +172,44 @@ IncludeScript("left4bots_settings");
 	
 	Left4Bots.Log(LOG_LEVEL_INFO, "Initializing for game mode: " + Left4Bots.ModeName + " - map name: " + Left4Bots.MapName + " - difficulty: " + Left4Bots.Difficulty);
 	
-	// TODO: settings
+	Left4Bots.Log(LOG_LEVEL_INFO, "Loading settings...");
+	Left4Utils.LoadSettingsFromFile("left4bots2/cfg/settings.txt", "Left4Bots.Settings.", Left4Bots.Log);
+	Left4Utils.SaveSettingsToFile("left4bots2/cfg/settings.txt", ::Left4Bots.Settings, Left4Bots.Log);
 	
-	// TODO: convars
-	Convars.SetValue("sb_debug_apoproach_wait_time", 0.5);
-	Convars.SetValue("sb_enforce_proximity_range", 20000);
-	Convars.SetValue("allow_all_bot_survivor_team", 1);
-	Convars.SetValue("sb_all_bot_game", 1);
-	// Convars.SetValue("sb_unstick", 0);  // TODO: Posso farlo unstickare io
+	// Create the missing config files with their default values
+	Left4Bots.DefaultConfigFiles();
 	
+	Left4Bots.LoadSettingsOverride();
+	
+	Left4Utils.PrintSettings(::Left4Bots.Settings, Left4Bots.Log, "[Settings] ");
+	
+	if (Left4Bots.Settings.file_convars != "")
+	{
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loading convars from file: " + Left4Bots.Settings.file_convars);
+		local c = Left4Utils.LoadCvarsFromFile(Left4Bots.Settings.file_convars, Left4Bots.Log);
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loaded " + c + " convars");
+	}
+	else
+		Left4Bots.Log(LOG_LEVEL_INFO, "Convars file was not loaded (settings.file_convars is empty)");
+	
+	if (Left4Bots.Settings.file_itemstoavoid != "")
+	{
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loading items to avoid from file: " + Left4Bots.Settings.file_itemstoavoid);
+		Left4Bots.ItemsToAvoid = Left4Bots.LoadItemsToAvoidFromFile(Left4Bots.Settings.file_itemstoavoid);
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loaded " + Left4Bots.ItemsToAvoid.len() + " items");
+	}
+	else
+		Left4Bots.Log(LOG_LEVEL_INFO, "Itemstoavoid file was not loaded (settings.file_itemstoavoid is empty)");
+		
+	if (Left4Bots.Settings.file_vocalizer != "")
+	{
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loading vocalizer command mapping from file: " + Left4Bots.Settings.file_vocalizer);
+		::Left4Bots.VocalizerCommands = Left4Bots.LoadVocalizerCommandsFromFile(Left4Bots.Settings.file_vocalizer);
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loaded " + Left4Bots.VocalizerCommands.len() + " orders");
+	}
+	else
+		Left4Bots.Log(LOG_LEVEL_INFO, "Vocalizer file was not loaded (settings.file_vocalizer is empty)");
+
 	// Put the vocalizer lines into arrays
 	if (Left4Bots.Settings.vocalizer_lead_start != "")
 		Left4Bots.VocalizerLeadStart = split(Left4Bots.Settings.vocalizer_lead_start, ",");
@@ -199,16 +228,64 @@ IncludeScript("left4bots_settings");
 
 	if (Left4Bots.Settings.chat_hello_replies != "")
 		Left4Bots.ChatHelloReplies = split(Left4Bots.Settings.chat_hello_replies, ",");
+	
+	Left4Bots.Initialized = true;
+	
+	try
+	{
+		IncludeScript("left4bots_afterinit");
+	}
+	catch(exception)
+	{
+		error("[L4B][ERROR] Exception in left4bots_afterinit.nut: " + exception + "\n");
+	}
+}
 
-	Left4Bots.Log(LOG_LEVEL_INFO, "Loading items to avoid from file: " + Left4Bots.Settings.file_itemstoavoid);
-	Left4Bots.ItemsToAvoid = Left4Bots.LoadItemsToAvoidFromFile(Left4Bots.Settings.file_itemstoavoid);
-	Left4Bots.Log(LOG_LEVEL_INFO, "Loaded " + Left4Bots.ItemsToAvoid.len() + " items");
+::Left4Bots.DefaultConfigFiles <- function ()
+{
+	// Default convars.txt file
+	if (!Left4Utils.FileExists("left4bots2/cfg/convars.txt"))
+	{
+		// using array instead of table to keep the order
+		local defaultValues =
+		[
+			"allow_all_bot_survivor_team 1",
+			"sb_all_bot_game 1",
+			"sb_debug_apoproach_wait_time 0.5", // This is how long the bot will jiggle on the destination spot of a MOVE command before returning the control to the vanilla AI (default: 5)
+			"sb_enforce_proximity_range 20000"  // How far the bot must be from the human before teleporting (default: 1500)
+			// "sb_unstick 0" // TODO: unstick logic
+		];
+
+		Left4Utils.StringListToFile("left4bots2/cfg/convars.txt", defaultValues, false);
+
+		Left4Bots.Log(LOG_LEVEL_INFO, "Convars file was not found and has been recreated");
+	}
+	
+	// Default itemstoavoid.txt file
+	if (!Left4Utils.FileExists("left4bots2/cfg/itemstoavoid.txt"))
+	{
+		// using array instead of table to keep the order
+		local defaultValues =
+		[
+			"weapon_ammo",
+			"weapon_upgrade_item",
+			"upgrade_ammo_explosive",
+			"upgrade_ammo_incendiary",
+			"upgrade_laser_sight",
+			"pain_pills",
+			"adrenaline"
+		];
+
+		Left4Utils.StringListToFile("left4bots2/cfg/itemstoavoid.txt", defaultValues, false);
+				
+		Left4Bots.Log(LOG_LEVEL_INFO, "Itemstoavoid file was not found and has been recreated");
+	}
 	
 	// Default vocalizer.txt file
 	if (!Left4Utils.FileExists("left4bots2/cfg/vocalizer.txt"))
 	{
-		// using array instead of table to maintain the order
-		local defaultMappingValues =
+		// using array instead of table to keep the order
+		local defaultValues =
 		[
 			"PlayerLeadOn = bots lead",
 			"PlayerWaitHere = bots wait",
@@ -227,24 +304,172 @@ IncludeScript("left4bots_settings");
 			//"PlayerImWithYou = next thing to do" // TODO:
 		];
 
-		Left4Utils.StringListToFile("left4bots2/cfg/vocalizer.txt", defaultMappingValues, false);
+		Left4Utils.StringListToFile("left4bots2/cfg/vocalizer.txt", defaultValues, false);
 				
 		Left4Bots.Log(LOG_LEVEL_INFO, "Vocalizer orders mapping file was not found and has been recreated");
 	}
-		
-	Left4Bots.Log(LOG_LEVEL_INFO, "Loading vocalizer command mapping from file: " + Left4Bots.Settings.file_vocalizer);
-	::Left4Bots.VocalizerCommands = Left4Bots.LoadVocalizerCommandsFromFile(Left4Bots.Settings.file_vocalizer);
-	Left4Bots.Log(LOG_LEVEL_INFO, "Loaded " + Left4Bots.VocalizerCommands.len() + " orders");
 	
-	Left4Bots.Initialized = true;
-	
-	try
+	// Default weapon preference file for Bill
+	if (!Left4Utils.FileExists("left4bots2/cfg/weapons/bill.txt"))
 	{
-		IncludeScript("left4bots_afterinit");
+		// using array instead of table to keep the order
+		local defaultValues =
+		[
+			"rifle_ak47,rifle_sg552,rifle_desert,rifle,autoshotgun,shotgun_spas,sniper_military,hunting_rifle,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,smg_mp5,smg_silenced,shotgun_chrome,smg,pumpshotgun",
+			"machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw",
+			"molotov,pipe_bomb,vomitjar",
+			"first_aid_kit,defibrillator,upgradepack_explosive,upgradepack_incendiary",
+			"pain_pills,adrenaline"
+		];
+
+		Left4Utils.StringListToFile("left4bots2/cfg/weapons/bill.txt", defaultValues, false);
+				
+		Left4Bots.Log(LOG_LEVEL_INFO, "Weapon preference file for Bill was not found and has been recreated");
 	}
-	catch(exception)
+	
+	// Default weapon preference file for Coach
+	if (!Left4Utils.FileExists("left4bots2/cfg/weapons/coach.txt"))
 	{
-		error("[L4B][ERROR] Exception in left4bots_afterinit.nut: " + exception + "\n");
+		// using array instead of table to keep the order
+		local defaultValues =
+		[
+			"autoshotgun,shotgun_spas,rifle_ak47,rifle_sg552,rifle_desert,rifle,sniper_military,hunting_rifle,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,shotgun_chrome,smg_mp5,pumpshotgun,smg_silenced,smg",
+			"machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw",
+			"molotov,pipe_bomb,vomitjar",
+			"first_aid_kit,defibrillator,upgradepack_explosive,upgradepack_incendiary",
+			"pain_pills,adrenaline"
+		];
+
+		Left4Utils.StringListToFile("left4bots2/cfg/weapons/coach.txt", defaultValues, false);
+				
+		Left4Bots.Log(LOG_LEVEL_INFO, "Weapon preference file for Coach was not found and has been recreated");
+	}
+	
+	// Default weapon preference file for Ellis
+	if (!Left4Utils.FileExists("left4bots2/cfg/weapons/ellis.txt"))
+	{
+		// using array instead of table to keep the order
+		local defaultValues =
+		[
+			"rifle_ak47,rifle_sg552,rifle_desert,rifle,shotgun_spas,autoshotgun,sniper_military,hunting_rifle,sniper_scout,sniper_awp,rifle_m60,grenade_launcher,smg_mp5,smg_silenced,shotgun_chrome,smg,pumpshotgun",
+			"pistol_magnum,pistol,chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork",
+			"molotov,pipe_bomb,vomitjar",
+			"first_aid_kit,defibrillator,upgradepack_incendiary,upgradepack_explosive",
+			"pain_pills,adrenaline"
+		];
+
+		Left4Utils.StringListToFile("left4bots2/cfg/weapons/ellis.txt", defaultValues, false);
+				
+		Left4Bots.Log(LOG_LEVEL_INFO, "Weapon preference file for Ellis was not found and has been recreated");
+	}
+	
+	// Default weapon preference file for Francis
+	if (!Left4Utils.FileExists("left4bots2/cfg/weapons/francis.txt"))
+	{
+		// using array instead of table to keep the order
+		local defaultValues =
+		[
+			"autoshotgun,shotgun_spas,rifle_ak47,rifle_sg552,rifle_desert,rifle,sniper_military,hunting_rifle,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,shotgun_chrome,smg_mp5,pumpshotgun,smg_silenced,smg",
+			"machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw",
+			"molotov,pipe_bomb,vomitjar",
+			"first_aid_kit,defibrillator,upgradepack_explosive,upgradepack_incendiary",
+			"pain_pills,adrenaline"
+		];
+
+		Left4Utils.StringListToFile("left4bots2/cfg/weapons/francis.txt", defaultValues, false);
+				
+		Left4Bots.Log(LOG_LEVEL_INFO, "Weapon preference file for Francis was not found and has been recreated");
+	}
+	
+	// Default weapon preference file for Louis
+	if (!Left4Utils.FileExists("left4bots2/cfg/weapons/louis.txt"))
+	{
+		// using array instead of table to keep the order
+		local defaultValues =
+		[
+			"rifle_ak47,rifle_sg552,rifle_desert,rifle,shotgun_spas,autoshotgun,sniper_military,hunting_rifle,sniper_scout,sniper_awp,rifle_m60,grenade_launcher,smg_mp5,smg_silenced,shotgun_chrome,smg,pumpshotgun",
+			"pistol_magnum,pistol,chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork",
+			"molotov,pipe_bomb,vomitjar",
+			"first_aid_kit,defibrillator,upgradepack_incendiary,upgradepack_explosive",
+			"pain_pills,adrenaline"
+		];
+
+		Left4Utils.StringListToFile("left4bots2/cfg/weapons/louis.txt", defaultValues, false);
+				
+		Left4Bots.Log(LOG_LEVEL_INFO, "Weapon preference file for Louis was not found and has been recreated");
+	}
+	
+	// Default weapon preference file for Nick
+	if (!Left4Utils.FileExists("left4bots2/cfg/weapons/nick.txt"))
+	{
+		// using array instead of table to keep the order
+		local defaultValues =
+		[
+			"rifle_ak47,rifle_sg552,rifle_desert,rifle,autoshotgun,shotgun_spas,sniper_military,hunting_rifle,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,smg_mp5,smg_silenced,shotgun_chrome,smg,pumpshotgun",
+			"machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw",
+			"molotov,pipe_bomb,vomitjar",
+			"first_aid_kit,defibrillator,upgradepack_explosive,upgradepack_incendiary",
+			"pain_pills,adrenaline"
+		];
+
+		Left4Utils.StringListToFile("left4bots2/cfg/weapons/nick.txt", defaultValues, false);
+				
+		Left4Bots.Log(LOG_LEVEL_INFO, "Weapon preference file for Nick was not found and has been recreated");
+	}
+	
+	// Default weapon preference file for Rochelle
+	if (!Left4Utils.FileExists("left4bots2/cfg/weapons/rochelle.txt"))
+	{
+		// using array instead of table to keep the order
+		local defaultValues =
+		[
+			"rifle_sg552,rifle_desert,rifle_ak47,rifle,shotgun_spas,autoshotgun,sniper_military,hunting_rifle,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,smg_mp5,smg_silenced,smg,shotgun_chrome,pumpshotgun",
+			"chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol",
+			"molotov,pipe_bomb,vomitjar",
+			"first_aid_kit,defibrillator,upgradepack_incendiary,upgradepack_explosive",
+			"pain_pills,adrenaline"
+		];
+
+		Left4Utils.StringListToFile("left4bots2/cfg/weapons/rochelle.txt", defaultValues, false);
+				
+		Left4Bots.Log(LOG_LEVEL_INFO, "Weapon preference file for Rochelle was not found and has been recreated");
+	}
+	
+	// Default weapon preference file for Zoey
+	if (!Left4Utils.FileExists("left4bots2/cfg/weapons/zoey.txt"))
+	{
+		// using array instead of table to keep the order
+		local defaultValues =
+		[
+			"rifle_sg552,rifle_desert,rifle_ak47,rifle,shotgun_spas,autoshotgun,sniper_military,hunting_rifle,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,smg_mp5,smg_silenced,smg,shotgun_chrome,pumpshotgun",
+			"chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol",
+			"molotov,pipe_bomb,vomitjar",
+			"first_aid_kit,defibrillator,upgradepack_incendiary,upgradepack_explosive",
+			"pain_pills,adrenaline"
+		];
+
+		Left4Utils.StringListToFile("left4bots2/cfg/weapons/zoey.txt", defaultValues, false);
+				
+		Left4Bots.Log(LOG_LEVEL_INFO, "Weapon preference file for Zoey was not found and has been recreated");
+	}
+}
+
+::Left4Bots.LoadSettingsOverride <- function ()
+{
+	if (Left4Utils.FileExists("left4bots2/cfg/settings_" + Left4Bots.MapName + "_" + Left4Bots.Difficulty + ".txt"))
+	{
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loading settings map-difficulty override...");
+		Left4Utils.LoadSettingsFromFile("left4bots2/cfg/settings_" + Left4Bots.MapName + "_" + Left4Bots.Difficulty + ".txt", "Left4Bots.Settings.", Left4Bots.Log);
+	}
+	else if (Left4Utils.FileExists("left4bots2/cfg/settings_" + Left4Bots.Difficulty + ".txt"))
+	{
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loading settings difficulty override...");
+		Left4Utils.LoadSettingsFromFile("left4bots2/cfg/settings_" + Left4Bots.Difficulty + ".txt", "Left4Bots.Settings.", Left4Bots.Log);
+	}
+	else if (Left4Utils.FileExists("left4bots2/cfg/settings_" + Left4Bots.MapName + ".txt"))
+	{
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loading settings map override...");
+		Left4Utils.LoadSettingsFromFile("left4bots2/cfg/settings_" + Left4Bots.MapName + ".txt", "Left4Bots.Settings.", Left4Bots.Log);
 	}
 }
 

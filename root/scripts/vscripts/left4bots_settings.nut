@@ -112,16 +112,16 @@
 	// Name of the file containing the BG chat lines
 	//		file_bg = "left4bots2/cfg/bg.txt" // TODO: remove
 
-	// Name of the file with the convar changes to load
+	// Name of the file with the convar changes to load (empty = don't load the convar changes)
 	file_convars = "left4bots2/cfg/convars.txt"
 
 	// Name of the file containing the GG chat lines
 	//		file_gg = "left4bots2/cfg/gg.txt" // TODO: remove
 
-	// Name of the file containing the items that the vanilla AI should not pickup
+	// Name of the file containing the items that the vanilla AI should/should not pickup (empty = don't load the items)
 	file_itemstoavoid = "left4bots2/cfg/itemstoavoid.txt"
 
-	// Name of the file with the vocalizer/command mapping
+	// Name of the file with the vocalizer/command mapping (empty = don't load the mapping)
 	file_vocalizer = "left4bots2/cfg/vocalizer.txt"
 
 	// Prefix of the name of the files with the weapon preferences (file name will be "file_weapons_prefix" + "bot name lowercase" + ".txt")
@@ -216,7 +216,7 @@
 	// 2 = [ERROR] and [WARNING]
 	// 3 = [ERROR], [WARNING] and [INFO]
 	// 4 = [ERROR], [WARNING], [INFO] and [DEBUG]
-	loglevel = 4 // TODO: 3
+	loglevel = 3
 
 	// [0.0 - 1.0] While executing MOVE commands, this is how straight the bot should be looking at the enemy in order to shoot it
 	// 0.0 = Even the enemies behind will be shoot (CSGO spinbot style). 1.0 = The bot will probably never shoot
@@ -365,7 +365,7 @@
 	t3_ammo_bots = 1
 
 	// [1/0] Enable/Disable replenish ammo for T3 weapon by humans
-	t3_ammo_human = 1 // TODO: 0
+	t3_ammo_human = 0
 
 	// Chance that the bot will throw the molotov at the tank (this check runs multiple times in a second while the tank is in range, so this chance must be pretty low to have an actual chance of no throw)
 	tank_molotov_chance = 25
