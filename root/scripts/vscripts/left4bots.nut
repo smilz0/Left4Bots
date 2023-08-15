@@ -5,6 +5,8 @@
 
 Msg("Including left4bots...\n");
 
+if (!IncludeScript("left4lib_consts"))
+	error("[L4B][ERROR] Failed to include 'left4lib_consts', please make sure the 'Left 4 Lib' addon is installed and enabled!\n");
 if (!IncludeScript("left4lib_utils"))
 	error("[L4B][ERROR] Failed to include 'left4lib_utils', please make sure the 'Left 4 Lib' addon is installed and enabled!\n");
 if (!IncludeScript("left4lib_timers"))
@@ -275,10 +277,6 @@ if (!("BOT_THINK_INTERVAL" in getconsttable()))
 		
 		Left4Bots.Log(LOG_LEVEL_INFO, "Loading settings...");
 		Left4Utils.LoadSettingsFromFile("left4bots/cfg/settings.txt", "Left4Bots.Settings.", Left4Bots.Log);
-		
-		if (Left4Bots.Settings.keep_holdind_position >= 0)
-			Left4Bots.Settings.keep_holding_position = Left4Bots.Settings.keep_holdind_position;
-		delete ::Left4Bots.Settings.keep_holdind_position;
 		
 		Left4Utils.SaveSettingsToFile("left4bots/cfg/settings.txt", ::Left4Bots.Settings, Left4Bots.Log);
 		
