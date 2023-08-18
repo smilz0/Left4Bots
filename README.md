@@ -64,10 +64,10 @@ and you can alter the [Left 4 Lib](https://github.com/smilz0/Left4Lib) functions
 
 ```nut
 Left4Bots.Settings.handle_l4d1_survivors = 1;
-// ... and whatever you want to change
+// ... or do whatever you want to do after the addon initialization
 ```
 
-You don't need to add both the .nut files, only the one you use.
+You aren't forced to add both the .nut files, only the one you use.
 
 After you have done you can pack your addon and upload it to the workshop adding both **Left 4 Bots 2** and **Left 4 Lib** as required addons.
 
