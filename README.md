@@ -24,6 +24,10 @@ You can change the settings by editing the file `ems/left4bots2/cfg/settings.txt
 - Via console: `scripted_user_func l4b,settings,[setting],[value]`
 
 
+### Addon commands
+The list of L4B2 commands can be found [HERE](https://github.com/smilz0/Left4Bots/blob/main/COMMANDS.md).
+
+
 ### You want to make changes to the addon
 and reupload it without my permission?
 
