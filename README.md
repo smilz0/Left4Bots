@@ -11,7 +11,7 @@ The addon gives them some functions that the vanilla AI was missing, like defib 
 
 
 ### What changed?
-Almost everything. The bots are more active while executing the orders, they can attack and shove infected and scavenge items. The **lead** order has been completely reworked and it will work on most maps, including finales. Now you can order each bot to follow another survivor or to go and hold a certain position. And more.
+Almost everything. The bots are more active while executing the orders, they can attack and shove infected and scavenge items. The **lead** order has been completely reworked and it will work on most maps, including finales. Now you can order each bot to follow another survivor or to go and hold a certain position. Bots have weapon preferences you can change. And more.
 
 For more details, please check the videos i made about L4B2 on my [Youtube Channel](https://www.youtube.com/channel/UCS5k0e5UJr_GklgCd1j89Yg).
 
