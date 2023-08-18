@@ -80,3 +80,21 @@ bind "KEY" "scripted_user_func l4b,botselect"
 ```
 
 ### Default vocalizer bindings
+| Vocalizer line | Vocalizer command | L4B2 command |
+| :-- | :-- | :-- |
+Lead | PlayerLeadOn | bots lead |
+Wait | PlayerWaitHere | bots wait |
+GO | PlayerEmphaticGo | bots goto |
+Witch | PlayerWarnWitch | bot witch |
+Move | PlayerMoveOn | bot use |
+Stay Together | PlayerStayTogether | bots cancel |
+Follow me | PlayerFollowMe | bot follow me |
+Suggest Heal | iMT_PlayerSuggestHealth | bots heal |
+Ask health | AskForHealth2 | bot heal me |
+I'm with you | PlayerImWithYou | bots scavenge start |
+
+You can change these bindings by editing the file `ems/left4bots2/cfg/vocalizer.txt`.
+
+Each line in the file is in the format: _vocalizer command_ = _l4b2 command_
+
+_l4b2 command_ must be the complete command as you type it chat (without the `!l4b` trigger) and for _botsource_ you must choose between **bot** and **bots** (the **botname** version is automatically used by selecting the bot first).
