@@ -1,9 +1,9 @@
 # Left 4 Bots 2 (Beta)
 This is a complete rework of [Left 4 Bots (v1)](https://github.com/smilz0/Left4Bots/tree/V1). It has pretty much the same functionalities of the V1 but they have been improved, plus some new functionalities have been added.
 
-***Please note: this is a beta version and it's unfinished. Some functionalies are still missing, likely it has bugs and needs some polishing.***
+***Please note: this is a beta version and it's still in development. Some functionalies are still missing, likely it has bugs and needs some polishing.***
 
-If you are uncomfortable with beta versions or you simply don't like this new version, you can stick with the [Left 4 Bots (v1)](https://steamcommunity.com/sharedfiles/filedetails/?id=2279814689).
+If you are uncomfortable with development versions or you simply don't like this new version, you can stick with the [Left 4 Bots (v1)](https://steamcommunity.com/sharedfiles/filedetails/?id=2279814689).
 
 ***Also please note: the goal of Left 4 Bots has always been to make the survivor bots more human-like, not to turn them into super zombie killing machines.***
 
@@ -14,6 +14,14 @@ The addon gives them some functions that the vanilla AI was missing, like defib 
 Almost everything. The bots are more active while executing the orders, they can attack and shove infected and scavenge items. The **lead** order has been completely reworked and it will work on most maps, including finales. Now you can order each bot to follow another survivor or to go and hold a certain position. Bots have weapon preferences you can change. And more.
 
 For more details, please check the videos i made about L4B2 on my [Youtube Channel](https://www.youtube.com/channel/UCS5k0e5UJr_GklgCd1j89Yg).
+
+
+### Addon settings
+The list of L4B2 settings can be found [HERE](https://github.com/smilz0/Left4Bots/blob/main/root/scripts/vscripts/left4bots_settings.nut).
+
+You can change the settings by editing the file `ems/left4bots2/cfg/settings.txt` or directly ingame with the following commands:
+- Via chat: `!l4b settings [setting] [value]`
+- Via console: `scripted_user_func l4b,settings,[setting],[value]`
 
 
 ### You want to make changes to the addon
