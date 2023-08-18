@@ -7,7 +7,7 @@ If you are uncomfortable with beta versions or you simply don't like this new ve
 
 ***Also please note: the goal of Left 4 Bots has always been to make the survivor bots more human-like, not to turn them into super zombie killing machines.***
 
-The addon gives them some functions that the vanilla AI was missing, like defib dead players, scavenge gascans, deadstop special intefected etc, so their combat capabilities is also improved but they can also fail and fu** things up, sometimes. But isn't that also part of the human behavior? :stuck_out_tongue:
+The addon gives them some functions that the vanilla AI was missing, like defib dead players, scavenge gascans, deadstop special intefected etc, so their combat capabilities are also improved but they can also fail and fu** things up, sometimes. But isn't this part of the human behavior? :stuck_out_tongue:
 
 
 ### What changed?
