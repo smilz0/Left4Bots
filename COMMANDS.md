@@ -1,4 +1,4 @@
-# Addon commands
+# L4B2 commands
 The L4B commands can be sent via chat or via console.
 
 If via console, the command must be prefixed with the `l4b` trigger.
@@ -55,19 +55,20 @@ To cancel all or some of the order use: _botsource_ **cancel** [_switch_]
 _botsource_ can be:
 - bots (all the bots)
 - botname (name of the bot)
-(Keyword "bot" is not allowed here)
+
+***Keyword "bot" is not allowed here.***
 
 _switch_ is optional and can be:
 | Switch | Description |
 | :-- | :-- |
 | _current_ | The given bot(s) will abort his/their current order and will proceed with the next one in the queue (if any) |
-| _ordertype_ | The given bot(s) will abort all his/their orders (current and queued ones) of type 'ordertype' (example: `coach cancel lead`) |
+| _ordertype_ | The given bot(s) will abort all his/their orders (current and queued ones) of type _ordertype_<br />Example: `coach cancel lead` |
 | _orders_ | The given bot(s) will abort all his/their orders (current and queued ones) of any type |
 | _all_ (or empty) | The given bot(s) will abort everything (orders, current pick-up, anything) |
 
 
-### Bot selection (for vocalizer order)
-To select the bot for the order via vocalizer you can look at the bot and use the **"Look"** vocalizer line (like in L4B1). However that vocalizer line is very inconsistent, sometimes your character fails to call the bot and will say **"Weapons here"** or something else, depending on what is in your field of view.
+### Bot selection (for commands via vocalizer)
+To select the bot for the command via vocalizer you can look at the bot and use the **"Look"** vocalizer line (like in L4B1). However that vocalizer line is very inconsistent, sometimes your character fails to call the bot and will say **"Weapons here"** or something else, depending on what is in your field of view.
 
 So i added a command to simplify this process: **botselect** [_botname_]
 
