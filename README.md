@@ -56,7 +56,7 @@ For example if you want to change the logic to decide whether the bot is about t
 
 and you can alter the [Left 4 Lib](https://github.com/smilz0/Left4Lib) functions as well, if you need to.
 
-`left4bots_afterinit.nut` is called after the addon loaded the settings and finished its initialization. Here, for example, you can force your values to the addon settings (if you really need to):
+`left4bots_afterinit.nut` is called after the addon loaded the settings and finished its initialization. Here, for example, you can force your values to the addon settings:
 
 ```nut
 Left4Bots.Settings.handle_l4d1_survivors = 1;
