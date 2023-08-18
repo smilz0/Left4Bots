@@ -296,7 +296,6 @@ IncludeScript("left4bots_settings");
 			"PlayerStayTogether = bots cancel",
 			"PlayerFollowMe = bot follow me",
 			"iMT_PlayerSuggestHealth = bots heal",
-			"PlayerEmphaticGo = bots goto",
 			//"PlayerHurryUp = canceldefib",
 			"AskForHealth2 = bot heal me"
 			//"PlayerAnswerLostCall = give",
