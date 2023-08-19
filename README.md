@@ -73,4 +73,4 @@ After you have done you can pack your addon and upload it to the workshop adding
 
 You are done.
 
-The good of this is that you aren't creating conflicting addons, the final user will be able to switch between normal L4B2 and your version simply by enabling/disabling your addon in the addon list and (potentially) you won't need to update your addon every time i update mine.
+The good of this is that you aren't creating conflicting addons, the end user will be able to switch between normal L4B2 and your version simply by enabling/disabling your addon in the addon list and (potentially) you won't need to update your addon every time i update mine.
