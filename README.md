@@ -28,10 +28,8 @@ You can change the settings by editing the file `ems/left4bots2/cfg/settings.txt
 The list of L4B2 commands can be found [HERE](https://github.com/smilz0/Left4Bots/blob/main/COMMANDS.md).
 
 
-### You want to make changes to the addon
-and reupload it without my permission?
-
-Consider this alternative instead:
+### Want to customize the addon even further
+and you know a bit about VScript?
 
 Create a file named `left4bots_afterload.nut` and one named `left4bots_afterinit.nut` into the `script/vscript` directory and put only the L4B2 code you want to change in there.
 
@@ -69,8 +67,6 @@ Left4Bots.Settings.handle_l4d1_survivors = 1;
 
 You aren't forced to add both the .nut files, only the one you use.
 
-After you have done you can pack your addon and upload it to the workshop adding both **Left 4 Bots 2** and **Left 4 Lib** as required addons.
+Now, if you want, you can pack your .nut files and upload your addon to the workshop adding both **Left 4 Bots 2** and **Left 4 Lib** as required addons.
 
-You are done.
-
-The good of this is that you aren't creating conflicting addons, the end user will be able to switch between normal L4B2 and your version simply by enabling/disabling your addon in the addon list and (potentially) you won't need to update your addon every time i update mine.
+This is better than duplicating the L4B2 files into your addon because this way you aren't creating conflicting addons, the end user will be able to switch between normal L4B2 and your version simply by enabling/disabling your addon in the addon list and (potentially) you won't need to update your addon every time i update mine.
