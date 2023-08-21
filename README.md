@@ -1,7 +1,7 @@
-# Left 4 Bots 2 (Beta)
+# Left 4 Bots 2 (Alpha)
 This is a complete rework of [Left 4 Bots (v1)](https://github.com/smilz0/Left4Bots/tree/V1). It has pretty much the same functionalities of the V1 but they have been improved, plus some new functionalities have been added.
 
-***Please note: this is a beta version and it's still in development. Some functionalies are still missing, it has bugs and needs some polishing.***
+***Please note: this is an alpha version which is still in development. A few of new functionalities and some of the old ones are not implemented yet and it likely has bugs.***
 
 If you are uncomfortable with development versions or you simply don't like this new version, you can stick with the [Left 4 Bots (v1)](https://steamcommunity.com/sharedfiles/filedetails/?id=2279814689).
 
