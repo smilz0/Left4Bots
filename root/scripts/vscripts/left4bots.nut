@@ -509,6 +509,7 @@ IncludeScript("left4bots_settings");
 	// Stop receiving user commands
 	::HooksHub.RemoveChatCommandHandler("l4b");
 	::HooksHub.RemoveConsoleCommandHandler("l4b");
+	::HooksHub.RemoveAllowTakeDamage("L4B");
 	
 	// Remove all the bots think functions
 	Left4Bots.ClearBotThink();
@@ -2174,6 +2175,67 @@ IncludeScript("left4bots_settings");
 			t[++i] <- ent;
 	}
 	return t;
+}
+
+// Makes the given 'player' (likely a survivor bot) trigger the given 'alarm' (prop_car_alarm)
+::Left4Bots.TriggerCarAlarm <- function (player, alarm)
+{
+	if (!player || !alarm || !player.IsValid() || !alarm.IsValid() || alarm.GetClassname() != "prop_car_alarm" || Left4Bots.IsCarAlarmTriggered(alarm))
+		return;
+	
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "TriggerCarAlarm - player: " + player.GetPlayerName());
+	
+	DoEntFire("!self", "SurvivorStandingOnCar", "", 0, alarm, alarm); // Activator is who triggers the alarm but it doesn't work with bots. This way it triggers but i need to play the vocalizer lines manually.
+	
+	local actor = Left4Utils.GetActorFromSurvivor(player);
+	
+	DoEntFire("!self", "AddContext", "subject:" + actor, 0, null, player);
+	DoEntFire("!self", "AddContext", "panictype:CarAlarm", 0, null, player);
+	DoEntFire("!self", "SpeakResponseConcept", "PanicEvent", 0, null, player);
+	DoEntFire("!self", "ClearContext", "", 0, null, player);
+	
+	foreach (surv in ::Left4Utils.GetOtherAliveSurvivors(player))
+	{
+		DoEntFire("!self", "AddContext", "subject:" + actor, 0, null, surv);
+		DoEntFire("!self", "AddContext", "panictype:CarAlarm", 0, null, surv);
+		DoEntFire("!self", "SpeakResponseConcept", "PanicEvent", 0, null, surv);
+		DoEntFire("!self", "ClearContext", "", 0, null, surv);
+	}
+}
+
+// Returns whether the given 'alarm' (prop_car_alarm) is already triggered
+::Left4Bots.IsCarAlarmTriggered <- function (alarm)
+{
+	if (!alarm || !alarm.IsValid())
+		return false;
+	
+	if (NetProps.GetPropInt(alarm, "m_bDisabled"))
+		return true;
+	
+	local ambient_generic = null;
+	while (ambient_generic = Entities.FindByClassname(ambient_generic, "ambient_generic"))
+	{
+		if (NetProps.GetPropString(ambient_generic, "m_sSourceEntName") == alarm.GetName() && NetProps.GetPropString(ambient_generic, "m_iszSound") == "Car.Alarm" && NetProps.GetPropInt(ambient_generic, "m_fActive"))
+			return true;
+	}
+	return false;
+}
+
+// Creates a script_nav_blocker on the landed spitter's spit and parents it to the spit's entity so it's automatically removed once the spit is gone
+// Must set params["spit_ent"] as the spit's entity
+::Left4Bots.SpitterSpitBlockNav <- function (params)
+{
+	local spit = params["spit_ent"];
+	if (!spit || !spit.IsValid())
+		return;
+	
+	local kvs = { classname = "script_nav_blocker", origin = spit.GetOrigin(), extent = Vector(Left4Bots.Settings.dodge_spit_radius, Left4Bots.Settings.dodge_spit_radius, Left4Bots.Settings.dodge_spit_radius), teamToBlock = "2", affectsFlow = "0" };
+	local ent = g_ModeScript.CreateSingleSimpleEntityFromTable(kvs);
+	ent.ValidateScriptScope();
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "Created script_nav_blocker: " + ent.GetName());
+		
+	DoEntFire("!self", "SetParent", "!activator", 0, spit, ent); // I parent the nav blocker to the spit entity so it is automatically killed when the spit is gone
+	DoEntFire("!self", "BlockNav", "", 0, null, ent);
 }
 
 //

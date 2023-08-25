@@ -184,7 +184,10 @@
 	// [1/0] 1 = Reverse itemstoavoid logics (tells the vanilla AI to avoid all the items except the ones in the itemstoavoid.txt file). 0 = Normal logics (vanilla AI should avoid only the items in the file)
 	items_not_to_avoid = 1
 
-	// (1/0) Enable/Disable the additional trace check on the ground when calculating the 'lead' path
+	// If >0, when a survivor bot shoots a teammate who is being ridden by a jockey, the damage to the teammate is removed and the jockey receives this amount of damage instead. 0 = disabled
+	jockey_redirect_damage = 40
+
+	// [1/0] Enable/Disable the additional trace check on the ground when calculating the 'lead' path
 	lead_check_ground = 0
 
 	// >0 = each segment calculation of the 'lead' order is drawn on screen for this amount of time (only the host can see it). 0 = Disable
@@ -346,6 +349,14 @@
 	// Bots will shove tongue victim teammates within this radius (set 0 to disable)
 	shove_tonguevictim_radius = 90
 
+	// [1/0] 1 = When the spitter's acid lands, it will block the nav areas under it as long as the acid is there. This means that the bots nav system will not make them step into the acid. 0 = normal behavior
+	// NOTE: The bots can still step into the acid if they were close to where it landed and they were already running to that direction
+	// NOTE2: Blocked nav areas might cause issues and can get the bots stuck into the acid in rare cases
+	spit_block_nav = 0
+
+	// The damage received by the bots from the spitter's acid is multiplied by this factor. If you want them to receive the same amount of damage as you, you can set 2
+	spit_damage_multiplier = 1
+
 	// [1/0] Enable/Disable debug chat messages of the stuck detection algorithm
 	stuck_debug = 0
 
@@ -436,6 +447,12 @@
 
 	// [1/0] Enable/Disable throwing bile jars
 	throw_vomitjar = 1
+
+	// [1/0] 1 = The bots will trigger the car alarms when they accidentally shoot or jump on the car (like human players). 0 = normal behavior
+	trigger_caralarm = 0
+	
+	// [1/0] 1 = The bots will trigger the witch when they accidentally shoot her (like human players). 0 = normal behavior
+	trigger_witch = 0
 
 	// Minimum L4U level for receiving medkits/defibs from the bots (2 = Admin, 1 = Friend, 0 = Random player, -1 = Griefer)
 	userlevel_give_medkit = 1
