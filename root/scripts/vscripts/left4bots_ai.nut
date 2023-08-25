@@ -971,7 +971,22 @@ enum AI_DOOR_ACTION {
 // Runs in the scope of the bot entity
 ::Left4Bots.BotThink_Misc <- function ()
 {
-	// TODO?
+	// Handling car alarms
+	if (Left4Bots.Settings.trigger_caralarm)
+	{
+		local groundEnt = NetProps.GetPropEntity(self, "m_hGroundEntity");
+		if (groundEnt && groundEnt.IsValid() && groundEnt.GetClassname() == "prop_car_alarm")
+			Left4Bots.TriggerCarAlarm(self, groundEnt);
+	}
+	
+	/* TODO
+	if (HoldItem && (!HoldItem.IsValid() || (NetProps.GetPropInt(HoldItem, "m_hOwner") > 0 && NetProps.GetPropEntity(HoldItem, "m_hOwner") != self)))
+	{
+		Left4Bots.Log(LOG_LEVEL_DEBUG, self.GetPlayerName() + " HoldItem no longer valid");
+		
+		Left4Bots.HoldItemStop(self);
+	}
+	*/
 }
 
 // Handles the bot's enemy shoot/shove logics while the bot is executing a MOVE command

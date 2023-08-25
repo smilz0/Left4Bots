@@ -20,6 +20,7 @@ Msg("Including left4bots_events...\n");
 	// Start receiving user commands
 	::HooksHub.SetChatCommandHandler("l4b", ::Left4Bots.HandleCommand);
 	::HooksHub.SetConsoleCommandHandler("l4b", ::Left4Bots.HandleCommand);
+	::HooksHub.SetAllowTakeDamage("L4B", ::Left4Bots.AllowTakeDamage);
 	
 	// Start the cleaner
 	Left4Timers.AddTimer("Cleaner", 0.5, Left4Bots.OnCleaner, {}, true);
@@ -442,9 +443,8 @@ Msg("Including left4bots_events...\n");
 			Left4Bots.TryDodgeSpit(bot, spit);
 	}
 		
-	// TODO?
-	//if (Left4Bots.Settings.spit_block_nav)
-	//	Left4Timers.AddTimer(null, 3.8, Left4Bots.SpitterSpitBlockNav, { spit_ent = spit });
+	if (Left4Bots.Settings.spit_block_nav)
+		Left4Timers.AddTimer(null, 3.8, Left4Bots.SpitterSpitBlockNav, { spit_ent = spit });
 }
 
 ::Left4Bots.Events.OnGameEvent_charger_charge_start <- function (params)
@@ -905,6 +905,54 @@ Msg("Including left4bots_events...\n");
 		arg3 = strip(args[2]);
 	
 	Left4Bots.OnUserCommand(player, arg1, arg2, arg3);
+}
+
+::Left4Bots.Events.OnGameEvent_infected_hurt <- function (params)
+{
+	local attacker = null;
+	local infected = null;
+	local damage = 0;
+	local dmgType = 0;
+	
+	if ("attacker" in params)
+		attacker = g_MapScript.GetPlayerFromUserID(params["attacker"]);
+	
+	if ("entityid" in params)
+		infected = EntIndexToHScript(params["entityid"]);
+		
+	if ("amount" in params)
+		damage = params["amount"].tointeger();
+		
+	if ("type" in params)
+		dmgType = params["type"].tointeger();
+	
+	//Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_infected_hurt");
+	
+	if (!attacker || !infected || !attacker.IsValid() || !infected.IsValid() || attacker.GetClassname() != "player" || infected.GetClassname() != "witch" || !IsPlayerABot(attacker))
+		return;
+	
+	local attackerTeam = NetProps.GetPropInt(attacker, "m_iTeamNum");
+	if (attackerTeam != TEAM_SURVIVORS && attackerTeam != TEAM_L4D1_SURVIVORS)
+		return;
+	
+	//Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_infected_hurt - attacker: " + attacker.GetPlayerName() + " - damage: " + damage + " - dmgType: " + dmgType);
+	
+	if (Left4Bots.Settings.trigger_witch && NetProps.GetPropFloat(infected, "m_rage") < 1.0 && !NetProps.GetPropInt(infected, "m_mobRush") && (dmgType & DMG_BURN) == 0)
+	{
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_infected_hurt - Bot " + attacker.GetPlayerName() + " startled witch (damage: " + damage + " - dmgType: " + dmgType + ")");
+	
+		/* Fire method
+		if (!NetProps.GetPropInt(infected, "m_bIsBurning"))
+			Left4Timers.AddTimer(null, 0.01, Left4Bots.ExtinguishWitch, { witch = infected }, false);
+		
+		infected.TakeDamage(0.001, DMG_BURN, attacker); // Startle the witch
+		*/
+		
+		// Easier method
+		NetProps.SetPropFloat(infected, "m_rage", 1.0);
+		NetProps.SetPropFloat(infected, "m_wanderrage", 1.0);
+		Left4Utils.BotCmdAttack(infected, attacker);
+	}
 }
 
 //
@@ -2157,6 +2205,55 @@ settings
 }
 
 //
+
+::Left4Bots.AllowTakeDamage <- function (damageTable)
+{
+	local victim = damageTable.Victim;
+	local attacker = damageTable.Attacker;
+	
+	if (victim == null || attacker == null)
+		return null;
+	
+	local attackerTeam = NetProps.GetPropInt(attacker, "m_iTeamNum");
+	
+	if (attackerTeam != TEAM_SURVIVORS && attackerTeam != TEAM_L4D1_SURVIVORS)
+	{
+		if (victim.IsPlayer() && NetProps.GetPropInt(victim, "m_iTeamNum") == TEAM_SURVIVORS && IsPlayerABot(victim) && "Inflictor" in damageTable && damageTable.Inflictor && damageTable.Inflictor.GetClassname() == "insect_swarm")
+		{
+			damageTable.DamageDone = damageTable.DamageDone * Left4Bots.Settings.spit_damage_multiplier;
+			return (damageTable.DamageDone > 0);
+		}
+		return null;
+	}
+	
+	if (!attacker.IsPlayer() || !IsPlayerABot(attacker))
+		return null;
+	
+	//if (Left4Bots.Settings.trigger_caralarm && victim.GetClassname() == "prop_car_alarm" && (victim.GetOrigin() - attacker.GetOrigin()).Length() <= 730 && damageTable.DamageType != DMG_BURN && damageTable.DamageType != (DMG_BURN + DMG_PREVENT_PHYSICS_FORCE))
+	if (Left4Bots.Settings.trigger_caralarm && victim.GetClassname() == "prop_car_alarm" && (victim.GetOrigin() - attacker.GetOrigin()).Length() <= 730 && (!("Inflictor" in damageTable) || !damageTable.Inflictor || damageTable.Inflictor.GetClassname() != "inferno"))
+	{
+		Left4Bots.TriggerCarAlarm(attacker, victim);
+		return null;
+	}
+	
+	if (!victim.IsPlayer() || attacker.GetPlayerUserId() == victim.GetPlayerUserId() || NetProps.GetPropInt(victim, "m_iTeamNum") != TEAM_SURVIVORS)
+		return null;
+	
+	if (Left4Bots.Settings.jockey_redirect_damage == 0)
+		return null;
+	
+	// TODO filter the weapon (damageTable.Weapon) ?
+	
+	local jockey = NetProps.GetPropEntity(victim, "m_jockeyAttacker");
+	if (!jockey || !jockey.IsValid())
+		return null;
+	
+	//Left4Bots.Log(LOG_LEVEL_DEBUG, "AllowTakeDamage - attacker: " + attacker.GetPlayerName() + " - victim: " + victim.GetPlayerName() + " - damage: " + damageTable.DamageDone + " - type: " + damageTable.DamageType + " - weapon: " + damageTable.Weapon);
+	
+	jockey.TakeDamage(Left4Bots.Settings.jockey_redirect_damage, damageTable.DamageType, attacker);
+	
+	return false;
+}
 
 ::Left4Bots.HandleCommand <- function (player, cmd, args, text)
 {
