@@ -1709,8 +1709,10 @@ settings
 					foreach (key, val in ::Left4Bots.OnTankSettingsBak)
 						trueSettings[key] <- val;
 					
-					Left4Utils.SaveSettingsToFile("left4bots/cfg/settings.txt", trueSettings, Left4Bots.Log);
+					Left4Utils.SaveSettingsToFile("left4bots2/cfg/settings.txt", trueSettings, Left4Bots.Log);
 					*/
+					
+					Left4Utils.SaveSettingsToFile("left4bots2/cfg/settings.txt", ::Left4Bots.Settings, Left4Bots.Log);
 					
 					if (arg2 == "should_hurry")
 					{
