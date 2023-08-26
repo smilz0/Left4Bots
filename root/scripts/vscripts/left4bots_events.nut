@@ -13,6 +13,14 @@ Msg("Including left4bots_events...\n");
 	// when a witch is chasing a survivor and that survivor enters the saferoom. Simply having a value for this key, removes the stutter
 	if (!("AllowWitchesInCheckpoints" in DirectorScript.GetDirectorOptions()))
 		DirectorScript.GetDirectorOptions().AllowWitchesInCheckpoints <- false;
+	
+	if ("Left4Fun" in getroottable() && "PingEnt" in ::Left4Fun)
+	{
+		Left4Bots.L4F = true;
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "L4F = true");
+	}
+	else
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "L4F = false");
 
 	// Start receiving concepts
 	::ConceptsHub.SetHandler("Left4Bots", Left4Bots.OnConcept);
@@ -401,6 +409,25 @@ Msg("Including left4bots_events...\n");
 	//	if (bot.IsValid())
 	//		bot.GetScriptScope().WeaponsToSearch.clear();
 	//}
+}
+
+::Left4Bots.Events.OnGameEvent_player_use <- function (params)
+{
+	local player = null;
+	local entity = null;
+	
+	if ("userid" in params)
+		player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+		
+	if ("targetid" in params)
+		entity = EntIndexToHScript(params["targetid"]);
+	
+	if (player == null || !player.IsValid() || entity == null || !entity.IsValid())
+		return;
+	
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.OnGameEvent_player_use - " + player.GetPlayerName() + " -> " + entity.GetClassname());
+	
+	Left4Bots.OnPlayerUse(player, entity);
 }
 
 ::Left4Bots.Events.OnGameEvent_weapon_fire <- function (params)
@@ -1612,6 +1639,115 @@ Left4Bots.OnThinker <- function (params)
 			Left4Utils.GiveItemWithSkin(victim, attackerItemClass, attackerItemSkin);
 			
 			Left4Timers.AddTimer(null, 0.1, Left4Bots.ItemSwapped, { player1 = attacker, item1 = victimItem, player2 = victim, item2 = attackerItem });
+		}
+	}
+}
+
+::Left4Bots.OnPlayerUse <- function (player, entity, minCount = 0)
+{
+	if (Left4Bots.Settings.signal_max_distance <= 0 || !IsPlayerABot(player))
+		return;
+	
+	switch (entity.GetClassname())
+	{
+		case "weapon_ammo_spawn":
+		{
+			if (Left4Bots.SpawnerHasItems(entity, minCount) && Left4Bots.HumansNeedAmmo(player, Left4Bots.Settings.signal_min_distance, Left4Bots.Settings.signal_max_distance))
+				Left4Bots.DoSignal(player, entity, "PlayerSpotWeapon", "Ammo", "Ammo here!");
+			
+			break;
+		}
+		
+		/* better handled in default:
+		case "weapon_spawn":
+		{
+			if (Left4Bots.SpawnerHasItems(entity, minCount) && Left4Bots.HumansNeedWeapon(player, NetProps.GetPropInt(entity, "m_weaponID"), Left4Bots.Settings.signal_min_distance, Left4Bots.Settings.signal_max_distance))
+				Left4Bots.DoSignal(player, entity, "PlayerSpotOtherWeapon", null, "Weapons here!");
+
+			break;
+		}
+		*/
+		
+		case "weapon_first_aid_kit_spawn":
+		{
+			local other = Left4Bots.GetOtherMedkitSpawn(entity, 100.0);
+			if (other && Left4Bots.HumansNeedMedkit(player, Left4Bots.Settings.signal_min_distance, Left4Bots.Settings.signal_max_distance))
+				Left4Bots.DoSignal(player, other, "PlayerSpotWeapon", "FirstAidKit", "Medkits here!");
+			
+			break;
+		}
+		
+		case "weapon_pain_pills_spawn":
+		{
+			if (Left4Bots.SpawnerHasItems(entity, minCount) && Left4Bots.HumansNeedTempMed(player, Left4Bots.Settings.signal_min_distance, Left4Bots.Settings.signal_max_distance))
+				Left4Bots.DoSignal(player, entity, "PlayerSpotWeapon", "PainPills", "Pills here!");
+			
+			break;
+		}
+		
+		case "weapon_adrenaline_spawn":
+		{
+			if (Left4Bots.SpawnerHasItems(entity, minCount) && Left4Bots.HumansNeedTempMed(player, Left4Bots.Settings.signal_min_distance, Left4Bots.Settings.signal_max_distance))
+				Left4Bots.DoSignal(player, entity, "PlayerSpotWeapon", "Adrenaline", "Adrenaline here!");
+			
+			break;
+		}
+		
+		case "weapon_molotov_spawn":
+		{
+			if (Left4Bots.SpawnerHasItems(entity, minCount) && Left4Bots.HumansNeedThrowable(player, Left4Bots.Settings.signal_min_distance, Left4Bots.Settings.signal_max_distance))
+				Left4Bots.DoSignal(player, entity, "PlayerSpotWeapon", "Molotov", "Molotovs here!");
+			
+			break;
+		}
+		
+		case "weapon_pipe_bomb_spawn":
+		{
+			if (Left4Bots.SpawnerHasItems(entity, minCount) && Left4Bots.HumansNeedThrowable(player, Left4Bots.Settings.signal_min_distance, Left4Bots.Settings.signal_max_distance))
+				Left4Bots.DoSignal(player, entity, "PlayerSpotWeapon", "PipeBomb", "Pipe bombs here!");
+			
+			break;
+		}
+		
+		case "weapon_vomitjar_spawn":
+		{
+			if (Left4Bots.SpawnerHasItems(entity, minCount) && Left4Bots.HumansNeedThrowable(player, Left4Bots.Settings.signal_min_distance, Left4Bots.Settings.signal_max_distance))
+				Left4Bots.DoSignal(player, entity, "PlayerSpotWeapon", "VomitJar", "Bile jars here!");
+			
+			break;
+		}
+		
+		case "upgrade_ammo_incendiary":
+		{
+			if (Left4Bots.SpawnerHasItems(entity, minCount) && Left4Bots.HumansNeedUpgradeAmmo(player, Left4Bots.Settings.signal_min_distance, Left4Bots.Settings.signal_max_distance))
+				Left4Bots.DoSignal(player, entity, "PlayerSpotWeapon", "UpgradePack_Incendiary", "Incendiary ammo here!");
+			
+			break;
+		}
+		
+		case "upgrade_ammo_explosive":
+		{
+			if (Left4Bots.SpawnerHasItems(entity, minCount) && Left4Bots.HumansNeedUpgradeAmmo(player, Left4Bots.Settings.signal_min_distance, Left4Bots.Settings.signal_max_distance))
+				Left4Bots.DoSignal(player, entity, "PlayerSpotWeapon", "UpgradePack_Explosive", "Explosive ammo here!");
+			
+			break;
+		}
+		
+		case "upgrade_laser_sight":
+		{
+			if (Left4Bots.SpawnerHasItems(entity, minCount) && Left4Bots.HumansNeedLaserSight(player, Left4Bots.Settings.signal_min_distance, Left4Bots.Settings.signal_max_distance))
+				Left4Bots.DoSignal(player, entity, "PlayerSpotWeapon", "LaserSights", "Laser sights here!");
+			
+			break;
+		}
+		
+		default:
+		{
+			if (entity.GetClassname().find("weapon_") != null && entity.GetClassname().find("_spawn") != null)
+			{
+				if (Left4Bots.SpawnerHasItems(entity, minCount) && Left4Bots.HumansNeedWeapon(player, NetProps.GetPropInt(entity, "m_weaponID"), Left4Bots.Settings.signal_min_distance, Left4Bots.Settings.signal_max_distance))
+					Left4Bots.DoSignal(player, entity, "PlayerSpotOtherWeapon", null, "Weapons here!");
+			}
 		}
 	}
 }

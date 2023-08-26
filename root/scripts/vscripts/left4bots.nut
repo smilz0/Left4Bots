@@ -135,6 +135,9 @@ const LOG_LEVEL_DEBUG = 4;
 	ScavengeUseTargetPos = null
 	ScavengeUseType = 0
 	ScavengeBots = {}
+	L4F = false
+	LastSignalType = ""
+	LastSignalTime = 0
 }
 
 IncludeScript("left4bots_settings");
@@ -992,7 +995,7 @@ IncludeScript("left4bots_settings");
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "PickupFailsafe - " + bot.GetPlayerName() + " -> " + item.GetClassname() + " (" + weaponid + ")");
 	
 	DoEntFire("!self", "Use", "", 0, bot, item); // <- make sure i pick this up even if the real pickup (with the button) fails or i will be stuck here forever
-	//TODO Left4Bots.OnPlayerUse(bot, item, 1); // ^this doesn't trigger the event so i do it myself
+	Left4Bots.OnPlayerUse(bot, item, 1); // ^this doesn't trigger the event so i do it myself
 }
 
 // Called when the bot opens/closes a door door
@@ -2236,6 +2239,212 @@ IncludeScript("left4bots_settings");
 		
 	DoEntFire("!self", "SetParent", "!activator", 0, spit, ent); // I parent the nav blocker to the spit entity so it is automatically killed when the spit is gone
 	DoEntFire("!self", "BlockNav", "", 0, null, ent);
+}
+
+// Returns whether the given *_spawn entity has available items to spawn (m_itemCount > minCount or it's set to infinite items)
+::Left4Bots.SpawnerHasItems <- function (spawner_ent, minCount = 0)
+{
+	// Note: m_itemCount has already been decreased by 1 when OnPlayerUse is triggered (but not when it's called from PickupFailsafe)
+	
+	local m_itemCount = NetProps.GetPropInt(spawner_ent, "m_itemCount");
+	local m_spawnflags = NetProps.GetPropInt(spawner_ent, "m_spawnflags");
+	
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.SpawnerHasItems - " + spawner_ent.GetClassname() + " - m_itemCount: " + m_itemCount + " - m_spawnflags: " + m_spawnflags + " - minCount: " + minCount);
+	
+	// item count > 0 or infinite items in spawn flags
+	return (m_itemCount > minCount || (m_spawnflags & 8) == 8);
+}
+
+// Is there any human within the given range from 'srcBot' who may need to pick-up ammo?
+Left4Bots.HumansNeedAmmo <- function (srcBot, minDist = 250.0, maxDist = 2500.0)
+{
+	local orig = srcBot.GetOrigin();
+	foreach (surv in ::Left4Bots.Survivors)
+	{
+		if (surv.IsValid() && !IsPlayerABot(surv) && !surv.IsDead() && !surv.IsDying())
+		{
+			local d = (surv.GetOrigin() - orig).Length();
+			if (d >= minDist && d <= maxDist && Left4Utils.GetPrimaryAmmoPercent(surv) < 85.0)
+				return true;
+		}
+	}
+	return false;
+}
+
+// Is there any human within the given range from 'srcBot' who may need to pick-up this weapon?
+Left4Bots.HumansNeedWeapon <- function (srcBot, weaponId, minDist = 250.0, maxDist = 2500.0)
+{
+	local tier = Left4Utils.GetWeaponTierById(weaponId);
+	
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.HumansNeedWeapon - weaponId: " + weaponId + " - tier: " + tier);
+	
+	if (tier <= 0)
+		return false;
+	
+	local orig = srcBot.GetOrigin();
+	foreach (surv in ::Left4Bots.Survivors)
+	{
+		if (surv.IsValid() && !IsPlayerABot(surv) && !surv.IsDead() && !surv.IsDying())
+		{
+			local d = (surv.GetOrigin() - orig).Length();
+			if (d >= minDist && d <= maxDist)
+			{
+				local w = Left4Utils.GetInventoryItemInSlot(surv, INV_SLOT_PRIMARY);
+				if (!w || !w.IsValid())
+					return true;
+				
+				local wt = Left4Utils.GetWeaponTierByClass(w.GetClassname())
+				
+				Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.HumansNeedWeapon - w: " + w.GetClassname() + " - wt: " + wt);
+			
+				if (wt < tier)
+					return true;
+			}
+		}
+	}
+	return false;
+}
+
+// Is there any human within the given range from 'srcBot' who may need to pick-up a medkit?
+Left4Bots.HumansNeedMedkit <- function (srcBot, minDist = 250.0, maxDist = 2500.0)
+{
+	local orig = srcBot.GetOrigin();
+	foreach (surv in ::Left4Bots.Survivors)
+	{
+		if (surv.IsValid() && !IsPlayerABot(surv) && !surv.IsDead() && !surv.IsDying())
+		{
+			local d = (surv.GetOrigin() - orig).Length();
+			if (d >= minDist && d <= maxDist)
+			{
+				// TODO?
+				
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+// Is there any human within the given range from 'srcBot' who may need to pick-up pills or adrenaline?
+Left4Bots.HumansNeedTempMed <- function (srcBot, minDist = 250.0, maxDist = 2500.0)
+{
+	local orig = srcBot.GetOrigin();
+	foreach (surv in ::Left4Bots.Survivors)
+	{
+		if (surv.IsValid() && !IsPlayerABot(surv) && !surv.IsDead() && !surv.IsDying() && Left4Utils.GetInventoryItemInSlot(surv, INV_SLOT_PILLS) == null)
+		{
+			local d = (surv.GetOrigin() - orig).Length();
+			if (d >= minDist && d <= maxDist)
+				return true;
+		}
+	}
+	return false;
+}
+
+// Is there any human within the given range from 'srcBot' who may need to pick-up throwables?
+Left4Bots.HumansNeedThrowable <- function (srcBot, minDist = 250.0, maxDist = 2500.0)
+{
+	local orig = srcBot.GetOrigin();
+	foreach (surv in ::Left4Bots.Survivors)
+	{
+		if (surv.IsValid() && !IsPlayerABot(surv) && !surv.IsDead() && !surv.IsDying() && Left4Utils.GetInventoryItemInSlot(surv, INV_SLOT_THROW) == null)
+		{
+			local d = (surv.GetOrigin() - orig).Length();
+			if (d >= minDist && d <= maxDist)
+				return true;
+		}
+	}
+	return false;
+}
+
+// Is there any human within the given range from 'srcBot' who may need to pick-up explosive or incendiary ammo?
+Left4Bots.HumansNeedUpgradeAmmo <- function (srcBot, minDist = 250.0, maxDist = 2500.0)
+{
+	local orig = srcBot.GetOrigin();
+	foreach (surv in ::Left4Bots.Survivors)
+	{
+		if (surv.IsValid() && !IsPlayerABot(surv) && !surv.IsDead() && !surv.IsDying())
+		{
+			local d = (surv.GetOrigin() - orig).Length();
+			if (d >= minDist && d <= maxDist)
+			{
+				// TODO?
+				
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+// Is there any human within the given range from 'srcBot' who may need to pick-up the laser sight?
+Left4Bots.HumansNeedLaserSight <- function (srcBot, minDist = 250.0, maxDist = 2500.0)
+{
+	local orig = srcBot.GetOrigin();
+	foreach (surv in ::Left4Bots.Survivors)
+	{
+		if (surv.IsValid() && !IsPlayerABot(surv) && !surv.IsDead() && !surv.IsDying() && !Left4Utils.HasLaserSight(surv))
+		{
+			local d = (surv.GetOrigin() - orig).Length();
+			if (d >= minDist && d <= maxDist)
+				return true;
+		}
+	}
+	return false;
+}
+
+// Returns the first weapon_first_aid_kit_spawn (with items to spawn) whithin 'radius' from 'srcSpawn' (weapon_first_aid_kit_spawn)
+Left4Bots.GetOtherMedkitSpawn <- function (srcSpawn, radius = 100.0)
+{
+	local ent = null;
+	while (ent = Entities.FindByClassnameWithin(ent, "weapon_first_aid_kit_spawn", srcSpawn.GetOrigin(), radius))
+	{
+		if (ent.IsValid() && ent.GetEntityIndex() != srcSpawn.GetEntityIndex() && Left4Bots.SpawnerHasItems(ent))
+			return ent;
+	}
+	return null;
+}
+
+// Makes the given survivor signal the given item
+// who = the player entity of the survivor (likely a bot)
+// what = the entity of the item to signal
+// concept = the SpeakResponseConcept concept to vocalize
+// weaponname = the class name of the weapon (used as "weaponname" context for the SpeakResponseConcept)
+// chatText = text to chat
+::Left4Bots.DoSignal <- function (who, what, concept, weaponname = null, chatText = null)
+{
+	local signalType = concept;
+	if (weaponname)
+		signalType = signalType + ":" + weaponname;
+	
+	local t = Time();
+	if (Left4Bots.LastSignalType == signalType && (t - Left4Bots.LastSignalTime) <= Left4Bots.Settings.signal_min_interval)
+		return;
+	
+	Left4Bots.LastSignalType = signalType;
+	Left4Bots.LastSignalTime = t;
+	
+	if (weaponname)
+	{
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.DoSignal - " + who.GetPlayerName() + " -> " + what.GetClassname() + " - " + concept + " - " + weaponname);
+		
+		//DoEntFire("!self", "AddContext", "subject:" + actor, 0, null, who);
+		DoEntFire("!self", "AddContext", "weaponname:" + weaponname, 0, null, who);
+		DoEntFire("!self", "SpeakResponseConcept", concept, 0, null, who);
+		DoEntFire("!self", "ClearContext", "", 0, null, who);
+	}
+	else
+	{
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.DoSignal - " + who.GetPlayerName() + " -> " + what.GetClassname() + " - " + concept);
+		
+		DoEntFire("!self", "SpeakResponseConcept", concept, 0, null, who);
+	}
+	
+	if (Left4Bots.Settings.signal_chat && chatText)
+		Say(who, chatText, true);
+	
+	if (Left4Bots.L4F && Left4Bots.Settings.signal_ping)
+		Left4Fun.PingEnt(who, what);
 }
 
 //

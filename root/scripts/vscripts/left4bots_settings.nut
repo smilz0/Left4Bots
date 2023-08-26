@@ -349,6 +349,23 @@
 	// Bots will shove tongue victim teammates within this radius (set 0 to disable)
 	shove_tonguevictim_radius = 90
 
+	// [1/0] 1 = When the bots pick up an item, they will chat about that item ("Weapons here", "Ammo here" etc.) if there is at least one human survivor who may need that item. 0 = they only vocalize about it
+	// NOTE: signal_max_distance must be > 0 for the entire signal system to work
+	signal_chat = 0
+	
+	// Maximum distance from the human survivor who may need the item in order to signal the item. 0 = The entire signal system is disabled
+	signal_max_distance = 2500
+	
+	// Minimum distance from the human survivor who may need the item in order to signal the item
+	signal_min_distance = 150
+	
+	// Minimum interval between 2 or more signals of the same type (ex. Ammo, Weapon, Throwable, etc.)
+	signal_min_interval = 5.0
+	
+	// [1/0] If 1, and the "Left 4 Fun" addon is installed and enabled, the bot will also use the L4F PING command on the item to signal. 0 = They don't
+	// NOTE: signal_max_distance must be > 0 for the entire signal system to work
+	signal_ping = 0
+
 	// [1/0] 1 = When the spitter's acid lands, it will block the nav areas under it as long as the acid is there. This means that the bots nav system will not make them step into the acid. 0 = normal behavior
 	// NOTE: The bots can still step into the acid if they were close to where it landed and they were already running to that direction
 	// NOTE2: Blocked nav areas might cause issues and can get the bots stuck into the acid in rare cases
