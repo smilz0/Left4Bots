@@ -261,6 +261,10 @@
 	// High priority MOVEs will be automatically terminated after this time, regardless the destination position was reached or not (likely unreachable position)
 	move_hipri_timeout = 5.0
 
+	// [1/0] 1 = No orders queue. Any order given to a bot will automatically cancel any previous order for that bot (auto orders like the auto crown witch will still use the queue system)
+	//       0 = Orders are queued according to their priorities. You can always cancel the previous orders with the 'cancel' command
+	orders_no_queue = 0
+
 	// [1/0] Enable/Disable debug chat messages when the bot starts/stops the pause
 	pause_debug = 0
 
