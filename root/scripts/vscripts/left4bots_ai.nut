@@ -2461,10 +2461,19 @@ enum AI_DOOR_ACTION {
 	
 	local scope = bot.GetScriptScope();
 	local idx;
-	for (idx = 0; idx < scope.Orders.len(); idx++)
+	
+	if (Left4Bots.Settings.orders_no_queue && from != null)
 	{
-		if (scope.Orders[idx].Priority < order.Priority)
-			break;
+		scope.BotCancelOrders();
+		idx = 0;
+	}
+	else
+	{
+		for (idx = 0; idx < scope.Orders.len(); idx++)
+		{
+			if (scope.Orders[idx].Priority < order.Priority)
+				break;
+		}
 	}
 	// idx now contains the queue index the new order should be inserted to
 	
