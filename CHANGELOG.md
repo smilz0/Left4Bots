@@ -1,5 +1,23 @@
 # Changelog
 
+## [v0.2.0-alpha](https://github.com/smilz0/Left4Bots/tree/v0.2.0-alpha) (2023-08-27)
+
+[Full Changelog](https://github.com/smilz0/Left4Bots/compare/v0.1-alpha...v0.2.0-alpha)
+
+**Implemented enhancements:**
+
+- Old L4B1 feature: signal system \(signal\_\*\) settings [\#10](https://github.com/smilz0/Left4Bots/issues/10)
+- New setting 'orders\_no\_queue' [\#9](https://github.com/smilz0/Left4Bots/issues/9)
+- Old L4B1 feature: 'trigger\_witch' setting [\#7](https://github.com/smilz0/Left4Bots/issues/7)
+- Old L4B1 feature: 'trigger\_caralarm' setting [\#6](https://github.com/smilz0/Left4Bots/issues/6)
+- Old L4B1 feature: 'spit\_damage\_multiplier' setting [\#5](https://github.com/smilz0/Left4Bots/issues/5)
+- Old L4B1 feature: 'spit\_block\_nav' setting [\#4](https://github.com/smilz0/Left4Bots/issues/4)
+- Old L4B1 feature: 'jockey\_redirect\_damage' setting [\#3](https://github.com/smilz0/Left4Bots/issues/3)
+
+**Fixed bugs:**
+
+- Settings not saved to file when changing them in-game [\#8](https://github.com/smilz0/Left4Bots/issues/8)
+
 ## [v0.1-alpha](https://github.com/smilz0/Left4Bots/tree/v0.1-alpha) (2023-08-21)
 
 [Full Changelog](https://github.com/smilz0/Left4Bots/compare/4f29dd1c2a1d2a90c8d999a80ea50b041a6c1fd8...v0.1-alpha)
