@@ -466,7 +466,7 @@ Msg("Including left4bots_events...\n");
 
 	foreach (bot in ::Left4Bots.Bots)
 	{
-		if (bot.IsValid() && !Left4Bots.SurvivorCantMove(bot))
+		if (bot.IsValid() && !Left4Bots.SurvivorCantMove(bot, bot.GetScriptScope().Waiting))
 			Left4Bots.TryDodgeSpit(bot, spit);
 	}
 		
@@ -493,7 +493,7 @@ Msg("Including left4bots_events...\n");
 	
 	foreach (bot in ::Left4Bots.Bots)
 	{
-		if (bot.IsValid() && !Left4Bots.SurvivorCantMove(bot))
+		if (bot.IsValid() && !Left4Bots.SurvivorCantMove(bot, bot.GetScriptScope().Waiting))
 		{
 			local d = (chargerOrig - bot.GetOrigin()).Length();
 			if (d <= 1200 /*&& Left4Utils.CanTraceTo(bot, charger)*/)
@@ -1619,26 +1619,31 @@ Left4Bots.OnThinker <- function (params)
 	else if (victimItem && IsPlayerABot(victim))
 	{
 		// Swap
-		local victimItemClass = victimItem.GetClassname();
-		local victimItemSkin = NetProps.GetPropInt(victimItem, "m_nSkin");
 		
-		if (victimItemClass != attackerItemClass || victimItemSkin != attackerItemSkin)
+		local lvl = Left4Users.GetOnlineUserLevel(attacker.GetPlayerUserId());
+		if (lvl >= Left4Bots.Settings.userlevel_give_others)
 		{
-			DoEntFire("!self", "SpeakResponseConcept", "PlayerAlertGiveItem", 0, null, attacker);
-			DoEntFire("!self", "SpeakResponseConcept", "PlayerAlertGiveItem", 0, null, victim);
+			local victimItemClass = victimItem.GetClassname();
+			local victimItemSkin = NetProps.GetPropInt(victimItem, "m_nSkin");
 			
-			Left4Bots.GiveItemIndex1 = attackerItem.GetEntityIndex();
-			Left4Bots.GiveItemIndex2 = victimItem.GetEntityIndex();
-			
-			attacker.DropItem(attackerItemClass);
-			victim.DropItem(victimItemClass);
-			
-			//attacker.GiveItemWithSkin(victimItemClass, victimItemSkin);
-			Left4Utils.GiveItemWithSkin(attacker, victimItemClass, victimItemSkin);
-			//victim.GiveItemWithSkin(attackerItemClass, attackerItemSkin);
-			Left4Utils.GiveItemWithSkin(victim, attackerItemClass, attackerItemSkin);
-			
-			Left4Timers.AddTimer(null, 0.1, Left4Bots.ItemSwapped, { player1 = attacker, item1 = victimItem, player2 = victim, item2 = attackerItem });
+			if (victimItemClass != attackerItemClass || victimItemSkin != attackerItemSkin)
+			{
+				DoEntFire("!self", "SpeakResponseConcept", "PlayerAlertGiveItem", 0, null, attacker);
+				DoEntFire("!self", "SpeakResponseConcept", "PlayerAlertGiveItem", 0, null, victim);
+				
+				Left4Bots.GiveItemIndex1 = attackerItem.GetEntityIndex();
+				Left4Bots.GiveItemIndex2 = victimItem.GetEntityIndex();
+				
+				attacker.DropItem(attackerItemClass);
+				victim.DropItem(victimItemClass);
+				
+				//attacker.GiveItemWithSkin(victimItemClass, victimItemSkin);
+				Left4Utils.GiveItemWithSkin(attacker, victimItemClass, victimItemSkin);
+				//victim.GiveItemWithSkin(attackerItemClass, attackerItemSkin);
+				Left4Utils.GiveItemWithSkin(victim, attackerItemClass, attackerItemSkin);
+				
+				Left4Timers.AddTimer(null, 0.1, Left4Bots.ItemSwapped, { player1 = attacker, item1 = victimItem, player2 = victim, item2 = attackerItem });
+			}
 		}
 	}
 }
@@ -1770,46 +1775,59 @@ Left4Bots.OnThinker <- function (params)
 
 /* Handle user commands
 
-botsource command [target]
+<botsource> command [parameter]
 
-"botsource" can be: "bot" (bot is automatically selected), "bots" (all the bots), "botname" (name of the bot)
+<botsource> can be:
+- bot (the bot is automatically selected)
+- bots (all the bots)
+- botname (name of the bot)
 
 Available commands:
-	botsource lead				: The order is added to the given bot(s) orders queue. The bot(s) will start leading the way following the map's flow
-	botsource follow			: The order is added to the given bot(s) orders queue. The bot(s) will start following you
-	botsource follow target		: The order is added to the given bot(s) orders queue. The bot(s) will follow the given target survivor (you can also use the keyword "me" to follow you)
-	botsource witch				: The order is added to the given bot(s) orders queue. The bot(s) will try to kill the witch you are looking at
-	botsource heal				: The order is added to the given bot(s) orders queue. The bot(s) will heal himself/themselves
-	botsource heal target		: The order is added to the given bot(s) orders queue. The bot(s) will heal the target survivor (target can also be the bot himself or the keyword "me" to heal you)
-	botsource goto				: The order is added to the given bot(s) orders queue. The bot(s) will go to the location you are looking at
-	botsource goto target		: The order is added to the given bot(s) orders queue. The bot(s) will go to the current target's position (target can be another survivor or the keyword "me" to come to you)
-	botsource come				: The order is added to the given bot(s) orders queue. The bot(s) will come to your current location (alias of "botsource goto me")
-	botsource wait				: The order is added to the given bot(s) orders queue. The bot(s) will hold his/their current position
-	botsource wait here			: The order is added to the given bot(s) orders queue. The bot(s) will hold position at your current position
-	botsource wait there		: The order is added to the given bot(s) orders queue. The bot(s) will hold position at the location you are looking at
-	botsource use				: The order is added to the given bot(s) orders queue. The bot(s) will use the entity (pickup item / press button etc.) you are looking at
-	botsource warp				: The order is executed immediately. The bot(s) will teleport to your position
-	botsource warp here			: The order is executed immediately. The bot(s) will teleport to your position
-	botsource warp there		: The order is executed immediately. The bot(s) will teleport to the location you are looking at
-	botsource warp move			: The order is executed immediately. The bot(s) will teleport to the current MOVE location (if any)
-	botsource scavenge start	: Starts the scavenge process. The botsource parameter is ignored, the scavenge bot(s) are always selected automatically
-	botsource scavenge stop		: Stops the scavenge process. The botsource parameter is ignored, the scavenge bot(s) are always selected automatically
+	<botsource> lead			: The order is added to the given bot(s) orders queue. The bot(s) will start leading the way following the map's flow
+	<botsource> follow			: The order is added to the given bot(s) orders queue. The bot(s) will start following you
+	<botsource> follow <target>	: The order is added to the given bot(s) orders queue. The bot(s) will follow the given target survivor (you can also use the keyword "me" to follow you)
+	<botsource> witch			: The order is added to the given bot(s) orders queue. The bot(s) will try to kill the witch you are looking at
+	<botsource> heal			: The order is added to the given bot(s) orders queue. The bot(s) will heal himself/themselves
+	<botsource> heal <target>	: The order is added to the given bot(s) orders queue. The bot(s) will heal the target survivor (target can also be the bot himself or the keyword "me" to heal you)
+	<botsource> goto			: The order is added to the given bot(s) orders queue. The bot(s) will go to the location you are looking at
+	<botsource> goto <target>	: The order is added to the given bot(s) orders queue. The bot(s) will go to the current target's position (target can be another survivor or the keyword "me" to come to you)
+	<botsource> come			: The order is added to the given bot(s) orders queue. The bot(s) will come to your current location (alias of "botsource goto me")
+	<botsource> wait			: The order is added to the given bot(s) orders queue. The bot(s) will hold his/their current position
+	<botsource> wait here		: The order is added to the given bot(s) orders queue. The bot(s) will hold position at your current position
+	<botsource> wait there		: The order is added to the given bot(s) orders queue. The bot(s) will hold position at the location you are looking at
+	<botsource> use				: The order is added to the given bot(s) orders queue. The bot(s) will use the entity (pickup item / press button etc.) you are looking at
+	<botsource> warp			: The order is executed immediately. The bot(s) will teleport to your position
+	<botsource> warp here		: The order is executed immediately. The bot(s) will teleport to your position
+	<botsource> warp there		: The order is executed immediately. The bot(s) will teleport to the location you are looking at
+	<botsource> warp move		: The order is executed immediately. The bot(s) will teleport to the current MOVE location (if any)
+	<botsource> give			: The order is executed immediately. The bot will give you one item from their pills/throwable/medkit inventory slot if your slot is emtpy. "bot" and "bots" botsources are the same here, the first available bot is selected
+	<botsource> swap			: The order is executed immediately. You will swap the item you are holding (only for items from the pills/throwable/medkit inventory slots) with the selected bot. "bot" and "bots" botsources will both select the bot you are looking at
+	<botsource> tempheal		: The order is executed immediately. The bot(s) will use their pain pils/adrenaline. If "bot" botsource is used, the selected bot will be the bot you are looking at
+	<botsource> deploy			: The order is executed immediately. The bot(s) will deploy their upgrade pack
+	<botsource> die				: The order is executed immediately. The bot(s) will die. If "bot" botsource is used, the selected bot will be the bot you are looking at. NOTE: only admins can use this command
+	<botsource> scavenge start	: Starts the scavenge process. The botsource parameter is ignored, the scavenge bot(s) are always selected automatically
+	<botsource> scavenge stop	: Stops the scavenge process. The botsource parameter is ignored, the scavenge bot(s) are always selected automatically
+	<botsource> move			: Alias of "<botsource> cancel all" (see below)
 
 
-botsource cancel [switch]
+<botsource> cancel [switch]
 
-"botsource" can be: "bots" (all the bots) or "botname" (name of the bot); Keyword "bot" is not allowed here
+<botsource> can be:
+- bots (all the bots)
+- botname (name of the bot)
+("bot" botsource is not allowed here)
 
-Switches:
+Available switches:
 	current		: The given bot(s) will abort his/their current order and will proceed with the next one in the queue (if any)
 	ordertype	: The given bot(s) will abort all his/their orders (current and queued ones) of type 'ordertype' (example: coach cancel lead)
 	orders		: The given bot(s) will abort all his/their orders (current and queued ones) of any type
-	all			: (or empty) The given bot(s) will abort everything (orders, current pick-up, anything)
+	defib		: The given bot(s) will abort any pending defib task. "botname cancel defib" is temporary (the bot will retry). "bots cancel defib" is permanent (currently dead survivors will be abandoned)
+	all			: (or empty) The given bot(s) will abort everything (orders, defib, current pick-up, anything)
 
 
 botselect [botname]
 
-Selects the given bot as the destination of the following vocalizer command. If "botname" is omitted, the closest bot to your crosshair will be selected
+Selects the given bot as the destination of the next vocalizer command. If "botname" is omitted, the closest bot to your crosshair will be selected
 
 
 settings
@@ -2276,6 +2294,176 @@ settings
 				
 				return true;
 			}
+			case "give":
+			{
+				local lvl = Left4Users.GetOnlineUserLevel(player.GetPlayerUserId());
+				if (lvl < Left4Bots.Settings.userlevel_give_others)
+					return true; // Player's user level is too low for any item, no point continuing
+				
+				local searchSlots = [INV_SLOT_PILLS, INV_SLOT_THROW, INV_SLOT_MEDKIT];
+				for (local i = 0; i < searchSlots.len(); i++)
+				{
+					local slot = searchSlots[i];
+					local bot = null;
+					local item = Left4Utils.GetInventoryItemInSlot(player, slot);
+					if (!item)
+					{
+						if (allBots || !tgtBot)
+						{
+							// "bot give" and "bots give" will work the same way. The first bot with any item in that inventory slot is automatically selected
+							bot = Left4Bots.GetFirstAvailableBotForGive(slot, lvl);
+						}
+						else
+						{
+							local botItem = Left4Utils.GetInventoryItemInSlot(tgtBot, slot);
+							if (botItem && botItem.IsValid())
+								bot = tgtBot;
+						}
+
+						if (bot)
+						{
+							Left4Bots.GiveInventoryItem(bot, player, slot);
+							return true;
+						}
+					}
+				}
+				
+				Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
+				
+				return true;
+			}
+			case "swap":
+			{
+				local lvl = Left4Users.GetOnlineUserLevel(player.GetPlayerUserId());
+				if (lvl < Left4Bots.Settings.userlevel_give_others)
+					return true; // Player's user level is too low for any item, no point continuing
+				
+				if (allBots || !tgtBot)
+					tgtBot = Left4Bots.GetPickerBot(player); // player, radius = 999999, threshold = 0.95, visibleOnly = false
+				
+				if (tgtBot)
+				{
+					local held = player.GetActiveWeapon();
+					if (held && held.IsValid())
+					{
+						local heldClass = held.GetClassname();
+						local heldSkin = NetProps.GetPropInt(held, "m_nSkin");
+						local slot = Left4Utils.FindSlotForItemClass(player, heldClass);
+						if (slot == INV_SLOT_PILLS || slot == INV_SLOT_THROW || slot == INV_SLOT_MEDKIT)
+						{
+							local botItem = Left4Utils.GetInventoryItemInSlot(tgtBot, slot);
+							if (botItem && botItem.IsValid())
+							{
+								local botItemClass = botItem.GetClassname();
+								local botItemSkin = NetProps.GetPropInt(botItem, "m_nSkin");
+								if (botItemClass != heldClass || heldSkin != botItemSkin)
+								{
+									// tgtBot has a valid swappable item
+									if (slot != INV_SLOT_MEDKIT || (botItemClass != "weapon_first_aid_kit" && botItemClass != "weapon_defibrillator") || lvl >= Left4Bots.Settings.userlevel_give_medkit)
+									{
+										// Player is allowed to receive that item
+										
+										// Swap
+										DoEntFire("!self", "SpeakResponseConcept", "PlayerAlertGiveItem", 0, null, player);
+										DoEntFire("!self", "SpeakResponseConcept", "PlayerAlertGiveItem", 0, null, tgtBot);
+										
+										Left4Bots.GiveItemIndex1 = held.GetEntityIndex();
+										Left4Bots.GiveItemIndex2 = botItem.GetEntityIndex();
+										
+										player.DropItem(heldClass);
+										tgtBot.DropItem(botItemClass);
+										
+										Left4Utils.GiveItemWithSkin(player, botItemClass, botItemSkin);
+										Left4Utils.GiveItemWithSkin(tgtBot, heldClass, heldSkin);
+										
+										Left4Timers.AddTimer(null, 0.1, Left4Bots.ItemSwapped, { player1 = player, item1 = botItem, player2 = tgtBot, item2 = held });
+									}
+								}
+							}
+						}
+					}
+				}
+				else
+					Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
+				
+				return true;
+			}
+			case "tempheal":
+			{
+				if (allBots)
+				{
+					foreach (bot in Left4Bots.Bots)
+					{
+						local item = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_PILLS);
+						if (item && item.IsValid())
+						{
+							bot.SwitchToItem(item.GetClassname());
+							Left4Timers.AddTimer(null, 1.2, @(params) Left4Utils.PlayerPressButton(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = bot, button = BUTTON_ATTACK, holdTime = 1, destination = null, deltaPitch = 0, deltaYaw = 0, lockLook = true });
+						}
+					}
+				}
+				else
+				{
+					if (!tgtBot)
+						tgtBot = Left4Bots.GetPickerBot(player); // player, radius = 999999, threshold = 0.95, visibleOnly = false
+					
+					if (tgtBot)
+					{
+						local item = Left4Utils.GetInventoryItemInSlot(tgtBot, INV_SLOT_PILLS);
+						if (item && item.IsValid())
+						{
+							tgtBot.SwitchToItem(item.GetClassname());
+							Left4Timers.AddTimer(null, 1.2, @(params) Left4Utils.PlayerPressButton(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = tgtBot, button = BUTTON_ATTACK, holdTime = 1, destination = null, deltaPitch = 0, deltaYaw = 0, lockLook = true });
+						}
+					}
+					else
+						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
+				}
+				
+				return true;
+			}
+			case "deploy":
+			{
+				if (allBots)
+				{
+					foreach (bot in Left4Bots.Bots)
+					{
+						local item = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_MEDKIT);
+						if (item && item.IsValid())
+						{
+							local itemClass = item.GetClassname();
+							if (itemClass == "weapon_upgradepack_explosive" || itemClass == "weapon_upgradepack_incendiary")
+							{
+								Left4Bots.Log(LOG_LEVEL_DEBUG, "Bot " + bot.GetPlayerName() + " switching to upgrade " + itemClass);
+								
+								bot.SwitchToItem(itemClass);
+								
+								Left4Timers.AddTimer(null, 1, @(params) Left4Bots.DoDeployUpgrade(params.player), { player = bot });
+							}
+						}
+					}
+				}
+				else
+				{
+					if (!tgtBot)
+						tgtBot = Left4Bots.GetFirstAvailableBotForDeploy(player);
+					
+					if (tgtBot)
+					{
+						local itemClass = Left4Utils.GetInventoryItemInSlot(tgtBot, INV_SLOT_MEDKIT).GetClassname();
+						
+						Left4Bots.Log(LOG_LEVEL_DEBUG, "Bot " + tgtBot.GetPlayerName() + " switching to upgrade " + itemClass);
+						
+						tgtBot.SwitchToItem(itemClass);
+						
+						Left4Timers.AddTimer(null, 1, @(params) Left4Bots.DoDeployUpgrade(params.player), { player = tgtBot });
+					}
+					else
+						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
+				}
+				
+				return true;
+			}
 			case "scavenge":
 			{
 				if (arg3)
@@ -2300,12 +2488,17 @@ settings
 				// - "current" to cancel the current order only
 				// - "orders" to cancel all the orders (including the current one)
 				// - "ordertype" to cancel all the orders of given type
+				// - "defib" to cancel any pending defib task
 				// - "all" (or null) to cancel everything (orders, current pick-up, anything)
 				if (arg3)
-					arg3 = arg3.tolower();
+					arg3 = arg3.tolower();	
 				
 				if (allBots)
 				{
+					// With 'bots cancel defub' we also "abandon" any dead survivor
+					if (arg3 == "defib")
+						Left4Bots.Deads = {}; // Clear the deads list
+					
 					foreach (bot in ::Left4Bots.Bots)
 					{
 						if (!arg3 || arg3 == "all")
@@ -2314,6 +2507,8 @@ settings
 							bot.GetScriptScope().BotCancelCurrentOrder();
 						else if (arg3 == "orders")
 							bot.GetScriptScope().BotCancelOrders();
+						else if (arg3 == "defib")
+							bot.GetScriptScope().BotCancelDefib();
 						else
 							bot.GetScriptScope().BotCancelOrders(arg3);
 					}
@@ -2330,8 +2525,60 @@ settings
 						tgtBot.GetScriptScope().BotCancelCurrentOrder();
 					else if (arg3 == "orders")
 						tgtBot.GetScriptScope().BotCancelOrders();
+					else if (arg3 == "defib")
+						tgtBot.GetScriptScope().BotCancelDefib();
 					else
 						tgtBot.GetScriptScope().BotCancelOrders(arg3);
+				}
+				
+				return true;
+			}
+			case "move":
+			{
+				// Alias of "cancel all"
+				if (!allBots && !tgtBot)
+				{
+					Left4Bots.Log(LOG_LEVEL_WARN, "Can't use the 'bot' keyword with the 'move' arg2");
+					return true;
+				}
+				
+				if (allBots)
+				{
+					foreach (bot in ::Left4Bots.Bots)
+						bot.GetScriptScope().BotCancelAll();
+					
+					// With 'bots cancel all' we also stop the scavenge
+					if (!arg3 || arg3 == "all")
+						Left4Bots.ScavengeStop();
+				}
+				else
+					tgtBot.GetScriptScope().BotCancelAll();
+				
+				return true;
+			}
+			case "die":
+			{
+				local lvl = Left4Users.GetOnlineUserLevel(player.GetPlayerUserId());
+				if (lvl < L4U_LEVEL.Admin)
+					return true; // Only admins can use this command
+				
+				if (!Left4Bots.Settings.die_humans_alive && Left4Bots.Survivors.len() > Left4Bots.Bots.len())
+					return true; // Can't use this command with human survivors alive if "die_humans_alive" setting is 0
+				
+				if (allBots)
+				{
+					foreach (bot in Left4Bots.Bots)
+						Left4Utils.KillPlayer(bot);
+				}
+				else
+				{
+					if (!tgtBot)
+						tgtBot = Left4Bots.GetPickerBot(player); // player, radius = 999999, threshold = 0.95, visibleOnly = false
+					
+					if (tgtBot)
+						Left4Utils.KillPlayer(tgtBot);
+					else
+						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
 				}
 				
 				return true;

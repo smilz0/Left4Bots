@@ -98,6 +98,7 @@ enum AI_DOOR_ACTION {
 	scope["BotCancelCurrentOrder"] <- ::Left4Bots.BotCancelCurrentOrder;
 	scope["BotCancelOrders"] <- ::Left4Bots.BotCancelOrders;
 	scope["BotCancelOrdersDestEnt"] <- ::Left4Bots.BotCancelOrdersDestEnt;
+	scope["BotCancelDefib"] <- ::Left4Bots.BotCancelDefib;
 	scope["BotCancelAll"] <- ::Left4Bots.BotCancelAll;
 	scope["BotIsInPause"] <- ::Left4Bots.BotIsInPause;
 	scope["BotOnPause"] <- ::Left4Bots.BotOnPause;
@@ -660,12 +661,12 @@ enum AI_DOOR_ACTION {
 	local lookAtHuman = NetProps.GetPropEntity(self, "m_lookatPlayer");
 	if (lookAtHuman && lookAtHuman.IsValid() && !IsPlayerABot(lookAtHuman) && NetProps.GetPropInt(lookAtHuman, "m_iTeamNum") == TEAM_SURVIVORS && !Left4Bots.SurvivorCantMove(lookAtHuman, Waiting) && (Origin - lookAtHuman.GetOrigin()).Length() <= Left4Bots.Settings.give_max_range)
 	{
-		// Try give a throwable
-		if (Left4Bots.GiveInventoryItem(self, lookAtHuman, INV_SLOT_THROW))
-			return; // Don't do anything else if the give succedes
-		
 		// Then try with pills and adrenaline
 		if (Left4Bots.GiveInventoryItem(self, lookAtHuman, INV_SLOT_PILLS))
+			return; // Don't do anything else if the give succedes
+		
+		// Try give a throwable
+		if (Left4Bots.GiveInventoryItem(self, lookAtHuman, INV_SLOT_THROW))
 			return; // Don't do anything else if the give succedes
 		
 		// Last try with medkits / defib / upgrade packs
@@ -2096,6 +2097,16 @@ enum AI_DOOR_ACTION {
 		BotCancelCurrentOrder();
 	
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Orders still in queue: " + Orders.len());
+}
+
+// Cancel the current defib action
+::Left4Bots.BotCancelDefib <- function ()
+{
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Cancelling defib");
+	
+	// MOVE stuff
+	if (MoveType == AI_MOVE_TYPE.Defib)
+		BotMoveReset();
 }
 
 // Cancel everything (current/queued orders, current pickup, anything)

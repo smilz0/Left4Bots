@@ -88,8 +88,14 @@ const LOG_LEVEL_DEBUG = 4;
 		wait = 0
 		use = 0
 		warp = 0
+		give = 0
+		swap = 0
+		tempheal = 0
+		deploy = 0
 		scavenge = 0
+		move = 0
 		cancel = 0
+		die = 0
 	}
 	
 	Events = {}
@@ -254,8 +260,8 @@ IncludeScript("left4bots_settings");
 		[
 			"allow_all_bot_survivor_team 1",
 			"sb_all_bot_game 1",
-			"sb_debug_apoproach_wait_time 0.5", // This is how long the bot will jiggle on the destination spot of a MOVE command before returning the control to the vanilla AI (default: 5)
-			"sb_enforce_proximity_range 20000"  // How far the bot must be from the human before teleporting (default: 1500)
+			"sb_debug_apoproach_wait_time 0.5" // This is how long the bot will jiggle on the destination spot of a MOVE command before returning the control to the vanilla AI (default: 5)
+			//"sb_enforce_proximity_range 20000"  // How far the bot must be from the human before teleporting (default: 1500)
 			// "sb_unstick 0" // TODO: unstick logic
 		];
 
@@ -299,10 +305,15 @@ IncludeScript("left4bots_settings");
 			"PlayerStayTogether = bots cancel",
 			"PlayerFollowMe = bot follow me",
 			"iMT_PlayerSuggestHealth = bots heal",
-			//"PlayerHurryUp = canceldefib",
+			"PlayerHurryUp = bots cancel defib",
 			"AskForHealth2 = bot heal me"
-			//"PlayerAnswerLostCall = give",
-			//"PlayerYellRun = goto",
+			"PlayerAnswerLostCall = bot give",
+			"iMT_PlayerHello = bot swap",
+			//"TODO = bots warp",
+			//"TODO = bot tempheal",
+			//"TODO = bot deploy",
+			//"TODO = bots die",
+			//"PlayerYellRun = ?",
 			//"PlayerImWithYou = next thing to do" // TODO:
 		];
 
@@ -1124,7 +1135,7 @@ IncludeScript("left4bots_settings");
 	local itemClass = item.GetClassname();
 	local aw = bot.GetActiveWeapon();
 	if (aw && aw.IsValid() && aw.GetClassname() == itemClass)
-		return false; // Don't give items that are being held by the bot to avoid giving away a mekit while the bot is trying to heal etc.
+		return false; // Don't give items that are being held by the bot to avoid giving away a mekit while the bot is trying to heal
 	
 	local lvl = Left4Users.GetOnlineUserLevel(survDest.GetPlayerUserId());
 	if (invSlot == INV_SLOT_MEDKIT && (itemClass == "weapon_first_aid_kit" || itemClass == "weapon_defibrillator"))
@@ -1221,6 +1232,118 @@ IncludeScript("left4bots_settings");
 			}
 		}
 	}
+}
+
+// Returns the first available bot with any item in the given intentory slot or null if not bot available
+// It also checks whether the given user level of the is allowed to receive medkits/defibs
+::Left4Bots.GetFirstAvailableBotForGive <- function (slot, userlevel)
+{
+	foreach (bot in ::Left4Bots.Bots)
+	{
+		// Add some restrictions
+		if (bot.IsValid() && !bot.IsDead() && !bot.IsDying() /*&& !bot.IsIncapacitated()*/ && !Left4Bots.SurvivorCantMove(bot, bot.GetScriptScope().Waiting))
+		{
+			// Does the bot have any item in that slot?
+			local item = Left4Utils.GetInventoryItemInSlot(bot, slot);
+			if (item && item.IsValid())
+			{
+				// Yes.
+				local itemClass = item.GetClassname();
+				
+				// But don't give items that are being held by the bot to avoid giving away items that are about to be used by the bot
+				local held = bot.GetActiveWeapon();
+				if (!held || !held.IsValid() || held.GetEntityIndex() != item.GetEntityIndex())
+				{
+					// If we are going to give a medkit/defib, check if the user level of the receiver is high enough
+					if (slot != INV_SLOT_MEDKIT || (itemClass != "weapon_first_aid_kit" && itemClass != "weapon_defibrillator") || (Left4Bots.Settings.give_bots_medkits && userlevel >= Left4Bots.Settings.userlevel_give_medkit))
+						return bot;
+				}
+			}
+		}
+	}
+	
+	/*
+	foreach (bot in ::Left4Bots.L4D1Survivors)
+	{
+		// Add some restrictions
+		//if (bot.IsValid() && !bot.IsDead() && !bot.IsDying() && !bot.IsIncapacitated() && !Left4Bots.SurvivorCantMove(bot, bot.GetScriptScope().Waiting))
+		if (bot.IsValid() && !bot.IsDead() && !bot.IsDying() && !Left4Bots.SurvivorCantMove(bot, bot.GetScriptScope().Waiting))
+		{
+			// Does the bot have any item in that slot?
+			local item = Left4Utils.GetInventoryItemInSlot(bot, slot);
+			if (item && item.IsValid())
+			{
+				// Yes.
+				local itemClass = item.GetClassname();
+				
+				// But don't give items that are being held by the bot to avoid giving away items that are about to be used by the bot
+				local held = bot.GetActiveWeapon();
+				if (!held || !held.IsValid() || held.GetEntityIndex() != item.GetEntityIndex())
+				{
+					// If we are going to give a medkit/defib, check if the user level of the receiver is high enough
+					if (slot != INV_SLOT_MEDKIT || (itemClass != "weapon_first_aid_kit" && itemClass != "weapon_defibrillator") || (Left4Bots.Settings.give_bots_medkits && userlevel >= Left4Bots.Settings.userlevel_give_medkit))
+						return bot;
+				}
+			}
+		}
+	}
+	*/
+	
+	return null;
+}
+
+// Returns closest (to 'player') bot with an upgrade pack in the inventory
+::Left4Bots.GetFirstAvailableBotForDeploy <- function (player)
+{
+	local ret = null;
+	local minDist = 999999;
+	local orig = player.GetOrigin();
+	foreach (bot in ::Left4Bots.Bots)
+	{
+		if (bot.IsValid() && !bot.IsDead() && !bot.IsDying() /*&& !bot.IsIncapacitated()*/ && !Left4Bots.SurvivorCantMove(bot, bot.GetScriptScope().Waiting))
+		{
+			local item = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_MEDKIT);
+			if (item && item.IsValid())
+			{
+				local itemClass = item.GetClassname();
+				if (itemClass == "weapon_upgradepack_explosive" || itemClass == "weapon_upgradepack_incendiary")
+				{
+					local d = (bot.GetOrigin() - orig).Length();
+					if (d < minDist)
+					{
+						ret = bot;
+						minDist = d;
+					}
+				}
+			}
+		}
+	}
+	
+	/*
+	foreach (bot in ::Left4Bots.L4D1Survivors)
+	{
+		//if (bot.IsValid() && !bot.IsDead() && !bot.IsDying() && !bot.IsIncapacitated() && !Left4Bots.SurvivorCantMove(bot, bot.GetScriptScope().Waiting))
+		if (bot.IsValid() && !bot.IsDead() && !bot.IsDying() && !Left4Bots.SurvivorCantMove(bot, bot.GetScriptScope().Waiting))
+		{
+			local item = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_MEDKIT);
+			if (item && item.IsValid())
+			{
+				local itemClass = item.GetClassname();
+				if (itemClass == "weapon_upgradepack_explosive" || itemClass == "weapon_upgradepack_incendiary")
+				{
+					local d = (bot.GetOrigin() - orig).Length();
+					if (d < minDist)
+					{
+						ret = bot;
+						minDist = d;
+					}
+				}
+			}
+		}
+	}
+	*/
+	
+	return ret;
 }
 
 // Returns the bot's throw target (if any) for the throw item of class 'throwableClass'
@@ -1854,7 +1977,7 @@ IncludeScript("left4bots_settings");
 		}
 		*/
 		
-		if (bot.IsValid() && !(id in WarnedBots) && !Left4Bots.SurvivorCantMove(bot) && (bot.GetCenter() - MyPos).Length() <= 1500 && Left4Utils.CanTraceTo(bot, self))
+		if (bot.IsValid() && !(id in WarnedBots) && !Left4Bots.SurvivorCantMove(bot, bot.GetScriptScope().Waiting) && (bot.GetCenter() - MyPos).Length() <= 1500 && Left4Utils.CanTraceTo(bot, self))
 		{
 			local toBot = bot.GetCenter() - MyPos;
 			toBot.Norm();
