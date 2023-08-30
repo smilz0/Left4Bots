@@ -68,6 +68,9 @@
 	// [1/0] 1 = Bots will automatically deploy upgrade packs when near other teammates
 	deploy_upgrades = 1
 
+	// [1/0] 1 = Admins can make the bots die with the "die" command at any time. 0 = Only if there are no human survivors alive
+	die_humans_alive = 1
+
 	// [1/0] Enable/Disable charger dodging
 	dodge_charger = 1
 
