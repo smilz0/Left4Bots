@@ -5,18 +5,10 @@
 		foreach (item in Left4Bots.ItemsToAvoid)
 		{
 			if (classname.find(item) != null)
-			{
-				if (Left4Bots.Settings.items_not_to_avoid)
-					return false;
-				else
-					return true;
-			}
+				return !Left4Bots.Settings.items_not_to_avoid;
 		}
 		
-		if (Left4Bots.Settings.items_not_to_avoid)
-			return true;
-		else
-			return false;
+		return Left4Bots.Settings.items_not_to_avoid;
 	}
 }
 
