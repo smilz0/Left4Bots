@@ -14,13 +14,8 @@ Msg("Including left4bots_events...\n");
 	if (!("AllowWitchesInCheckpoints" in DirectorScript.GetDirectorOptions()))
 		DirectorScript.GetDirectorOptions().AllowWitchesInCheckpoints <- false;
 	
-	if ("Left4Fun" in getroottable() && "PingEnt" in ::Left4Fun)
-	{
-		Left4Bots.L4F = true;
-		Left4Bots.Log(LOG_LEVEL_DEBUG, "L4F = true");
-	}
-	else
-		Left4Bots.Log(LOG_LEVEL_DEBUG, "L4F = false");
+	Left4Bots.L4F = ("Left4Fun" in getroottable() && "PingEnt" in ::Left4Fun);
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "L4F = " + Left4Bots.L4F.tostring());
 
 	// Start receiving concepts
 	::ConceptsHub.SetHandler("Left4Bots", Left4Bots.OnConcept);
