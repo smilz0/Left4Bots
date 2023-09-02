@@ -118,7 +118,10 @@ enum AI_DOOR_ACTION {
 	local scope = bot.GetScriptScope();
 	
 	scope.CharId <- NetProps.GetPropInt(bot, "m_survivorCharacter");
-	scope.FuncI <- scope.CharId % 5; // <- this makes the bots start the sub-think functions in different order so they don't "Use" pickups or do things at the exact same time
+	scope.FuncI <- (scope.CharId - 1) % 5; // <- this makes the bots start the sub-think functions in different order so they don't "Use" pickups or do things at the exact same time
+	// CharIds are supposed to be from 1 to 8 so FuncI shouldn't be <0. But you never know...
+	if (scope.FuncI < 0)
+		scope.FuncI = 0; // Btw, we start from 0 now because the FuncI++ has been moved to the beginning of the think function
 	scope.UserId <- bot.GetPlayerUserId();
 	scope.Origin <- bot.GetOrigin(); // This will be updated each tick by the BotThink_Main think function. It is meant to replace all the self.GetOrigin() used by the various funcs
 	scope.MoveEnt <- null;
@@ -170,6 +173,10 @@ enum AI_DOOR_ACTION {
 // Runs in the scope of the bot entity
 ::Left4Bots.BotThink_Main <- function ()
 {
+	// https://github.com/smilz0/Left4Bots/issues/2
+	if (++FuncI > 5)
+		FuncI = 1;
+	
 	Origin = self.GetOrigin();
 	
 	// Can't do anything at the moment
@@ -333,9 +340,6 @@ enum AI_DOOR_ACTION {
 		
 		Left4Utils.PlayerEnableButton(self, BUTTON_RELOAD);
 	}
-	
-	if (++FuncI > 5)
-		FuncI = 1;
 	
 	return Left4Bots.Settings.bot_think_interval;
 }
@@ -2000,25 +2004,37 @@ enum AI_DOOR_ACTION {
 		}
 		case "wait":
 		{
-			if (MovePos && !Waiting)
+			// https://github.com/smilz0/Left4Bots/issues/2
+			local area = self.GetLastKnownArea(); // Get the area currently occupied by the bot
+			if (area && area.GetElevator())
 			{
-				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Wait position is in range");
-
-				// Give control back to the vanilla AI
-				BotReset();
+				// Terminate the current wait order if its wait location is in an elevator
+				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Terminating wait order with wait position in elevator");
 				
-				// But don't let it move
-				NetProps.SetPropInt(self, "movetype", 0);
-				
-				self.SetVelocity(Vector(0, 0, 0)); // This will reset the bot's animation from running to idle
-				
-				if (Left4Bots.Settings.wait_crouch)
-					NetProps.SetPropInt(self, "m_afButtonForced", NetProps.GetPropInt(self, "m_afButtonForced") | BUTTON_DUCK);
-				
-				Waiting = true;
+				//BotCancelCurrentOrder(); // not needed. orderComplete = true will terminate it
 			}
+			else
+			{
+				if (MovePos && !Waiting)
+				{
+					Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Wait position is in range");
+
+					// Give control back to the vanilla AI
+					BotReset();
+					
+					// But don't let it move
+					NetProps.SetPropInt(self, "movetype", 0);
+					
+					self.SetVelocity(Vector(0, 0, 0)); // This will reset the bot's animation from running to idle
+					
+					if (Left4Bots.Settings.wait_crouch)
+						NetProps.SetPropInt(self, "m_afButtonForced", NetProps.GetPropInt(self, "m_afButtonForced") | BUTTON_DUCK);
+					
+					Waiting = true;
+				}
 			
-			orderComplete = false;
+				orderComplete = false;
+			}
 			
 			break;
 		}
@@ -2760,7 +2776,7 @@ enum AI_DOOR_ACTION {
 	scope.ThrowStartedOn = Time();
 	
 	// Need to disable the fire button until we are ready to throw (or throw is interrupted) otherwise the bot's vanilla AI can trigger the fire before our PressButton and the throw pos will be totally random
-	NetProps.SetPropInt(self, "m_afButtonDisabled", NetProps.GetPropInt(self, "m_afButtonDisabled") | BUTTON_ATTACK);
+	NetProps.SetPropInt(bot, "m_afButtonDisabled", NetProps.GetPropInt(bot, "m_afButtonDisabled") | BUTTON_ATTACK);
 	
 	bot.SwitchToItem(throwItem.GetClassname());
 	
