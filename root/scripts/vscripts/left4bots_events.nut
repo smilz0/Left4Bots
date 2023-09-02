@@ -32,7 +32,7 @@ Msg("Including left4bots_events...\n");
 	Left4Timers.AddTimer("InventoryManager", 0.5, Left4Bots.OnInventoryManager, {}, true);
 	
 	// Start the thinker
-	Left4Timers.AddThinker("L4BThinker", 0.01, Left4Bots.OnThinker, {});
+	Left4Timers.AddThinker("L4BThinker", 0.0666, Left4Bots.OnThinker, {});
 	
 	DirectorScript.GetDirectorOptions().cm_ShouldHurry <- Left4Bots.Settings.should_hurry;
 }
@@ -1441,42 +1441,32 @@ Msg("Including left4bots_events...\n");
 			local inv = {};
 			GetInvTable(surv, inv);
 			
-			if (INV_SLOT_PRIMARY in inv)
-			{
-				if (inv[INV_SLOT_PRIMARY].GetClassname().find("shotgun"))
-					Left4Bots.TeamShotguns++;
-			}
+			if (INV_SLOT_PRIMARY in inv) // Strings are a char array -- start at index 5, which is after "weapon", and the search should go by quicker.
+				Left4Bots.TeamShotguns += (inv[INV_SLOT_PRIMARY].GetClassname().find("shotgun", 5) != null).tointeger();
 			
 			if (INV_SLOT_SECONDARY in inv)
 			{
 				local cls = inv[INV_SLOT_SECONDARY].GetClassname();
 				
-				if (cls == "weapon_chainsaw")
-					Left4Bots.TeamChainsaws++;
-				else if (cls == "weapon_melee")
-					Left4Bots.TeamMelee++;
+				Left4Bots.TeamChainsaws += (cls == "weapon_chainsaw").tointeger();
+				Left4Bots.TeamMelee += (cls == "weapon_melee").tointeger();
 			}
 			
 			if (INV_SLOT_THROW in inv)
 			{
 				local cls = inv[INV_SLOT_THROW].GetClassname();
 				
-				if (cls == "weapon_molotov")
-					Left4Bots.TeamMolotovs++;
-				else if (cls == "weapon_pipe_bomb")
-					Left4Bots.TeamPipeBombs++;
-				else if (cls == "weapon_vomitjar")
-					Left4Bots.TeamVomitJars++;
+				Left4Bots.TeamMolotovs += (cls == "weapon_molotov").tointeger();
+				Left4Bots.TeamPipeBombs += (cls == "weapon_pipe_bomb").tointeger();
+				Left4Bots.TeamVomitJars += (cls == "weapon_vomitjar").tointeger();
 			}
 			
 			if (INV_SLOT_MEDKIT in inv)
 			{
 				local cls = inv[INV_SLOT_MEDKIT].GetClassname();
 				
-				if (cls == "weapon_first_aid_kit")
-					Left4Bots.TeamMedkits++;
-				else if (cls == "weapon_defibrillator")
-					Left4Bots.TeamDefibs++;
+				Left4Bots.TeamMedkits += (cls == "weapon_first_aid_kit").tointeger();
+				Left4Bots.TeamDefibs += (cls == "weapon_defibrillator").tointeger();
 			}
 		}
 	}
