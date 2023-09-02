@@ -2320,7 +2320,7 @@ IncludeScript("left4bots_settings");
 	DoEntFire("!self", "SpeakResponseConcept", "PanicEvent", 0, null, player);
 	DoEntFire("!self", "ClearContext", "", 0, null, player);
 	
-	foreach (surv in ::Left4Utils.GetOtherAliveSurvivors(player))
+	foreach (surv in ::Left4Utils.GetOtherAliveSurvivors(player.GetPlayerUserId()))
 	{
 		DoEntFire("!self", "AddContext", "subject:" + actor, 0, null, surv);
 		DoEntFire("!self", "AddContext", "panictype:CarAlarm", 0, null, surv);
@@ -2549,7 +2549,7 @@ Left4Bots.GetOtherMedkitSpawn <- function (srcSpawn, radius = 100.0)
 	
 	if (weaponname)
 	{
-		Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.DoSignal - " + who.GetPlayerName() + " -> " + what.GetClassname() + " - " + concept + " - " + weaponname);
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "DoSignal - " + who.GetPlayerName() + " -> " + what.GetClassname() + " - " + concept + " - " + weaponname);
 		
 		//DoEntFire("!self", "AddContext", "subject:" + actor, 0, null, who);
 		DoEntFire("!self", "AddContext", "weaponname:" + weaponname, 0, null, who);
@@ -2568,6 +2568,66 @@ Left4Bots.GetOtherMedkitSpawn <- function (srcSpawn, radius = 100.0)
 	
 	if (Left4Bots.L4F && Left4Bots.Settings.signal_ping)
 		Left4Fun.PingEnt(who, what);
+}
+
+// Returns the number of other survivors alive (and not incapacitated) whithin the given radius
+::Left4Bots.CountOtherStandingSurvivorsWithin <- function (me, radius)
+{
+	local ret = 0;
+	foreach (surv in ::Left4Bots.GetOtherAliveSurvivors(me.GetPlayerUserId()))
+	{
+		if (!surv.IsIncapacitated() && (surv.GetOrigin() - me.GetOrigin()).Length() <= radius)
+			ret++;
+	}
+	return ret;
+}
+
+// Cancels the revive and forces the bot to throw its pipe bomb/vomit jar
+// 'bot' and 'subject' are the bot who is reviving and the survivor who is being revived
+// 'pos' is the desired throw location
+::Left4Bots.CancelReviveAndThrowNade <- function (bot, subject, pos)
+{
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "CancelReviveAndThrowNade - bot: " + bot.GetPlayerName() + " - subject: " + subject.GetPlayerName());
+			
+	NetProps.SetPropEntity(bot, "m_reviveTarget", null);
+	NetProps.SetPropEntity(subject, "m_reviveOwner", null);
+	
+	Left4Utils.BotCmdReset(bot);
+	
+	//Left4Bots.BotThrow(bot, pos);
+	Left4Timers.AddTimer(null, 0.01, @(params) Left4Bots.BotThrow(params.bot, params.pos), { bot = bot, pos = pos });
+}
+
+// Called when a survivor is pinned by a special infected
+// attackType can be:
+// - charger_carry_start (start of the carry phase of the charger's charge)
+// - charger_pummel_start (start of the pummel phase of the charger's charge)
+// - tongue_grab (grabbed by the smoker's tongue)
+// - jockey_ride (ridden by the jockey)
+// - lunge_pounce (pounced by the hunter)
+::Left4Bots.SpecialGotSurvivor <- function (special, survivor, attackType)
+{
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "SpecialGotSurvivor - special: " + special.GetPlayerName() + " - survivor: " + survivor.GetPlayerName() + " - attackType: " + attackType);
+	
+	/*
+	foreach (id, bot in ::Left4Bots.Bots)
+	{
+		if (bot.IsValid() && id != survivor.GetPlayerUserId())
+			Left4Utils.BotCmdAttack(bot, special);
+	}
+	*/
+	
+	if (Left4Bots.IsHandledBot(survivor))
+	{
+		// If survivor is an handled bot, it should immediately pause any current task
+		// This should fix the problem of the bot not being pulled by the smoker's tongue if the bot was executing the 'wait' order (https://github.com/smilz0/Left4Bots/issues/2)
+		local scope = survivor.GetScriptScope();
+		if (scope.Paused == 0)
+		{
+			scope.Paused = Time();
+			scope.BotOnPause();
+		}
+	}
 }
 
 //

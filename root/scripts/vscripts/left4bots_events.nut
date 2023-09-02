@@ -600,6 +600,31 @@ Msg("Including left4bots_events...\n");
 	}
 }
 
+::Left4Bots.Events.OnGameEvent_revive_begin <- function (params)
+{
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_revive_begin");
+	
+	local player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+	if (!Left4Bots.IsHandledBot(player))
+		return;
+
+	local item = Left4Utils.GetInventoryItemInSlot(player, INV_SLOT_THROW);
+	if (!item || !item.IsValid())
+		return;
+	
+	local itemClass = item.GetClassname();
+	if (((Left4Bots.Settings.throw_pipebomb && itemClass == "weapon_pipe_bomb") || (Left4Bots.Settings.throw_vomitjar && itemClass == "weapon_vomitjar")) &&
+		//NetProps.GetPropInt(player, "m_hasVisibleThreats") &&
+		(Time() - Left4Bots.LastNadeTime) >= Left4Bots.Settings.throw_nade_interval &&
+		Left4Bots.CountOtherStandingSurvivorsWithin(player, 300) < 2 &&
+		Left4Bots.HasAngryCommonsWithin(player.GetOrigin(), 3, 500, 150))
+	{
+		local pos = Left4Utils.BotGetFarthestPathablePos(player, Left4Bots.Settings.throw_nade_radius);
+		if (pos && (pos - player.GetOrigin()).Length() >= Left4Bots.Settings.throw_nade_mindistance)
+			Left4Timers.AddTimer(null, 0.1, @(params) Left4Bots.CancelReviveAndThrowNade(params.bot, params.subject, params.pos), { bot = player, subject = g_MapScript.GetPlayerFromUserID(params["subject"]), pos = pos });
+	}
+}
+
 ::Left4Bots.Events.OnGameEvent_finale_escape_start <- function (params)
 {
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_finale_escape_start");
@@ -617,7 +642,7 @@ Msg("Including left4bots_events...\n");
 ::Left4Bots.Events.OnGameEvent_door_close <- function (params)
 {
 	local checkpoint = params["checkpoint"];
-	// TODO: is there any other way to know if we are in the exit checkoint? Director.IsAnySurvivorInExitCheckpoint() doesn't even work. It returns true for the starting checkpoint too
+	// TODO: is there any other way to know if we are in the exit checkpoint? Director.IsAnySurvivorInExitCheckpoint() doesn't even work. It returns true for the starting checkpoint too
 	if (checkpoint && Left4Bots.Settings.anti_pipebomb_bug /*&& Director.IsAnySurvivorInExitCheckpoint()*/ && Left4Bots.OtherSurvivorsInCheckpoint(-1)) // -1 is like: is everyone in checkpoint?
 	{
 		Left4Bots.ClearPipeBombs();
@@ -975,6 +1000,46 @@ Msg("Including left4bots_events...\n");
 		NetProps.SetPropFloat(infected, "m_wanderrage", 1.0);
 		Left4Utils.BotCmdAttack(infected, attacker);
 	}
+}
+
+::Left4Bots.Events.OnGameEvent_charger_carry_start <- function (params)
+{
+	local player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+	local victim = g_MapScript.GetPlayerFromUserID(params["victim"]);
+	
+	Left4Bots.SpecialGotSurvivor(player, victim, "charger_carry_start");
+}
+
+::Left4Bots.Events.OnGameEvent_charger_pummel_start <- function (params)
+{
+	local player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+	local victim = g_MapScript.GetPlayerFromUserID(params["victim"]);
+	
+	Left4Bots.SpecialGotSurvivor(player, victim, "charger_pummel_start");
+}
+
+::Left4Bots.Events.OnGameEvent_tongue_grab <- function (params)
+{
+	local player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+	local victim = g_MapScript.GetPlayerFromUserID(params["victim"]);
+	
+	Left4Bots.SpecialGotSurvivor(player, victim, "tongue_grab");
+}
+
+::Left4Bots.Events.OnGameEvent_jockey_ride <- function (params)
+{
+	local player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+	local victim = g_MapScript.GetPlayerFromUserID(params["victim"]);
+	
+	Left4Bots.SpecialGotSurvivor(player, victim, "jockey_ride");
+}
+
+::Left4Bots.Events.OnGameEvent_lunge_pounce <- function (params)
+{
+	local player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+	local victim = g_MapScript.GetPlayerFromUserID(params["victim"]);
+	
+	Left4Bots.SpecialGotSurvivor(player, victim, "lunge_pounce");
 }
 
 //
@@ -1786,7 +1851,7 @@ Available commands:
 	<botsource> heal <target>	: The order is added to the given bot(s) orders queue. The bot(s) will heal the target survivor (target can also be the bot himself or the keyword "me" to heal you)
 	<botsource> goto			: The order is added to the given bot(s) orders queue. The bot(s) will go to the location you are looking at
 	<botsource> goto <target>	: The order is added to the given bot(s) orders queue. The bot(s) will go to the current target's position (target can be another survivor or the keyword "me" to come to you)
-	<botsource> come			: The order is added to the given bot(s) orders queue. The bot(s) will come to your current location (alias of "botsource goto me")
+	<botsource> come			: The order is added to the given bot(s) orders queue. The bot(s) will come to your current location (alias of "<botsource> goto me")
 	<botsource> wait			: The order is added to the given bot(s) orders queue. The bot(s) will hold his/their current position
 	<botsource> wait here		: The order is added to the given bot(s) orders queue. The bot(s) will hold position at your current position
 	<botsource> wait there		: The order is added to the given bot(s) orders queue. The bot(s) will hold position at the location you are looking at
@@ -1799,7 +1864,7 @@ Available commands:
 	<botsource> swap			: The order is executed immediately. You will swap the item you are holding (only for items from the pills/throwable/medkit inventory slots) with the selected bot. "bot" and "bots" botsources will both select the bot you are looking at
 	<botsource> tempheal		: The order is executed immediately. The bot(s) will use their pain pils/adrenaline. If "bot" botsource is used, the selected bot will be the bot you are looking at
 	<botsource> deploy			: The order is executed immediately. The bot(s) will deploy their upgrade pack
-	<botsource> die				: The order is executed immediately. The bot(s) will die. If "bot" botsource is used, the selected bot will be the bot you are looking at. NOTE: only admins can use this command
+	<botsource> die				: The order is executed immediately. The bot(s) will die. If "bot" botsource is used, the selected bot will be the bot you are looking at. NOTE: only the admins can use this command
 	<botsource> scavenge start	: Starts the scavenge process. The botsource parameter is ignored, the scavenge bot(s) are always selected automatically
 	<botsource> scavenge stop	: Stops the scavenge process. The botsource parameter is ignored, the scavenge bot(s) are always selected automatically
 	<botsource> move			: Alias of "<botsource> cancel all" (see below)
