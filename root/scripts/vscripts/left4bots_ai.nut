@@ -2005,13 +2005,17 @@ enum AI_DOOR_ACTION {
 		case "wait":
 		{
 			// https://github.com/smilz0/Left4Bots/issues/2
+			/* Thre is a better way to do this with m_hGroundEntity
 			local area = self.GetLastKnownArea(); // Get the area currently occupied by the bot
 			if (area && area.GetElevator())
+			*/
+			local gEnt = NetProps.GetPropEntity(self, "m_hGroundEntity");
+			if (gEnt && gEnt.IsValid() && gEnt.GetClassname() == "func_elevator")
 			{
-				// Terminate the current wait order if its wait location is in an elevator
-				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Terminating wait order with wait position in elevator");
+				// Cancel the current wait order if its wait location is in an elevator
+				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Cancelling wait order with wait position in elevator");
 				
-				//BotCancelCurrentOrder(); // not needed. orderComplete = true will terminate it
+				BotCancelCurrentOrder(); // This is actually needed. orderComplete = true does not reset the MOVE
 			}
 			else
 			{
