@@ -1864,6 +1864,7 @@ Available commands:
 	<botsource> swap			: The order is executed immediately. You will swap the item you are holding (only for items from the pills/throwable/medkit inventory slots) with the selected bot. "bot" and "bots" botsources will both select the bot you are looking at
 	<botsource> tempheal		: The order is executed immediately. The bot(s) will use their pain pils/adrenaline. If "bot" botsource is used, the selected bot will be the bot you are looking at
 	<botsource> deploy			: The order is executed immediately. The bot(s) will deploy their upgrade pack
+	<botsource> throw [item]	: The order is executed immediately. The bot(s) will throw their throwable item to the location you are looking at. The bot(s) must have the given [item] type (or any throwable item if [item] is not supplied)
 	<botsource> die				: The order is executed immediately. The bot(s) will die. If "bot" botsource is used, the selected bot will be the bot you are looking at. NOTE: only the admins can use this command
 	<botsource> scavenge start	: Starts the scavenge process. The botsource parameter is ignored, the scavenge bot(s) are always selected automatically
 	<botsource> scavenge stop	: Stops the scavenge process. The botsource parameter is ignored, the scavenge bot(s) are always selected automatically
@@ -2520,6 +2521,56 @@ settings
 					}
 					else
 						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
+				}
+				
+				return true;
+			}
+			case "throw":
+			{
+				local destination = Left4Utils.GetLookingTarget(player);
+				if (!destination)
+					return true; // Invalid destination
+				
+				local destPos = destination;
+				if ((typeof destPos) == "instance")
+					destPos = destPos.GetOrigin();
+				
+				local item = null;
+				if (arg3)
+				{
+					item = arg3.tolower();
+					if (item.find("molotov") != null)
+						item = "weapon_molotov";
+					else if (item.find("pipe") != null)
+						item = "weapon_pipe_bomb";
+					else if (item.find("bile") != null)
+						item = "weapon_vomitjar";
+					else
+						return true; // bad item name
+				}
+				
+				if (allBots)
+				{
+					// bots throw [item]
+					foreach (bot in Left4Bots.Bots)
+					{
+						if (Left4Bots.BotCanThrow(bot, item))
+							Left4Bots.BotThrow(bot, destPos);
+					}
+				}
+				else
+				{
+					// bot/botname throw [item]
+					if (!tgtBot)
+						tgtBot = Left4Bots.GetFirstAvailableBotForThrow(destPos, item);
+					
+					if (!tgtBot || !Left4Bots.BotCanThrow(tgtBot, item))
+					{
+						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
+						return true;
+					}
+					
+					Left4Bots.BotThrow(tgtBot, destPos);
 				}
 				
 				return true;

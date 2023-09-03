@@ -92,6 +92,7 @@ const LOG_LEVEL_DEBUG = 4;
 		swap = 0
 		tempheal = 0
 		deploy = 0
+		//throw = 0  // Maybe there is a way to do this?
 		scavenge = 0
 		move = 0
 		cancel = 0
@@ -145,6 +146,8 @@ const LOG_LEVEL_DEBUG = 4;
 	LastSignalType = ""
 	LastSignalTime = 0
 }
+
+::Left4Bots.AllCommands["throw"] <- 0;
 
 IncludeScript("left4bots_settings");
 
@@ -312,6 +315,7 @@ IncludeScript("left4bots_settings");
 			//"TODO = bots warp",
 			//"TODO = bot tempheal",
 			//"TODO = bot deploy",
+			//"TODO = bot throw",
 			//"TODO = bots die",
 			//"PlayerYellRun = ?",
 			//"PlayerImWithYou = next thing to do" // TODO:
@@ -1346,6 +1350,37 @@ IncludeScript("left4bots_settings");
 	return ret;
 }
 
+// Returns closest (to 'destPos') bot with an item of class 'itemClass' (if 'itemClass' is not null) or with any throwable item (if 'itemClass' is null)
+::Left4Bots.GetFirstAvailableBotForThrow <- function (destPos, itemClass = null)
+{
+	local ret = null;
+	local minDist = 999999;
+	foreach (bot in ::Left4Bots.Bots)
+	{
+		if (Left4Bots.BotCanThrow(bot, itemClass))
+		{
+			local d = (bot.GetOrigin() - destPos).Length();
+			if (d < minDist)
+			{
+				ret = bot;
+				minDist = d;
+			}
+		}
+	}
+	
+	return ret;
+}
+
+// Returns whether the given 'bot' is currently able to throw the item of class 'itemClass' (if not null) or any throwable item (if 'itemClass' is null)
+::Left4Bots.BotCanThrow <- function (bot, itemClass = null)
+{
+	if (!bot || !bot.IsValid() || bot.IsDead() || bot.IsDying() || bot.IsIncapacitated() || Left4Bots.SurvivorCantMove(bot, bot.GetScriptScope().Waiting))
+		return false;
+	
+	local item = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_THROW);
+	return (item && item.IsValid() && (!itemClass || item.GetClassname() == itemClass));
+}
+
 // Returns the bot's throw target (if any) for the throw item of class 'throwableClass'
 // Returned value can be an entity (in case the target is the tank), a vector with the target position (in case it's against an horde), null if no target
 ::Left4Bots.GetThrowTarget <- function (bot, userid, orig, throwableClass)
@@ -1450,14 +1485,14 @@ IncludeScript("left4bots_settings");
 {
 	if (!throwTarget || throwType == AI_THROW_TYPE.None)
 		return false;
-	
-	// Is someone else already going to throw this?
-	if (Left4Bots.IsSomeoneElseHolding(userid, throwClass))
-		return false;
 
 	// No, go on...
 	if (throwType == AI_THROW_TYPE.Tank)
 	{
+		// Is someone else already going to throw this?
+		if (Left4Bots.IsSomeoneElseHolding(userid, throwClass))
+			return false;
+		
 		// Can we actually throw this item?
 		if ((throwClass == "weapon_molotov" && (!Left4Bots.Settings.throw_molotov || (Time() - Left4Bots.LastMolotovTime) < Left4Bots.Settings.throw_molotov_interval)) || (throwClass == "weapon_vomitjar" && (!Left4Bots.Settings.throw_vomitjar || (Time() - Left4Bots.LastNadeTime) < Left4Bots.Settings.throw_nade_interval)))
 			return false; // No
@@ -1469,6 +1504,10 @@ IncludeScript("left4bots_settings");
 	}
 	else if (throwType == AI_THROW_TYPE.Horde)
 	{
+		// Is someone else already going to throw this?
+		if (Left4Bots.IsSomeoneElseHolding(userid, throwClass))
+			return false;
+		
 		// Can we actually throw this item?
 		if ((throwClass == "weapon_pipe_bomb" && !Left4Bots.Settings.throw_pipebomb) || (throwClass == "weapon_vomitjar" && !Left4Bots.Settings.throw_vomitjar) || (Time() - Left4Bots.LastNadeTime) < Left4Bots.Settings.throw_nade_interval)
 			return false; // No
