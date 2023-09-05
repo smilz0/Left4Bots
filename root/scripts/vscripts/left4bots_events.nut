@@ -1822,7 +1822,23 @@ Left4Bots.OnThinker <- function (params)
 {
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnTankActive");
 	
-	// TODO
+	// Settings
+	foreach (key, val in ::Left4Bots.OnTankSettings)
+	{
+		Left4Bots.OnTankSettingsBak[key] <- Left4Bots.Settings[key];
+		Left4Bots.Settings[key] <- val;
+		
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "Changing setting " + key + " to " + val);
+	}
+	
+	// Convars
+	foreach (key, val in ::Left4Bots.OnTankCvars)
+	{
+		Left4Bots.OnTankCvarsBak[key] <- Convars.GetStr(key);
+		Convars.SetValue(key, val);
+		
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "Changing convar " + key + " to " + val);
+	}
 }
 
 // Last tank alive is dead
@@ -1830,7 +1846,23 @@ Left4Bots.OnThinker <- function (params)
 {
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnTankGone");
 	
-	// TODO
+	// Settings
+	foreach (key, val in ::Left4Bots.OnTankSettingsBak)
+	{
+		Left4Bots.Settings[key] <- val;
+		
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "Changing setting " + key + " back to " + val);
+	}
+	Left4Bots.OnTankSettingsBak.clear();
+	
+	// Convars
+	foreach (key, val in ::Left4Bots.OnTankCvarsBak)
+	{
+		Convars.SetValue(key, val);
+		
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "Changing convar " + key + " back to " + val);
+	}
+	Left4Bots.OnTankCvarsBak.clear();
 }
 
 /* Handle user commands
@@ -1913,42 +1945,32 @@ settings
 			{
 				try
 				{
-					local value = arg3.tointeger();
-					::Left4Bots.Settings[arg2] <- value;
+					//local value = arg3.tointeger();
+					//::Left4Bots.Settings[arg2] <- value;
 					
-					/* TODO
+					local script = "::Left4Bots.Settings." + arg2 + " <- " + arg3;
+					
+					Left4Bots.Log(LOG_LEVEL_DEBUG, "OnUserCommand - script: " + script);
+					
+					local compiledscript = compilestring(script);
+					compiledscript();
+					
 					if (arg2 in ::Left4Bots.OnTankSettingsBak)
-						::Left4Bots.OnTankSettingsBak[arg2] <- value;
+						::Left4Bots.OnTankSettingsBak[arg2] <- Left4Bots.Settings[arg2];
 					
-					local trueSettings = clone ::Left4Bots.Settings;
-					foreach (key, val in ::Left4Bots.OnTankSettingsBak)
-						trueSettings[key] <- val;
+					// Probably not the best way to do this but at least we aren't saving the settings override to the settings.txt file and we don't need to worry about the OnTankSettings
+					::Left4Bots.SettingsTmp <- {};
+					Left4Utils.LoadSettingsFromFile("left4bots2/cfg/settings.txt", "Left4Bots.SettingsTmp.", Left4Bots.Log, true);
+					::Left4Bots.SettingsTmp[arg2] <- Left4Bots.Settings[arg2];
+					Left4Utils.SaveSettingsToFile("left4bots2/cfg/settings.txt", ::Left4Bots.SettingsTmp, Left4Bots.Log);
 					
-					Left4Utils.SaveSettingsToFile("left4bots2/cfg/settings.txt", trueSettings, Left4Bots.Log);
-					*/
-					
-					Left4Utils.SaveSettingsToFile("left4bots2/cfg/settings.txt", ::Left4Bots.Settings, Left4Bots.Log);
-					
-					if (arg2 == "should_hurry")
-					{
-						if (value)
-						{
-							DirectorScript.GetDirectorOptions().cm_ShouldHurry <- 1;
+					// Maybe we can just keep this in memory and avoid to reload it every time?
+					delete ::Left4Bots.SettingsTmp;
 
-							Left4Bots.Log(LOG_LEVEL_DEBUG, "cm_ShouldHurry = 1");
-						}
-						else
-						{
-							DirectorScript.GetDirectorOptions().cm_ShouldHurry <- 0;
-							
-							//if ("cm_ShouldHurry" in DirectorScript.GetDirectorOptions())
-							//	delete DirectorScript.GetDirectorOptions().cm_ShouldHurry;
-							
-							Left4Bots.Log(LOG_LEVEL_DEBUG, "cm_ShouldHurry = 0");
-						}
-					}
+					if (arg2 == "should_hurry")
+						DirectorScript.GetDirectorOptions().cm_ShouldHurry <- Left4Bots.Settings[arg2];
 					
-					ClientPrint(player, 3, "\x05 Value of setting " + arg2 + " changed to: " + value);
+					ClientPrint(player, 3, "\x05 Value of setting " + arg2 + " changed to: " + Left4Bots.Settings[arg2]);
 				}
 				catch(exception)
 				{
