@@ -19,21 +19,6 @@
 - [L4D][INFO]   255 |                           func_breakable |                                                 bridge_dummy | 000123.5000,005637.0000,000305.0600 | *22
 - [L4D][INFO]   331 |                             prop_dynamic |                                               bridge_barrels | 000124.3540,005650.7798,000280.0000 | models/props/de_train/pallet_barrels.mdl
 
-
------ IMPROV:
-
-- auto crown witch
-- All close saferoom door
-- Lead detour
-- Spit/Flames not stuck
-- 'follow' (new)
-
-- l4u
-- close saferoom door
-- 'wait'
-- dodge rock
-- Weapon preferences
-
 */
 
 //------------------------------------------------------
@@ -145,6 +130,10 @@ const LOG_LEVEL_DEBUG = 4;
 	L4F = false
 	LastSignalType = ""
 	LastSignalTime = 0
+	OnTankSettings = {}
+	OnTankSettingsBak = {}
+	OnTankCvars = {}
+	OnTankCvarsBak = {}
 }
 
 ::Left4Bots.AllCommands["throw"] <- 0;
@@ -193,7 +182,7 @@ IncludeScript("left4bots_settings");
 	
 	Left4Bots.LoadSettingsOverride();
 	
-	Left4Utils.PrintSettings(::Left4Bots.Settings, Left4Bots.Log, "[Settings] ");
+	Left4Utils.PrintSettings(::Left4Bots.Settings, Left4Bots.Log, "[Settings] ");	
 	
 	if (Left4Bots.Settings.file_convars != "")
 	{
@@ -221,6 +210,20 @@ IncludeScript("left4bots_settings");
 	}
 	else
 		Left4Bots.Log(LOG_LEVEL_INFO, "Vocalizer file was not loaded (settings.file_vocalizer is empty)");
+
+	if (Left4Utils.FileExists("left4bots2/cfg/ontank_settings.txt"))
+	{
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loading OnTank settings...");
+		Left4Utils.LoadSettingsFromFile("left4bots2/cfg/ontank_settings.txt", "Left4Bots.OnTankSettings.", Left4Bots.Log, true);
+	}
+	Left4Utils.PrintSettings(::Left4Bots.OnTankSettings, Left4Bots.Log, "[OnTank Settings] ");
+	
+	if (Left4Utils.FileExists("left4bots2/cfg/ontank_convars.txt"))
+	{
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loading OnTank convars...");
+		local c = Left4Bots.LoadOnTankCvarsFromFile("left4bots2/cfg/ontank_convars.txt");
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loaded " + c + " OnTank convars");
+	}
 
 	// Put the vocalizer lines into arrays
 	if (Left4Bots.Settings.vocalizer_lead_start != "")
@@ -255,6 +258,44 @@ IncludeScript("left4bots_settings");
 
 ::Left4Bots.DefaultConfigFiles <- function ()
 {
+	// Default settings overrides for 'Advanced' difficulty
+	if (!Left4Utils.FileExists("left4bots2/cfg/settings_hard.txt"))
+	{
+		local defaultText = @"close_saferoom_door_highres = 1
+heal_interrupt_minhealth = 40
+horde_nades_chance = 35
+jockey_redirect_damage = 45
+manual_attack_mindot = 0.90
+shove_deadstop_chance = 100
+spit_block_nav = 1
+tank_molotov_chance = 50
+tank_throw_survivors_mindistance = 250";
+		
+		Left4Utils.StringToFileCRLF("left4bots2/cfg/settings_hard.txt", defaultText);
+		Left4Bots.Log(LOG_LEVEL_INFO, "Settings override file for 'Advanced' difficulty was not found and has been recreated");
+	}
+	
+	// Default settings overrides for 'Expert' difficulty
+	if (!Left4Utils.FileExists("left4bots2/cfg/settings_impossible.txt"))
+	{
+		local defaultText = @"close_saferoom_door_all_chance = 0
+close_saferoom_door_highres = 1
+heal_interrupt_minhealth = 30
+horde_nades_chance = 35
+jockey_redirect_damage = 50
+manual_attack_mindot = 0.90
+scavenge_max_bots = 1
+shove_deadstop_chance = 100
+signal_chat = 1
+spit_block_nav = 1
+tank_molotov_chance = 50
+tank_throw_survivors_mindistance = 260
+witch_autocrown = 0";
+		
+		Left4Utils.StringToFileCRLF("left4bots2/cfg/settings_impossible.txt", defaultText);
+		Left4Bots.Log(LOG_LEVEL_INFO, "Settings override file for 'Expert' difficulty was not found and has been recreated");
+	}
+	
 	// Default convars.txt file
 	if (!Left4Utils.FileExists("left4bots2/cfg/convars.txt"))
 	{
@@ -264,7 +305,6 @@ IncludeScript("left4bots_settings");
 			"allow_all_bot_survivor_team 1",
 			"sb_all_bot_game 1",
 			"sb_debug_apoproach_wait_time 0.5" // This is how long the bot will jiggle on the destination spot of a MOVE command before returning the control to the vanilla AI (default: 5)
-			//"sb_enforce_proximity_range 20000"  // How far the bot must be from the human before teleporting (default: 1500)
 			// "sb_unstick 0" // TODO: unstick logic
 		];
 
@@ -473,20 +513,60 @@ IncludeScript("left4bots_settings");
 
 ::Left4Bots.LoadSettingsOverride <- function ()
 {
-	if (Left4Utils.FileExists("left4bots2/cfg/settings_" + Left4Bots.MapName + "_" + Left4Bots.Difficulty + ".txt"))
+	// 1. settings_[map]_[difficulty]_[mode].txt
+	local fileName = "left4bots2/cfg/settings_" + Left4Bots.MapName + "_" + Left4Bots.Difficulty + "_" + Left4Bots.ModeName + ".txt"
+	if (Left4Utils.LoadSettingsFromFile(fileName, "Left4Bots.Settings.", Left4Bots.Log))
 	{
-		Left4Bots.Log(LOG_LEVEL_INFO, "Loading settings map-difficulty override...");
-		Left4Utils.LoadSettingsFromFile("left4bots2/cfg/settings_" + Left4Bots.MapName + "_" + Left4Bots.Difficulty + ".txt", "Left4Bots.Settings.", Left4Bots.Log);
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loaded settings overrides from: " + fileName);
+		return;
 	}
-	else if (Left4Utils.FileExists("left4bots2/cfg/settings_" + Left4Bots.Difficulty + ".txt"))
+	
+	// 2. settings_[difficulty]_[mode].txt
+	fileName = "left4bots2/cfg/settings_" + Left4Bots.Difficulty + "_" + Left4Bots.ModeName + ".txt"
+	if (Left4Utils.LoadSettingsFromFile(fileName, "Left4Bots.Settings.", Left4Bots.Log))
 	{
-		Left4Bots.Log(LOG_LEVEL_INFO, "Loading settings difficulty override...");
-		Left4Utils.LoadSettingsFromFile("left4bots2/cfg/settings_" + Left4Bots.Difficulty + ".txt", "Left4Bots.Settings.", Left4Bots.Log);
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loaded settings overrides from: " + fileName);
+		return;
 	}
-	else if (Left4Utils.FileExists("left4bots2/cfg/settings_" + Left4Bots.MapName + ".txt"))
+	
+	// 3. settings_[map]_[mode].txt
+	fileName = "left4bots2/cfg/settings_" + Left4Bots.MapName + "_" + Left4Bots.ModeName + ".txt"
+	if (Left4Utils.LoadSettingsFromFile(fileName, "Left4Bots.Settings.", Left4Bots.Log))
 	{
-		Left4Bots.Log(LOG_LEVEL_INFO, "Loading settings map override...");
-		Left4Utils.LoadSettingsFromFile("left4bots2/cfg/settings_" + Left4Bots.MapName + ".txt", "Left4Bots.Settings.", Left4Bots.Log);
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loaded settings overrides from: " + fileName);
+		return;
+	}
+	
+	// 4. settings_[mode].txt
+	fileName = "left4bots2/cfg/settings_" + Left4Bots.ModeName + ".txt"
+	if (Left4Utils.LoadSettingsFromFile(fileName, "Left4Bots.Settings.", Left4Bots.Log))
+	{
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loaded settings overrides from: " + fileName);
+		return;
+	}
+	
+	// 5. settings_[map]_[difficulty].txt
+	fileName = "left4bots2/cfg/settings_" + Left4Bots.MapName + "_" + Left4Bots.Difficulty + ".txt"
+	if (Left4Utils.LoadSettingsFromFile(fileName, "Left4Bots.Settings.", Left4Bots.Log))
+	{
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loaded settings overrides from: " + fileName);
+		return;
+	}
+	
+	// 6. settings_[difficulty].txt
+	fileName = "left4bots2/cfg/settings_" + Left4Bots.Difficulty + ".txt"
+	if (Left4Utils.LoadSettingsFromFile(fileName, "Left4Bots.Settings.", Left4Bots.Log))
+	{
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loaded settings overrides from: " + fileName);
+		return;
+	}
+	
+	// 7. settings_[map].txt
+	fileName = "left4bots2/cfg/settings_" + Left4Bots.MapName + ".txt"
+	if (Left4Utils.LoadSettingsFromFile(fileName, "Left4Bots.Settings.", Left4Bots.Log))
+	{
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loaded settings overrides from: " + fileName);
+		return;
 	}
 }
 
@@ -505,6 +585,49 @@ IncludeScript("left4bots_settings");
 			ret.append(item);
 	}
 	return ret;
+}
+
+::Left4Bots.LoadOnTankCvarsFromFile <- function (fileName)
+{
+	Left4Bots.OnTankCvars.clear();
+	
+	local count = 0;
+	
+	local cvars = Left4Utils.FileToStringList(fileName);
+	if (!cvars)
+		return count;
+	
+	foreach (cvar in cvars)
+	{
+		cvar = Left4Utils.StringReplace(cvar, "\\t", "");
+		cvar = Left4Utils.StripComments(cvar);
+		if (cvar && cvar != "")
+		{
+			cvar = strip(cvar);
+			if (cvar && cvar != "")
+			{
+				local idx = cvar.find(" ");
+				if (idx != null)
+				{
+					local command = cvar.slice(0, idx);
+					command = Left4Utils.StringReplace(command, "\"", "");
+					command = strip(command);
+					
+					local value = cvar.slice(idx + 1);
+					value = Left4Utils.StringReplace(value, "\"", "");
+					value = strip(value);
+					
+					Left4Bots.Log(LOG_LEVEL_DEBUG, "CVAR: " + command + " " + value);
+					
+					Left4Bots.OnTankCvars[command] <- value;
+					
+					count++;
+				}
+			}
+		}
+	}
+	
+	return count;
 }
 
 ::Left4Bots.AddonStop <- function ()
