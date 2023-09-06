@@ -32,7 +32,7 @@ Msg("Including left4bots_events...\n");
 	Left4Timers.AddTimer("InventoryManager", 0.5, Left4Bots.OnInventoryManager, {}, true);
 	
 	// Start the thinker
-	Left4Timers.AddThinker("L4BThinker", 0.0666, Left4Bots.OnThinker, {});
+	Left4Timers.AddThinker("L4BThinker", 0.0333, Left4Bots.OnThinker, {});
 	
 	DirectorScript.GetDirectorOptions().cm_ShouldHurry <- Left4Bots.Settings.should_hurry;
 }
@@ -1441,8 +1441,8 @@ Msg("Including left4bots_events...\n");
 			local inv = {};
 			GetInvTable(surv, inv);
 			
-			if (INV_SLOT_PRIMARY in inv) // Strings are a char array -- start at index 5, which is after "weapon", and the search should go by quicker.
-				Left4Bots.TeamShotguns += (inv[INV_SLOT_PRIMARY].GetClassname().find("shotgun", 5) != null).tointeger();
+			// Strings are a char array -- start the classname search at index 5, which is after "weapon", and the search should go by quicker.
+			Left4Bots.TeamShotguns += (INV_SLOT_PRIMARY in inv && inv[INV_SLOT_PRIMARY].GetClassname().find("shotgun", 5) != null).tointeger();
 			
 			if (INV_SLOT_SECONDARY in inv)
 			{
