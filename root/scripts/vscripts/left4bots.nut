@@ -2482,7 +2482,7 @@ witch_autocrown = 0";
 	DoEntFire("!self", "SpeakResponseConcept", "PanicEvent", 0, null, player);
 	DoEntFire("!self", "ClearContext", "", 0, null, player);
 	
-	foreach (surv in ::Left4Utils.GetOtherAliveSurvivors(player.GetPlayerUserId()))
+	foreach (surv in ::Left4Bots.GetOtherAliveSurvivors(player.GetPlayerUserId()))
 	{
 		DoEntFire("!self", "AddContext", "subject:" + actor, 0, null, surv);
 		DoEntFire("!self", "AddContext", "panictype:CarAlarm", 0, null, surv);
