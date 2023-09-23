@@ -145,16 +145,24 @@ IncludeScript("left4bots_settings");
 	if (level > Left4Bots.Settings.loglevel)
 		return;
 	
-	if (level == LOG_LEVEL_DEBUG)
-		printl("[L4B][DEBUG] " + text);
-	else if (level == LOG_LEVEL_INFO)
-		printl("[L4B][INFO] " + text);
-	else if (level == LOG_LEVEL_WARN)
-		error("[L4B][WARNING] " + text + "\n");
-	else if (level == LOG_LEVEL_ERROR)
-		error("[L4B][ERROR] " + text + "\n");
-	else
-		error("[L4B][" + level + "] " + text + "\n");
+	switch (level)
+	{
+		case LOG_LEVEL_DEBUG:
+			printl("[L4B][DEBUG] " + text);
+			break;
+		case LOG_LEVEL_INFO:
+			printl("[L4B][INFO] " + text);
+			break;
+		case LOG_LEVEL_WARN:
+			error("[L4B][WARNING] " + text + "\n");
+			break;
+		case LOG_LEVEL_ERROR:
+			error("[L4B][ERROR] " + text + "\n");
+			break;
+		default:
+			error("[L4B][" + level + "] " + text + "\n");
+			break;
+	}
 }
 
 // Left4Bots main initialization function
