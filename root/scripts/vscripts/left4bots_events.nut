@@ -396,14 +396,64 @@ Msg("Including left4bots_events...\n");
 	Left4Bots.OnInventoryManager(params);
 	//Left4Timers.AddTimer(null, 0.1, Left4Bots.OnInventoryManager, { });
 	
+	if (!Left4Bots.IsHandledBot(player))
+		return;
+	
+	local scope = player.GetScriptScope();
+	if (Left4Bots.Settings.use_carry_items && scope.CurrentOrder && scope.CurrentOrder.OrderType == "use" && scope.CurrentOrder.Param1)
+	{
+		local aw = player.GetActiveWeapon();
+		if (aw && aw.IsValid() && Left4Utils.GetWeaponId(aw) == scope.CurrentOrder.Param1)
+		{
+			// This is the carry item we just picked up via the use order
+			
+			scope.CarryItem = aw;
+			scope.CarryItemWeaponId = scope.CurrentOrder.Param1;
+			scope.CarryItemModel = aw.GetModelName();
+			
+			Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_item_pickup - bot: " + player.GetPlayerName() + " picked up the assigned carry item");
+			
+			Left4Users.AdminNotice(player.GetPlayerName() + " picked up the assigned carry item"); // TODO remove
+			
+			if (!Left4Utils.IsButtonDisabled(player, BUTTON_ATTACK))
+				Left4Utils.PlayerDisableButton(player, BUTTON_ATTACK);
+
+			local w = Left4Utils.GetInventoryItemInSlot(player, INV_SLOT_PRIMARY);
+			if (w)
+				NetProps.SetPropEntity(w, "m_hOwner", null); // This prevents the bot from switching to this weapon (and dropping the held item)
+			w = Left4Utils.GetInventoryItemInSlot(player, INV_SLOT_SECONDARY);
+			if (w)
+				NetProps.SetPropEntity(w, "m_hOwner", null);
+		}
+	}
+	
 	// Temporarily clear the weapons to search to prevent swiching back and forth with the dropped weapon, until the picked weapon is fully in our inventory and the next OnInventoryManager does update it
-	//if (Left4Bots.IsHandledBot(player))
-	//	player.GetScriptScope().WeaponsToSearch.clear();
+	//scope.WeaponsToSearch.clear();
 	//foreach (bot in Left4Bots.Bots)
 	//{
 	//	if (bot.IsValid())
 	//		bot.GetScriptScope().WeaponsToSearch.clear();
 	//}
+}
+
+// Called when the bot drops its "use" order carry item
+::Left4Bots.OnCarryItemDrop <- function(bot)
+{
+	if (Left4Utils.IsButtonDisabled(bot, BUTTON_ATTACK))
+	{
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "OnCarryItemDrop - bot: " + bot.GetPlayerName() + " dropped the assigned carry item");
+	
+		Left4Users.AdminNotice(bot.GetPlayerName() + " dropped the assigned carry item");
+		
+		Left4Utils.PlayerEnableButton(bot, BUTTON_ATTACK);
+	}
+
+	local w = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_PRIMARY);
+	if (w)
+		NetProps.SetPropEntity(w, "m_hOwner", bot);
+	w = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_SECONDARY);
+	if (w)
+		NetProps.SetPropEntity(w, "m_hOwner", bot);
 }
 
 ::Left4Bots.Events.OnGameEvent_player_use <- function (params)
@@ -1280,7 +1330,16 @@ Msg("Including left4bots_events...\n");
 			/// ...
 		}
 		
-		if (concept == "PlayerPourFinished")
+		if (concept == "PlayerChoke" || concept == "PlayerTonguePullStart")
+		{
+			if (Left4Bots.Settings.smoker_shoot_tongue)
+			{
+				local smoker = NetProps.GetPropEntity(who, "m_tongueOwner");
+				if (smoker && smoker.IsValid())
+					Left4Bots.DealWithSmoker(smoker, who, Left4Bots.Settings.smoker_shoot_tongue_duck);
+			}
+		}
+		else if (concept == "PlayerPourFinished")
 		{
 			local score = null;
 			local towin = null;
@@ -1471,6 +1530,10 @@ Msg("Including left4bots_events...\n");
 		}
 	}
 	
+	//Left4Bots.Log(LOG_LEVEL_DEBUG, "OnInventoryManager - TeamShotguns: " + Left4Bots.TeamShotguns + " - TeamChainsaws: " + Left4Bots.TeamChainsaws + " - Left4Bots.TeamMelee: " + Left4Bots.TeamMelee);
+	//Left4Bots.Log(LOG_LEVEL_DEBUG, "OnInventoryManager - TeamMolotovs: " + Left4Bots.TeamMolotovs + " - TeamPipeBombs: " + Left4Bots.TeamPipeBombs + " - Left4Bots.TeamVomitJars: " + Left4Bots.TeamVomitJars);
+	//Left4Bots.Log(LOG_LEVEL_DEBUG, "OnInventoryManager - TeamMedkits: " + Left4Bots.TeamMedkits + " - TeamDefibs: " + Left4Bots.TeamDefibs);
+	
 	// Then decide what we need
 	foreach (bot in ::Left4Bots.Bots)
 	{
@@ -1506,8 +1569,6 @@ Msg("Including left4bots_events...\n");
 	}
 	
 	local num_bots = Left4Bots.Settings.scavenge_max_bots;
-	//if (Left4Bots.MapName == "c1m2_streets")
-	//	num_bots = 1;
 	
 	// Add the required bots
 	while (Left4Bots.ScavengeBots.len() < num_bots && Left4Bots.ScavengeBots.len() < Left4Bots.Bots.len())
@@ -2134,79 +2195,82 @@ settings
 			}
 			case "use":
 			{
+				local tTable = Left4Utils.GetLookingTargetEx(player, TRACE_MASK_NPC_SOLID);
+				if (!tTable)
+					return true;
+
 				local holdTime = Left4Bots.Settings.button_holdtime_tap;
 				local target = null;
-				local tTable = Left4Utils.GetLookingTargetEx(player, TRACE_MASK_NPC_SOLID);
-				if (tTable)
+
+				if (tTable["ent"])
 				{
-					if (tTable["ent"])
-					{
-						local tClass = tTable["ent"].GetClassname();
-						if (tClass.find("weapon_") != null || tClass.find("prop_physics") != null || tClass.find("prop_minigun") != null || tClass.find("func_button") != null || tClass.find("trigger_finale") != null || tClass.find("prop_door_rotating") != null)
-							target = tTable["ent"];
-						else
-							target = Left4Bots.FindNearestUsable(tTable["pos"], 100);
-					}
+					local tClass = tTable["ent"].GetClassname();
+					if (tClass.find("weapon_") != null || tClass.find("prop_physics") != null || tClass.find("prop_minigun") != null || tClass.find("func_button") != null || tClass.find("trigger_finale") != null || tClass.find("prop_door_rotating") != null)
+						target = tTable["ent"];
 					else
-						target = Left4Bots.FindNearestUsable(tTable["pos"], 100);
+						target = Left4Bots.FindNearestUsable(tTable["pos"], 130);
+				}
+				else
+					target = Left4Bots.FindNearestUsable(tTable["pos"], 130);
+				
+				if (!target)
+					return true;
+
+				local targetClass = target.GetClassname();
+				local targetPos = null;
+				
+				if (targetClass.find("weapon_") != null || targetClass.find("prop_physics") != null)
+				{
+					//targetPos = null;
+				}
+				else if (targetClass.find("prop_minigun") != null)
+					targetPos = target.GetOrigin() - (target.GetAngles().Forward() * 50);
+				else if (targetClass.find("func_button") != null || targetClass.find("trigger_finale") != null || targetClass.find("prop_door_rotating") != null)
+				{
+					if (targetClass == "func_button_timed")
+						holdTime = NetProps.GetPropInt(target, "m_nUseTime") + 0.1;
 					
-					if (target)
+					local p = tTable["pos"];
+					local a = Left4Utils.VectorAngles(player.GetCenter() - tTable["pos"]);
+					
+					if (targetClass.find("trigger_finale") != null)
+						targetPos = Left4Bots.FindBestUseTargetPos(target, p, a, true, Left4Bots.Settings.scavenge_usetarget_debug);
+					else
+						targetPos = Left4Bots.FindBestUseTargetPos(target, p, a, false, Left4Bots.Settings.scavenge_usetarget_debug);
+					if (!targetPos)
+						targetPos = target.GetCenter();
+					
+					if (targetClass.find("func_button") != null)
 					{
-						local targetClass = target.GetClassname();
-						local targetPos = null;
-						
-						if (targetClass.find("weapon_") != null || targetClass.find("prop_physics") != null)
-							targetPos = null;
-						else if (targetClass.find("prop_minigun") != null)
-							targetPos = target.GetOrigin() - (target.GetAngles().Forward() * 50);
-						else if (targetClass.find("func_button") != null || targetClass.find("trigger_finale") != null || targetClass.find("prop_door_rotating") != null)
+						local glowEntName = NetProps.GetPropString(target, "m_sGlowEntity");
+						if (glowEntName && glowEntName != "")
 						{
-							if (targetClass == "func_button_timed")
-								holdTime = NetProps.GetPropInt(target, "m_nUseTime") + 0.1;
-							
-							local p = tTable["pos"];
-							local a = Left4Utils.VectorAngles(player.GetCenter() - tTable["pos"]);
-							
-							if (targetClass.find("trigger_finale") != null)
-								targetPos = Left4Bots.FindBestUseTargetPos(target, p, a, true, Left4Bots.Settings.scavenge_usetarget_debug);
-							else
-								targetPos = Left4Bots.FindBestUseTargetPos(target, p, a, false, Left4Bots.Settings.scavenge_usetarget_debug);
-							if (!targetPos)
-								targetPos = target.GetCenter();
-							
-							if (targetClass.find("func_button") != null)
-							{
-								local glowEntName = NetProps.GetPropString(target, "m_sGlowEntity");
-								if (glowEntName && glowEntName != "")
-								{
-									local glowEnt = Entities.FindByName(null, glowEntName);
-									if (glowEnt)
-										target = glowEnt;
-								}
-							}
-						}
-						else
-							target = null;
-						
-						if (target)
-						{
-							if (allBots)
-							{
-								foreach (bot in Left4Bots.Bots)
-									Left4Bots.BotOrderAdd(bot, arg2, player, target, targetPos, null, holdTime);
-							}
-							else
-							{
-								if (!tgtBot)
-									tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2, null, target.GetCenter());
-								
-								if (tgtBot)
-									Left4Bots.BotOrderAdd(tgtBot, arg2, player, target, targetPos, null, holdTime);
-								else
-									Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-							}
+							local glowEnt = Entities.FindByName(null, glowEntName);
+							if (glowEnt)
+								target = glowEnt;
 						}
 					}
+				}
+				else
+					target = null;
+				
+				if (!target)
+					return true;
+
+				if (allBots)
+				{
+					foreach (bot in Left4Bots.Bots)
+						Left4Bots.BotOrderAdd(bot, arg2, player, target, targetPos, null, holdTime);
+				}
+				else
+				{
+					if (!tgtBot)
+						tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2, null, target.GetCenter());
+					
+					if (tgtBot)
+						Left4Bots.BotOrderAdd(tgtBot, arg2, player, target, targetPos, null, holdTime);
+					else
+						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
 				}
 				
 				return true;

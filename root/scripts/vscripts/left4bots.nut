@@ -190,7 +190,7 @@ IncludeScript("left4bots_settings");
 	
 	Left4Bots.LoadSettingsOverride();
 	
-	Left4Utils.PrintSettings(::Left4Bots.Settings, Left4Bots.Log, "[Settings] ");	
+	Left4Utils.PrintSettings(::Left4Bots.Settings, Left4Bots.Log, "[Settings] ");
 	
 	if (Left4Bots.Settings.file_convars != "")
 	{
@@ -640,6 +640,10 @@ witch_autocrown = 0";
 
 ::Left4Bots.AddonStop <- function ()
 {
+	// This prevents the crash
+	foreach (bot in ::Left4Bots.Bots)
+		Left4Bots.OnCarryItemDrop(bot);
+	
 	// Stop the thinker
 	Left4Timers.RemoveThinker("L4BThinker");
 	
@@ -1122,8 +1126,27 @@ witch_autocrown = 0";
 	else
 	{
 		// It's the item itself, let's check if someone already picked it up
-		return (NetProps.GetPropInt(ent, "m_hOwner") <= 0);
+		return (ent.GetMoveParent() == null);
 	}
+}
+
+// Is the entity a valid use item?
+::Left4Bots.IsValidUseItem <- function (ent)
+{
+	if (!ent || !ent.IsValid())
+		return false;
+	
+	local cls = ent.GetClassname();
+	if (cls.find("weapon_") != null || cls == "prop_physics")
+	{
+		if (cls.find("_spawn") != null)
+			return (NetProps.GetPropInt(ent, "m_itemCount") > 0); // It's a spawner, we just check if the item count is still > 0
+		
+		return (ent.GetMoveParent() == null); // It's the item itself, check if someone already picked it up
+	}
+
+	return true;
+	//return (cls.find("func_button") != null || cls.find("prop_door_rotating") != null || cls == "trigger_finale" || cls == "prop_minigun" || cls == "prop_dynamic")
 }
 
 // Called when the bot's pick-up algorithm decides to pick the item up
@@ -1134,8 +1157,11 @@ witch_autocrown = 0";
 	if (!bot || !bot.IsValid() || !Left4Bots.IsValidPickup(item))
 		return;
 	
+	//Left4Utils.HasWeaponEnt <- function (player, weaponEnt)
+	Left4Utils.GetAmmoPercent(item)
+	
 	local weaponid = Left4Utils.GetWeaponId(item);
-	if (Left4Utils.HasWeaponId(bot, weaponid))
+	if (Left4Utils.HasWeaponId(bot, weaponid, Left4Utils.GetAmmoPercent(item)))
 		return;
 	
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "PickupFailsafe - " + bot.GetPlayerName() + " -> " + item.GetClassname() + " (" + weaponid + ")");
@@ -1957,7 +1983,7 @@ witch_autocrown = 0";
 	// Note: we are counting both weapon_first_aid_kit and weapon_first_aid_kit_spawn
 	while (ent = Entities.FindByClassnameWithin(ent, "weapon_first_aid_kit*", me.GetOrigin(), Left4Bots.Settings.heal_spare_medkits_radius))
 	{
-		if (ent.IsValid() && NetProps.GetPropEntity(ent, "m_hOwner") == null)
+		if (Left4Bots.IsValidPickup(ent) == null)
 		{
 			if (++count >= requiredMedkits)
 				return true;
@@ -2139,7 +2165,7 @@ witch_autocrown = 0";
 		//if (bot.IsValid() && (self.GetCenter() - bot.EyePosition()).Length() <= Left4Bots.Settings.rock_shoot_range)
 		if (bot.IsValid() && (self.GetCenter() - bot.EyePosition()).Length() <= Left4Bots.Settings.rock_shoot_range && NetProps.GetPropInt(bot, "m_reviveTarget") <= 0 && NetProps.GetPropInt(bot, "m_iCurrentUseAction") <= 0)
 		{
-			Left4Bots.BotPressButton(bot, BUTTON_ATTACK, BUTTON_HOLDTIME_TAP, self.GetCenter(), 0, 0, true);
+			Left4Utils.PlayerPressButton(bot, BUTTON_ATTACK, Left4Bots.Settings.button_holdtime_tap, self.GetCenter(), 0, 0, true);
 		
 			Left4Bots.Log(LOG_LEVEL_DEBUG, bot.GetPlayerName() + " shooting at rock " + self.GetEntityIndex());
 			
@@ -2263,10 +2289,9 @@ witch_autocrown = 0";
 	local ent = null;
 	while (ent = Entities.FindInSphere(ent, orig, radius))
 	{
-		if (NetProps.GetPropInt(ent, "m_hOwner") <= 0)
+		if (Left4Bots.IsValidUseItem(ent))
 		{
 			local dist = (ent.GetCenter() - orig).Length();
-			local entClass = ent.GetClassname();
 			if (dist < minDist && (entClass.find("weapon_") != null || entClass.find("prop_physics") != null || entClass.find("prop_minigun") != null || entClass.find("func_button") != null || (entClass.find("trigger_finale") != null && NetProps.GetPropInt(ent, "m_bDisabled") == 0) || entClass.find("prop_door_rotating") != null))
 			{
 				ret = ent;
@@ -2467,7 +2492,7 @@ witch_autocrown = 0";
 	local i = -1;
 	while (ent = Entities.FindByModel(ent, model))
 	{
-		if (ent.IsValid() && (Left4Bots.Settings.scavenge_pour || (ent.GetOrigin() - Left4Bots.ScavengeUseTarget.GetOrigin()).Length() >= Left4Bots.Settings.scavenge_drop_radius) && NetProps.GetPropInt(ent, "m_hOwner") <= 0 && !Left4Bots.BotsHaveOrderDestEnt(ent))
+		if (ent.IsValid() && (Left4Bots.Settings.scavenge_pour || (ent.GetOrigin() - Left4Bots.ScavengeUseTarget.GetOrigin()).Length() >= Left4Bots.Settings.scavenge_drop_radius) && Left4Bots.IsValidPickup(ent) && !Left4Bots.BotsHaveOrderDestEnt(ent))
 			t[++i] <- ent;
 	}
 	return t;
@@ -2798,6 +2823,148 @@ Left4Bots.GetOtherMedkitSpawn <- function (srcSpawn, radius = 100.0)
 			scope.BotOnPause();
 		}
 	}
+}
+
+// Handles the shooting of the smoker's tongue
+::Left4Bots.DealWithSmoker <- function (smoker, victim, duck = true)
+{
+	local tongue = NetProps.GetPropEntity(smoker, "m_customAbility");
+	if (!tongue || !tongue.IsValid() || NetProps.GetPropInt(tongue, "m_tongueState") != 3)
+		return;
+	
+	local points = Left4Bots.GetSmokerTargetPoints(tongue, smoker, victim);
+	
+	foreach (bot in ::Left4Bots.Bots)
+	{
+		//if (bot && bot.IsValid() && !bot.IsDying() && NetProps.GetPropInt(bot, "m_reviveTarget") <= 0 && NetProps.GetPropInt(bot, "m_iCurrentUseAction") <= 0 && !Left4Utils.IsPlayerHeld(bot))
+		if (bot && bot.IsValid() && !bot.IsDying() && !Left4Bots.SurvivorCantMove(bot, bot.GetScriptScope().Waiting))
+		{
+			//Left4Utils.BotCmdAttack(bot, smoker);
+			
+			if (Left4Bots.ValidWeaponForSmoker(bot.GetActiveWeapon()) && !Left4Bots.CanTraceToSmoker(bot, smoker))
+			{
+				if ((victim.GetCenter() - bot.GetCenter()).Length() < 100)
+					continue;
+				
+				if (bot.GetActiveWeapon().GetClassname().find("shotgun") != null && (victim.GetCenter() - bot.GetCenter()).Length() > 600 && (smoker.GetCenter() - bot.GetCenter()).Length() > 600)
+					continue;
+				
+				for (local i = 0; i < points.len(); i++)
+				{
+					local p = points[i];
+					if (Left4Utils.CanTraceToPos(bot, p))
+					{
+						Left4Bots.Log(LOG_LEVEL_INFO, bot.GetPlayerName() + " shooting the smoker's tongue");
+						
+						//DebugDrawCircle(p, Vector(255, 0, 0), 255, 2, true, 1.5);
+						
+						if (duck)
+							Left4Utils.PlayerPressButton(bot, BUTTON_DUCK, 1.5, p, 0, 0, true);
+						Left4Utils.PlayerPressButton(bot, BUTTON_ATTACK, Left4Bots.Settings.button_holdtime_tap, p, 0, 0, true);
+						Left4Timers.AddTimer(null, 0.5, @(params) Left4Utils.PlayerPressButton(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = bot, button = BUTTON_ATTACK, holdTime = Left4Bots.Settings.button_holdtime_tap, destination = p, deltaPitch = 0, deltaYaw = 0, lockLook = true });
+						Left4Timers.AddTimer(null, 0.9, @(params) Left4Utils.PlayerPressButton(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = bot, button = BUTTON_ATTACK, holdTime = Left4Bots.Settings.button_holdtime_tap, destination = p, deltaPitch = 0, deltaYaw = 0, lockLook = true });
+						Left4Timers.AddTimer(null, 1.4, @(params) Left4Utils.PlayerPressButton(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = bot, button = BUTTON_ATTACK, holdTime = Left4Bots.Settings.button_holdtime_tap, destination = p, deltaPitch = 0, deltaYaw = 0, lockLook = true });
+						
+						break;
+					}
+					//else
+					//	DebugDrawCircle(p, Vector(0, 0, 255), 255, 2, true, 1.5);
+				}
+			}
+		}
+	}
+}
+
+// Returns a set of points (Vector) along the smoker's tongue that the bot can shoot in order to break it
+::Left4Bots.GetSmokerTargetPoints <- function (tongue, smoker, victim, section = 25)
+{
+	local ret = {};
+	local idx = 0;
+
+	local startPos = smoker.GetAttachmentOrigin(smoker.LookupAttachment("smoker_mouth"));
+	//local endPos = NetProps.GetPropVector(tongue, "m_tipPosition");
+	//local endPos = victim.GetCenter();
+	local endPos = victim.GetAttachmentOrigin(victim.LookupAttachment("medkit"));
+	local bendCount = NetProps.GetPropInt(tongue, "m_bendPointCount");
+	
+	// Give priority to the smoker itself, if visible
+	//ret[idx++] <- smoker.GetCenter();
+	//ret[idx++] <- startPos;
+	
+	// Then the bend points (bend points don't move with the characters animation so they are easier target)
+	local bendCount = NetProps.GetPropInt(tongue, "m_bendPointCount");
+	for (local i = bendCount - 1; i >= 0; i--)
+		ret[idx++] <- NetProps.GetPropVectorArray(tongue, "m_bendPositions", i);
+	
+	// Last some points along the tongue
+	local p1 = endPos;
+	local p2 = startPos;
+	for (local i = bendCount - 1; i >= 0; i--)
+	{
+		p2 = NetProps.GetPropVectorArray(tongue, "m_bendPositions", i);
+		
+		local p = p1;
+		local v = p2 - p1;
+		local d = v.Norm();
+		local n = floor(d / section);
+		
+		for (local x = 0; x < n; x++)
+		{
+			p = p + (v * section);
+			ret[idx++] <- p;
+		}
+		
+		p1 = p2;
+	}
+	p2 = startPos;
+	
+	local p = p1;
+	local v = p2 - p1;
+	local d = v.Norm();
+	local n = floor(d / section);
+		
+	for (local x = 0; x < n; x++)
+	{
+		p = p + (v * section);
+		ret[idx++] <- p;
+	}
+	
+	return ret;
+}
+
+// Returns whether the given weapon is suitable for shooting the smoker's tongue (and it's not currently reloading)
+::Left4Bots.ValidWeaponForSmoker <- function (weapon)
+{
+	if (!weapon || !weapon.IsValid())
+		return false;
+	
+	if (NetProps.GetPropInt(weapon, "m_bInReload"))
+		return false;
+	
+	local wclass = weapon.GetClassname();
+	local allowed = [ ".*pistol.*", ".*smg.*" ".*rifle.*", ".*shotgun.*", ".*sniper.*"/*, ".*grenade_launcher.*"*/ ];
+	foreach (str in allowed)
+	{
+		local expression = regexp(str);
+		if (expression.match(wclass))
+			return true;
+	}
+	return false;
+}
+
+// Can the 'source' bot trace to the given 'smoker'?
+::Left4Bots.CanTraceToSmoker <- function (source, smoker)
+{
+	if (Left4Utils.CanTraceToEntPos(source, smoker, smoker.GetAttachmentOrigin(smoker.LookupAttachment("smoker_mouth"))))
+		return true;
+		
+	if (Left4Utils.CanTraceToEntPos(source, smoker, smoker.GetCenter()))
+		return true;
+		
+	if (Left4Utils.CanTraceToEntPos(source, smoker, smoker.GetOrigin()))
+		return true;
+	
+	return false;
 }
 
 //
