@@ -2292,6 +2292,7 @@ witch_autocrown = 0";
 		if (Left4Bots.IsValidUseItem(ent))
 		{
 			local dist = (ent.GetCenter() - orig).Length();
+			local entClass = ent.GetClassname();
 			if (dist < minDist && (entClass.find("weapon_") != null || entClass.find("prop_physics") != null || entClass.find("prop_minigun") != null || entClass.find("func_button") != null || (entClass.find("trigger_finale") != null && NetProps.GetPropInt(ent, "m_bDisabled") == 0) || entClass.find("prop_door_rotating") != null))
 			{
 				ret = ent;
