@@ -38,7 +38,7 @@
 	chat_hello_replies = "hi,hello,hey,hi dude,wassup,hi,hello,hi,ciao"
 
 	// List of 'hello' lines that can trigger the reply
-	chat_hello_triggers = "hi,hello,hey,hi guys,hey guys,yo,ciao"
+	chat_hello_triggers = "hi,hello,hey,hi guys,hi all,hey guys,yo,ciao"
 
 	// [1/0] Should the last bot entering the saferoom close the door immediately?
 	close_saferoom_door = 1
@@ -373,6 +373,13 @@
 	// NOTE: signal_max_distance must be > 0 for the entire signal system to work
 	signal_ping = 0
 
+	// [1/0] Enable/Disable shooting the smoker's tongue that is strangling a teammate
+	// NOTE: This isn't perfect and in some situations might slow down the rescue even more
+	smoker_shoot_tongue = 1
+
+	// [1/0] Enable/Disable crouching while shooting the smoker's tongue
+	smoker_shoot_tongue_duck = 1
+
 	// [1/0] 1 = When the spitter's acid lands, it will block the nav areas under it as long as the acid is there. This means that the bots nav system will not make them step into the acid. 0 = normal behavior
 	// NOTE: The bots can still step into the acid if they were close to where it landed and they were already running to that direction
 	// NOTE2: Blocked nav areas might cause issues and can get the bots stuck into the acid in rare cases
@@ -477,6 +484,9 @@
 	
 	// [1/0] 1 = The bots will trigger the witch when they accidentally shoot her (like human players). 0 = normal behavior
 	trigger_witch = 0
+
+	// [1/0] 1 = "use" command on a carriable item (gnome, gascan, cola, etc.) will make the bots pick-up the and carry that item until you cancel the order. 0 = They drop it after a while
+	use_carry_items = 1
 
 	// Minimum L4U level for receiving medkits/defibs from the bots (2 = Admin, 1 = Friend, 0 = Random player, -1 = Griefer)
 	userlevel_give_medkit = 1
