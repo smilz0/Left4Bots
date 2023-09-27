@@ -409,7 +409,6 @@ Msg("Including left4bots_events...\n");
 			
 			scope.CarryItem = aw;
 			scope.CarryItemWeaponId = scope.CurrentOrder.Param1;
-			scope.CarryItemModel = aw.GetModelName();
 			
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_item_pickup - bot: " + player.GetPlayerName() + " picked up the assigned carry item");
 			
@@ -1658,7 +1657,7 @@ Left4Bots.OnThinker <- function (params)
 	}
 	
 	// Attach our think function to newly spawned tank rocks
-	if (Left4Bots.Settings.dodge_rock)
+	if (Left4Bots.Settings.dodge_rock || Left4Bots.Settings.shoot_rock)
 	{
 		local ent = null;
 		while (ent = Entities.FindByClassname(ent, "tank_rock"))
@@ -1669,7 +1668,7 @@ Left4Bots.OnThinker <- function (params)
 				local scope = ent.GetScriptScope();
 				if (!("L4B_RockThink" in scope))
 				{
-					scope.WarnedBots <- {};
+					scope.DodgingBots <- {};
 					scope["L4B_RockThink"] <- ::Left4Bots.L4B_RockThink;
 					AddThinkToEnt(ent, "L4B_RockThink");
 					
