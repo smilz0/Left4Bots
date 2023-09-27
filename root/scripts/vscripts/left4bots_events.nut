@@ -412,7 +412,7 @@ Msg("Including left4bots_events...\n");
 			
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_item_pickup - bot: " + player.GetPlayerName() + " picked up the assigned carry item");
 			
-			Left4Users.AdminNotice(player.GetPlayerName() + " picked up the assigned carry item"); // TODO remove
+			//Left4Users.AdminNotice(player.GetPlayerName() + " picked up the assigned carry item"); // TODO remove
 			
 			if (!Left4Utils.IsButtonDisabled(player, BUTTON_ATTACK))
 				Left4Utils.PlayerDisableButton(player, BUTTON_ATTACK);
@@ -442,7 +442,7 @@ Msg("Including left4bots_events...\n");
 	{
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "OnCarryItemDrop - bot: " + bot.GetPlayerName() + " dropped the assigned carry item");
 	
-		Left4Users.AdminNotice(bot.GetPlayerName() + " dropped the assigned carry item");
+		//Left4Users.AdminNotice(bot.GetPlayerName() + " dropped the assigned carry item");
 		
 		Left4Utils.PlayerEnableButton(bot, BUTTON_ATTACK);
 	}

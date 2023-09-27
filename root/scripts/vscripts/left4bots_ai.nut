@@ -197,7 +197,7 @@ enum AI_DOOR_ACTION {
 			{
 				if (Left4Utils.GetWeaponId(ent) == CarryItemWeaponId && ent.GetMoveParent() == null)
 				{
-					Left4Users.AdminNotice(self.GetPlayerName() + " REPICK");
+					//Left4Users.AdminNotice(self.GetPlayerName() + " REPICK");
 					
 					newCarryItem = ent;
 					break;
