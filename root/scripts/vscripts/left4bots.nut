@@ -1792,6 +1792,7 @@ witch_autocrown = 0";
 // 'leftVector' is a vector facing the current carger's left
 // 'goLeft' tells whether the bot should run left (true) or right (false)
 // 'minDistance' and 'maxDistance' are the minimum and maximum distance to travel
+// Returns whether a dodge move location was found or not
 ::Left4Bots.TryDodge <- function (bot, leftVector, goLeft, minDistance, maxDistance)
 {
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.TryDodge - bot: " + bot.GetPlayerName() + " - goLeft: " + goLeft);
@@ -1816,7 +1817,7 @@ witch_autocrown = 0";
 			Left4Bots.Log(LOG_LEVEL_INFO, bot.GetPlayerName() + " trying to dodge");
 			
 			Left4Bots.BotHighPriorityMove(bot, Vector(dest.x, dest.y, destArea.GetZ(dest))); // Set the Z axis to ground level
-			return;
+			return true;
 		}
 	}
 	else
@@ -1839,13 +1840,15 @@ witch_autocrown = 0";
 			Left4Bots.Log(LOG_LEVEL_INFO, bot.GetPlayerName() + " trying to dodge");
 			
 			Left4Bots.BotHighPriorityMove(bot, Vector(dest.x, dest.y, destArea.GetZ(dest))); // Set the Z axis to ground level
-			return;
+			return true;
 		}
 	}
 	else
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.TryDodge - bot: " + bot.GetPlayerName() + " - nav area not found");
 	
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.TryDodge - failed!");
+	
+	return false;
 }
 
 // Returns the survivor aimed by 'player' within 'radius' and with at least 'threshold' accuracy. visibleOnly = true if the aimed survivor must be visible to 'player'
@@ -2149,9 +2152,9 @@ witch_autocrown = 0";
 	local MyPos = self.GetCenter();
 	
 	//local fwd = self.GetForwardVector();
-	local fwdY = self.GetAngles().Forward();
-	fwdY.Norm();
-	fwdY = Left4Utils.VectorAngles(fwdY).y;
+	local fwd = self.GetAngles().Forward();
+	fwd.Norm();
+	local fwdY = Left4Utils.VectorAngles(fwd).y;
 	local lft = self.GetAngles().Left();
 	
 	//fwd = Vector(fwd.x, fwd.y, 0);
@@ -2160,31 +2163,34 @@ witch_autocrown = 0";
 	
 	foreach (id, bot in ::Left4Bots.Bots)
 	{
-		/*
-		//if (bot.IsValid() && Left4Utils.CanTraceTo(bot, rock, TRACE_MASK_ALL))
-		//if (bot.IsValid() && (self.GetCenter() - bot.EyePosition()).Length() <= Left4Bots.Settings.rock_shoot_range)
-		if (bot.IsValid() && (self.GetCenter() - bot.EyePosition()).Length() <= Left4Bots.Settings.rock_shoot_range && NetProps.GetPropInt(bot, "m_reviveTarget") <= 0 && NetProps.GetPropInt(bot, "m_iCurrentUseAction") <= 0)
+		if (bot.IsValid())
 		{
-			Left4Utils.PlayerPressButton(bot, BUTTON_ATTACK, Left4Bots.Settings.button_holdtime_tap, self.GetCenter(), 0, 0, true);
-		
-			Left4Bots.Log(LOG_LEVEL_DEBUG, bot.GetPlayerName() + " shooting at rock " + self.GetEntityIndex());
-			
-			//Delay = 0.4;
-		}
-		*/
-		
-		if (bot.IsValid() && !(id in WarnedBots) && !Left4Bots.SurvivorCantMove(bot, bot.GetScriptScope().Waiting) && (bot.GetCenter() - MyPos).Length() <= 1500 && Left4Utils.CanTraceTo(bot, self))
-		{
-			local toBot = bot.GetCenter() - MyPos;
-			toBot.Norm();
-			
-			local a = Left4Utils.GetDiffAngle(Left4Utils.VectorAngles(toBot).y, fwdY);
-			
-			// a must be between -dodge_rock_diffangle and dodge_rock_diffangle. a > 0 -> the bot should run to the rock's left. a < 0 -> the bot should run to the rock's right
-			if (a >= -Left4Bots.Settings.dodge_rock_diffangle && a <= Left4Bots.Settings.dodge_rock_diffangle)
+			local distance = (bot.GetCenter() - MyPos).Length();
+			if (distance <= 1500 && !Left4Bots.SurvivorCantMove(bot, bot.GetScriptScope().Waiting) && Left4Utils.CanTraceTo(bot, self))
 			{
-				Left4Bots.TryDodge(bot, lft, a > 0, Left4Bots.Settings.dodge_rock_mindistance, Left4Bots.Settings.dodge_rock_maxdistance);
-				WarnedBots[id] <- 1;
+				local toBot = bot.GetCenter() - MyPos;
+				toBot.Norm();
+				
+				local a = Left4Utils.GetDiffAngle(Left4Utils.VectorAngles(toBot).y, fwdY);
+				
+				/*
+					- if dodge_rock is true and the bot has a dodge move location, then dodge
+					- if shoot_rock is true and the bot did not (or did not yet) dodge for any reason, then shoot
+				*/
+				
+				// a must be between -dodge_rock_diffangle and dodge_rock_diffangle. a > 0 -> the bot should run to the rock's left. a < 0 -> the bot should run to the rock's right
+				if (!(id in DodgingBots) && Left4Bots.Settings.dodge_rock && a >= -Left4Bots.Settings.dodge_rock_diffangle && a <= Left4Bots.Settings.dodge_rock_diffangle && Left4Bots.TryDodge(bot, lft, a > 0, Left4Bots.Settings.dodge_rock_mindistance, Left4Bots.Settings.dodge_rock_maxdistance))
+					DodgingBots[id] <- 1;
+				else if (Left4Bots.Settings.shoot_rock && a >= -Left4Bots.Settings.shoot_rock_diffangle && a <= Left4Bots.Settings.shoot_rock_diffangle)
+				{
+					local aw = bot.GetActiveWeapon();
+					if (aw && aw.IsValid() && Time() >= NetProps.GetPropFloat(aw, "m_flNextPrimaryAttack") && distance <= Left4Bots.GetWeaponRangeById(Left4Utils.GetWeaponId(aw)))
+					{
+						Left4Utils.PlayerPressButton(bot, BUTTON_ATTACK, Left4Bots.Settings.button_holdtime_tap, self.GetCenter() + (fwd * Left4Bots.Settings.shoot_rock_ahead), 0, 0, true); // Try to shoot slightly in front of the rock
+			
+						Left4Bots.Log(LOG_LEVEL_DEBUG, bot.GetPlayerName() + " shooting at rock " + self.GetEntityIndex());
+					}
+				}
 			}
 		}
 	}
@@ -2293,7 +2299,7 @@ witch_autocrown = 0";
 		{
 			local dist = (ent.GetCenter() - orig).Length();
 			local entClass = ent.GetClassname();
-			if (dist < minDist && (entClass.find("weapon_") != null || entClass.find("prop_physics") != null || entClass.find("prop_minigun") != null || entClass.find("func_button") != null || (entClass.find("trigger_finale") != null && NetProps.GetPropInt(ent, "m_bDisabled") == 0) || entClass.find("prop_door_rotating") != null))
+			if (dist < minDist && (entClass.find("weapon_") != null || entClass.find("prop_physics") != null || entClass.find("prop_minigun") != null || entClass.find("func_button") != null || (entClass.find("trigger_finale") != null && NetProps.GetPropInt(ent, "m_bDisabled") == 0) || entClass.find("prop_door_rotating") != null) && entClass != "weapon_scavenge_item_spawn" && entClass != "weapon_gascan_spawn")
 			{
 				ret = ent;
 				minDist = dist;
@@ -2383,7 +2389,7 @@ witch_autocrown = 0";
 // Returns whether the given bot has visibility on the given pickup item
 ::Left4Bots.CanTraceToPickup <- function (bot, item)
 {
-	local mask = 0x1 | /*0x8 |*/ 0x40 | 0x2000 | 0x4000  | 0x8000000; // CONTENTS_SOLID | CONTENTS_GRATE | CONTENTS_BLOCKLOS | CONTENTS_IGNORE_NODRAW_OPAQUE | CONTENTS_MOVEABLE | CONTENTS_DETAIL
+	local mask = 0x1 | 0x8 | 0x40 | 0x2000 | 0x4000  | 0x8000000; // CONTENTS_SOLID | CONTENTS_GRATE | CONTENTS_BLOCKLOS | CONTENTS_IGNORE_NODRAW_OPAQUE | CONTENTS_MOVEABLE | CONTENTS_DETAIL
 	local traceTable = { start = bot.EyePosition(), end = item.GetCenter(), ignore = bot, mask = mask };
 	
 	TraceLine(traceTable);
@@ -2391,10 +2397,7 @@ witch_autocrown = 0";
 	//printl("fraction: " + traceTable.fraction);
 	//DebugDrawCircle(traceTable.pos, Vector(0, 0, 255), 255, 10, true, 0.1);
 	
-	if (traceTable.fraction > 0.98 || !traceTable.hit || !traceTable.enthit || traceTable.enthit == item || traceTable.enthit.GetClassname() == "prop_health_cabinet")
-		return true;
-	
-	return false;
+	return (traceTable.fraction > 0.98 || !traceTable.hit || !traceTable.enthit || traceTable.enthit == item || traceTable.enthit.GetClassname() == "prop_health_cabinet");
 }
 
 // Starts the scavenge logics

@@ -86,7 +86,7 @@
 	// Minimum distance to travel when dodging chargers
 	dodge_charger_mindistance = 80
 
-	// [1/0] Enable/Disable tank rocks dodging
+	// [1/0] Enable/Disable tank rocks dodging. If shoot_rock is also 1, the bot might do both but will prioritize the dodge
 	dodge_rock = 1
 
 	// Max angle difference between the tank's rock current direction and the direction to the bot when deciding whether the bot should dodge the rock or not
@@ -328,6 +328,15 @@
 
 	// [1/0] Enable/Disable debug visualization of the found scavenge use target
 	scavenge_usetarget_debug = 0
+
+	// [1/0] Enable/Disable tank rocks shooting. If dodge_rock is also 1, the bot might do both but will prioritize the dodge
+	shoot_rock = 1
+
+	// Max angle difference between the tank's rock current direction and the direction to the bot when deciding whether the bot should shoot the rock or not
+	shoot_rock_diffangle = 8
+	
+	// This is how far ahead of the rock's current direction the bot will shoot in order to compensate for its speed
+	shoot_rock_ahead = 4
 
 	// Value for the cm_ShouldHurry director option. Not sure what it does exactly
 	should_hurry = 1

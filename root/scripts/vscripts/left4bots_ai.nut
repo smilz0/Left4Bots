@@ -52,6 +52,7 @@ enum AI_DOOR_ACTION {
 	scope.Origin <- bot.GetOrigin(); // This will be updated each tick by the BotThink_Main think function. It is meant to replace all the self.GetOrigin() used by the various funcs
 	scope.MoveEnt <- null;
 	scope.MovePos <- null;
+	scope.MovePosReal <- null;
 	scope.MoveType <- AI_MOVE_TYPE.None;
 	scope.MoveTime <- 0;
 	scope.MoveTimeout <- 0;
@@ -79,7 +80,6 @@ enum AI_DOOR_ACTION {
 	scope.WeapPref <- Left4Bots.LoadWeaponPreferences(bot);
 	scope.CarryItem <- null;
 	scope.CarryItemWeaponId <- 0;
-	scope.CarryItemModel <- null;
 	
 	scope["BotThink_Main"] <- ::Left4Bots.BotThink_Main;
 	scope["BotThink_Pickup"] <- ::Left4Bots.BotThink_Pickup;
@@ -129,6 +129,7 @@ enum AI_DOOR_ACTION {
 	scope.Origin <- bot.GetOrigin(); // This will be updated each tick by the BotThink_Main think function. It is meant to replace all the self.GetOrigin() used by the various funcs
 	scope.MoveEnt <- null;
 	scope.MovePos <- null;
+	scope.MovePosReal <- null;
 	scope.MoveType <- AI_MOVE_TYPE.None;
 	scope.MoveTime <- 0;
 	scope.MoveTimeout <- 0;
@@ -215,7 +216,6 @@ enum AI_DOOR_ACTION {
 		
 			CarryItem = null;
 			CarryItemWeaponId = 0;
-			CarryItemModel = null;
 		}
 	}
 	
@@ -284,6 +284,7 @@ enum AI_DOOR_ACTION {
 			
 			BotMoveReset();
 			//MovePos = null;
+			//MovePosReal = null;
 			//MoveType = AI_MOVE_TYPE.None;
 		}
 		else if ((Time() - MoveTime) >= MoveTimeout)
@@ -294,6 +295,7 @@ enum AI_DOOR_ACTION {
 			
 			BotMoveReset();
 			//MovePos = null;
+			//MovePosReal = null;
 			//MoveType = AI_MOVE_TYPE.None;
 		}
 		else
@@ -479,7 +481,7 @@ enum AI_DOOR_ACTION {
 		return;
 	}
 
-	if (!MovePos || MoveType != AI_MOVE_TYPE.Pickup || !Left4Bots.IsValidPickup(MoveEnt) || MoveEnt.GetEntityIndex() != pickup.GetEntityIndex())
+	if (!MovePos || MoveType != AI_MOVE_TYPE.Pickup || !Left4Bots.IsValidPickup(MoveEnt) || /*MoveEnt.GetEntityIndex() != pickup.GetEntityIndex()*/ MoveEnt != pickup)
 	{
 		// We start a MOVE if at least one of these conditions is met:
 		// 1. There is no previous MOVE
@@ -1172,22 +1174,50 @@ enum AI_DOOR_ACTION {
 	if (NeedMove <= 0 && (dest - MovePos).Length() <= 5) // <- This checks if the destination entity moved after the bot started moving towards it and forces a move command to the new entity position if the entity moved
 		return;
 	
-	if (!(NetProps.GetPropInt(self, "m_fFlags") & (1 << 5)))
-	{
-		// Reset movetype if needed
-		Waiting = false;
-		if (NetProps.GetPropInt(self, "movetype") == 0)
-			NetProps.SetPropInt(self, "movetype", 2);
-		NetProps.SetPropInt(self, "m_afButtonForced", NetProps.GetPropInt(self, "m_afButtonForced") & (~BUTTON_DUCK));
-		
-		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - MOVE -> " + dest);
-		
-		MovePos = dest;
-		Left4Utils.BotCmdMove(self, MovePos);
-		DelayedReset = false; // Reset no longer needed as the MOVE replaced the previous one
+	if (NetProps.GetPropInt(self, "m_fFlags") & (1 << 5))
+		return;
+
+	// Reset movetype if needed
+	Waiting = false;
+	if (NetProps.GetPropInt(self, "movetype") == 0)
+		NetProps.SetPropInt(self, "movetype", 2);
+	NetProps.SetPropInt(self, "m_afButtonForced", NetProps.GetPropInt(self, "m_afButtonForced") & (~BUTTON_DUCK));
 	
-		NeedMove--;
+	MovePos = dest;
+	
+	local area = NavMesh.GetNearestNavArea(MovePos, 120, true, false);
+	if (area)
+	{
+		local center = area.GetCenter();
+		local halfX = area.GetSizeX() / 2;
+		local halfY = area.GetSizeY() / 2;
+		
+		if (MovePos.x >= center.x - halfX && MovePos.x <= center.x + halfX && MovePos.y >= center.y - halfY && MovePos.y <= center.y + halfY)
+		{
+			// Dest pos is inside the area's 2D bounds
+			MovePosReal = Vector(MovePos.x, MovePos.y, area.GetCenter().z);
+		}
+		else
+		{
+			// It's outside, need to find the closest point inside the area
+			MovePosReal = Vector(Left4Utils.Max(center.x - halfX, Left4Utils.Min(MovePos.x, center.x + halfX)), Left4Utils.Max(center.y - halfY, Left4Utils.Min(MovePos.y, center.y + halfY)), center.z);
+		}
+		MovePosReal = Vector(MovePosReal.x, MovePosReal.y, area.GetZ(MovePosReal)); // Adjust the height at the specified point
+		
+		//DebugDrawCircle(MovePosReal, Vector(255, 0, 0), 255, 10, true, 10);
 	}
+	else
+	{
+		Left4Bots.Log(LOG_LEVEL_WARN, "[AI]" + self.GetPlayerName() + " - BotMoveTo -> " + MovePos + " - No NavArea found nearby; using the dest pos");
+		MovePosReal = MovePos;
+	}
+	
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - MOVE -> " + MovePos + " (real: " + MovePosReal + ")");
+	
+	Left4Utils.BotCmdMove(self, MovePosReal);
+	DelayedReset = false; // Reset no longer needed as the MOVE replaced the previous one
+
+	NeedMove--;
 }
 
 // Reset the MOVE parameters and, if needed, the MOVE itself and the movetype
@@ -1207,6 +1237,7 @@ enum AI_DOOR_ACTION {
 	// Reset MOVE parameters
 	MoveEnt = null;
 	MovePos = null;
+	MovePosReal = null;
 	MoveType = AI_MOVE_TYPE.None;
 	NeedMove = 0;
 }
@@ -1782,6 +1813,7 @@ enum AI_DOOR_ACTION {
 		
 		NeedMove = 0;
 		MovePos = null;
+		MovePosReal = null;
 		MoveType = AI_MOVE_TYPE.None;
 		return;
 	}
@@ -2065,6 +2097,7 @@ enum AI_DOOR_ACTION {
 	{
 		NeedMove = 0;
 		MovePos = null;
+		MovePosReal = null;
 		MoveType = AI_MOVE_TYPE.None;
 		CurrentOrder = null; // Order is done
 	
@@ -2510,7 +2543,10 @@ enum AI_DOOR_ACTION {
 		scope.CurrentOrder = order;
 		
 		if (scope.MoveType == AI_MOVE_TYPE.Order)
+		{
 			scope.MovePos = null; // Force a MOVE to the new destination
+			scope.MovePosReal = null;
+		}
 	}
 	else
 		scope.Orders.insert(0, order);
@@ -2566,7 +2602,10 @@ enum AI_DOOR_ACTION {
 				scope.CurrentOrder = order; // Replace CurrentOrder
 				
 				if (scope.MoveType == AI_MOVE_TYPE.Order)
+				{
 					scope.MovePos = null; // Force a MOVE to the new destination
+					scope.MovePosReal = null;
+				}
 				
 				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " - New order replaced CurrentOrder: " + Left4Bots.BotOrderToString(order));
 			}
