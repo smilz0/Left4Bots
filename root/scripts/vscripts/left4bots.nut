@@ -192,14 +192,14 @@ IncludeScript("left4bots_settings");
 	
 	Left4Utils.PrintSettings(::Left4Bots.Settings, Left4Bots.Log, "[Settings] ");
 	
-	if (Left4Bots.Settings.file_convars != "")
+	if (Left4Bots.Settings.load_convars && Left4Bots.Settings.file_convars != "")
 	{
 		Left4Bots.Log(LOG_LEVEL_INFO, "Loading convars from file: " + Left4Bots.Settings.file_convars);
 		local c = Left4Utils.LoadCvarsFromFile(Left4Bots.Settings.file_convars, Left4Bots.Log);
 		Left4Bots.Log(LOG_LEVEL_INFO, "Loaded " + c + " convars");
 	}
 	else
-		Left4Bots.Log(LOG_LEVEL_INFO, "Convars file was not loaded (settings.file_convars is empty)");
+		Left4Bots.Log(LOG_LEVEL_INFO, "Convars file was not loaded due to settings.load_convars and settings.file_convars");
 	
 	if (Left4Bots.Settings.file_itemstoavoid != "")
 	{
@@ -1126,7 +1126,7 @@ witch_autocrown = 0";
 	else
 	{
 		// It's the item itself, let's check if someone already picked it up
-		return (ent.GetMoveParent() == null);
+		return (ent.GetMoveParent() == null /*&& NetProps.GetPropInt(ent, "m_iState") != 1*/); // The melee has this to 1 while it's replaced by the pistol when you are incapped but "in theory" this shouldn't be needed because moveparent doesn't change
 	}
 }
 

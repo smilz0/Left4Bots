@@ -216,6 +216,9 @@
 	// Vocalizer commands from vocalizer_lead_start will be played when the bot starts a 'lead' order and resumes it after a pause. This is the minimum interval between each vocalization
 	lead_vocalize_interval = 40
 
+	// [1/0] Enable/Disable loading the configured 'convars.txt' file
+	load_convars = 1
+
 	// Minimum log level for the addon's log lines into the console
 	// 0 = No log
 	// 1 = Only [ERROR] messages are logged
