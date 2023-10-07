@@ -1,7 +1,7 @@
-//------------------------------------------------------
-//     Author : smilzo
-//     https://steamcommunity.com/id/smilz0
-//------------------------------------------------------
+//--------------------------------------------------------------------------------------------------
+//     GitHub:		https://github.com/smilz0/Left4Bots
+//     Workshop:	https://steamcommunity.com/sharedfiles/filedetails/?id=3022416274
+//--------------------------------------------------------------------------------------------------
 
 Msg("Including left4bots_ai...\n");
 
@@ -36,12 +36,12 @@ enum AI_DOOR_ACTION {
 ::Left4Bots.AddBotThink <- function (bot)
 {
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "AddBotThink -> " + bot.GetPlayerName());
-	
+
 	AddThinkToEnt(bot, null);
-	
+
 	bot.ValidateScriptScope();
 	local scope = bot.GetScriptScope();
-	
+
 	scope.CharId <- NetProps.GetPropInt(bot, "m_survivorCharacter");
 	//scope.FuncI <- 0; //scope.CharId % 5; // <- this makes the bots start the sub-think functions in different order so they don't "Use" pickups or do things at the exact same time
 	scope.FuncI <- (scope.CharId - 1) % 5; // <- this makes the bots start the sub-think functions in different order so they don't "Use" pickups or do things at the exact same time
@@ -50,6 +50,10 @@ enum AI_DOOR_ACTION {
 		scope.FuncI = 0; // Btw, we start from 0 now because the FuncI++ has been moved to the beginning of the think function
 	scope.UserId <- bot.GetPlayerUserId();
 	scope.Origin <- bot.GetOrigin(); // This will be updated each tick by the BotThink_Main think function. It is meant to replace all the self.GetOrigin() used by the various funcs
+	scope.CurTime <- Time(); // Same ^
+	scope.ActiveWeapon <- null; // ^
+	scope.ActiveWeaponId <- null; // ^
+	scope.ActiveWeaponSlot <- null; // ^
 	scope.MoveEnt <- null;
 	scope.MovePos <- null;
 	scope.MovePosReal <- null;
@@ -80,7 +84,9 @@ enum AI_DOOR_ACTION {
 	scope.WeapPref <- Left4Bots.LoadWeaponPreferences(bot);
 	scope.CarryItem <- null;
 	scope.CarryItemWeaponId <- 0;
-	
+	scope.HurryUntil <- 0;
+	scope.UseWeapons <- {};
+
 	scope["BotThink_Main"] <- ::Left4Bots.BotThink_Main;
 	scope["BotThink_Pickup"] <- ::Left4Bots.BotThink_Pickup;
 	scope["BotThink_Defib"] <- ::Left4Bots.BotThink_Defib;
@@ -91,22 +97,26 @@ enum AI_DOOR_ACTION {
 	scope["BotManualAttack"] <- ::Left4Bots.BotManualAttack;
 	scope["BotStuckMonitor"] <- ::Left4Bots.BotStuckMonitor;
 	scope["BotMoveTo"] <- ::Left4Bots.BotMoveTo;
+	scope["BotMoveToNav"] <- ::Left4Bots.BotMoveToNav;
 	scope["BotMoveReset"] <- ::Left4Bots.BotMoveReset;
 	scope["BotReset"] <- ::Left4Bots.BotReset;
 	scope["BotUpdatePickupToSearch"] <- ::Left4Bots.BotUpdatePickupToSearch;
 	scope["BotGetNearestPickupWithin"] <- ::Left4Bots.BotGetNearestPickupWithin;
 	scope["BotInitializeCurrentOrder"] <- ::Left4Bots.BotInitializeCurrentOrder;
 	scope["BotFinalizeCurrentOrder"] <- ::Left4Bots.BotFinalizeCurrentOrder;
-	scope["BotGetOrder"] <- ::Left4Bots.BotGetOrder;
+	scope["BotGetOrders"] <- ::Left4Bots.BotGetOrders;
 	scope["BotCancelCurrentOrder"] <- ::Left4Bots.BotCancelCurrentOrder;
+	scope["BotCancelOrder"] <- ::Left4Bots.BotCancelOrder;
 	scope["BotCancelOrders"] <- ::Left4Bots.BotCancelOrders;
 	scope["BotCancelOrdersDestEnt"] <- ::Left4Bots.BotCancelOrdersDestEnt;
 	scope["BotCancelDefib"] <- ::Left4Bots.BotCancelDefib;
 	scope["BotCancelAll"] <- ::Left4Bots.BotCancelAll;
 	scope["BotIsInPause"] <- ::Left4Bots.BotIsInPause;
+	scope["BotPause"] <- ::Left4Bots.BotPause;
+	scope["BotUnPause"] <- ::Left4Bots.BotUnPause;
 	scope["BotOnPause"] <- ::Left4Bots.BotOnPause;
 	scope["BotOnResume"] <- ::Left4Bots.BotOnResume;
-	
+
 	AddThinkToEnt(bot, "BotThink_Main");
 }
 
@@ -114,12 +124,12 @@ enum AI_DOOR_ACTION {
 ::Left4Bots.AddL4D1BotThink <- function (bot)
 {
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "AddL4D1BotThink -> " + bot.GetPlayerName());
-	
+
 	AddThinkToEnt(bot, null);
-	
+
 	bot.ValidateScriptScope();
 	local scope = bot.GetScriptScope();
-	
+
 	scope.CharId <- NetProps.GetPropInt(bot, "m_survivorCharacter");
 	scope.FuncI <- (scope.CharId - 1) % 5; // <- this makes the bots start the sub-think functions in different order so they don't "Use" pickups or do things at the exact same time
 	// CharIds are supposed to be from 1 to 8 so FuncI shouldn't be <0. But you never know...
@@ -127,6 +137,10 @@ enum AI_DOOR_ACTION {
 		scope.FuncI = 0; // Btw, we start from 0 now because the FuncI++ has been moved to the beginning of the think function
 	scope.UserId <- bot.GetPlayerUserId();
 	scope.Origin <- bot.GetOrigin(); // This will be updated each tick by the BotThink_Main think function. It is meant to replace all the self.GetOrigin() used by the various funcs
+	scope.CurTime <- Time(); // Same ^
+	scope.ActiveWeapon <- null; // ^
+	scope.ActiveWeaponId <- null; // ^
+	scope.ActiveWeaponSlot <- null; // ^
 	scope.MoveEnt <- null;
 	scope.MovePos <- null;
 	scope.MovePosReal <- null;
@@ -146,17 +160,19 @@ enum AI_DOOR_ACTION {
 	scope.ThrowStartedOn <- 0;
 	scope.Waiting <- false;
 	scope.WeapPref <- Left4Bots.LoadWeaponPreferences(bot);
-	
+	scope.HurryUntil <- 0;
+
 	scope["BotThink_Main"] <- ::Left4Bots.BotThink_Main_L4D1;
 	scope["BotThink_Pickup"] <- ::Left4Bots.BotThink_Pickup;
 	scope["BotThink_Throw"] <- ::Left4Bots.BotThink_Throw;
 	scope["BotManualAttack"] <- ::Left4Bots.BotManualAttack;
 	scope["BotMoveTo"] <- ::Left4Bots.BotMoveTo;
+	scope["BotMoveToNav"] <- ::Left4Bots.BotMoveToNav;
 	scope["BotMoveReset"] <- ::Left4Bots.BotMoveReset;
 	scope["BotReset"] <- ::Left4Bots.BotReset;
 	scope["BotUpdatePickupToSearch"] <- ::Left4Bots.BotUpdatePickupToSearch;
 	scope["BotGetNearestPickupWithin"] <- ::Left4Bots.BotGetNearestPickupWithin;
-	
+
 	AddThinkToEnt(bot, "BotThink_Main");
 }
 
@@ -181,60 +197,159 @@ enum AI_DOOR_ACTION {
 	// https://github.com/smilz0/Left4Bots/issues/2
 	if (++FuncI > 5)
 		FuncI = 1;
-	
+
 	Origin = self.GetOrigin();
-	
-	if (CarryItem && (!CarryItem.IsValid() || CarryItem.GetMoveParent() != self))
+	CurTime = Time();
+	ActiveWeapon = self.GetActiveWeapon();
+	ActiveWeaponId = 0;
+	ActiveWeaponSlot = -1;
+	if (ActiveWeapon)
 	{
-		// CarryItem was dropped
-		Left4Bots.OnCarryItemDrop(self);
-	
-		if (!CarryItem.IsValid())
+		ActiveWeaponId = Left4Utils.GetWeaponId(ActiveWeapon);
+		ActiveWeaponSlot = Left4Utils.GetWeaponSlotById(ActiveWeaponId);
+	}
+
+	// Basically, all this CarryItem stuff is because some carriable items despawn as prop_physics and respawn as weapon_* and viceversa when picking/dropping them
+	// and also because the game's "dropped" event does not trigger every time
+	if (CarryItem)
+	{
+		if (CarryItem != ActiveWeapon || !CarryItem.IsValid())
 		{
-			local newCarryItem = null;
-			local ent = null;
-			while (ent = Entities.FindByClassnameWithin(ent, "prop_physics", Origin, 250))
+			if (ActiveWeaponSlot == 5)
 			{
-				if (Left4Utils.GetWeaponId(ent) == CarryItemWeaponId && ent.GetMoveParent() == null)
+				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Carry item changed: " + CarryItem + " -> " + ActiveWeapon);
+				
+				if (Left4Bots.Settings.carry_debug)
+					Say(player, "Carry item changed: " + CarryItem + " -> " + ActiveWeapon, false);
+				
+				local isCarryOrder = false;
+				local ordersToUpdate = BotGetOrders(null, null, ActiveWeaponId);
+				foreach (orderToUpdate in ordersToUpdate)
 				{
-					//Left4Users.AdminNotice(self.GetPlayerName() + " REPICK");
+					if (orderToUpdate.DestEnt.IsValid())
+					{
+						if (orderToUpdate.DestEnt == ActiveWeapon)
+						{
+							Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Order's " + orderToUpdate.OrderType + " DestEnt has not changed: " + Left4Bots.BotOrderToString(orderToUpdate));
+							isCarryOrder = isCarryOrder || orderToUpdate.OrderType == "carry";
+						}
+						else
+							Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Unrelated order: " + Left4Bots.BotOrderToString(orderToUpdate));
+					}
+					else
+					{
+						orderToUpdate.DestEnt = ActiveWeapon;
+						Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Order's " + orderToUpdate.OrderType + " DestEnt has been updated: " + Left4Bots.BotOrderToString(orderToUpdate));
+						isCarryOrder = isCarryOrder || orderToUpdate.OrderType == "carry";
+					}
+				}
+				
+				if (isCarryOrder)
+					Left4Bots.CarryItemStart(self);
+				
+				CarryItem = ActiveWeapon;
+				CarryItemWeaponId = ActiveWeaponId;
+			}
+			else
+			{
+				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Carry item dropped: " + CarryItem);
+				
+				if (Left4Bots.Settings.carry_debug)
+					Say(player, "Carry item dropped: " + CarryItem, false);
+				
+				Left4Bots.CarryItemStop(self);
+				
+				local ordersToUpdate = BotGetOrders(null, CarryItem, CarryItemWeaponId);
+				foreach (orderToUpdate in ordersToUpdate)
+				{
+					if (orderToUpdate.OrderType == "scavenge" && orderToUpdate.DestPos)
+					{
+						orderToUpdate.DestPos = null;
+						Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Order's " + orderToUpdate.OrderType + " DestPos has been reset: " + Left4Bots.BotOrderToString(orderToUpdate));
+					}
 					
-					newCarryItem = ent;
-					break;
+					if (CarryItem.IsValid())
+						Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Order's " + orderToUpdate.OrderType + " dropped DestEnt is still valid: " + Left4Bots.BotOrderToString(orderToUpdate));
+					else
+					{
+						// Item dropped and no longer valid
+						local newDestEnt = Left4Bots.GetClosestCarriableByWeaponIdWhithin(Origin, CarryItemWeaponId, 350);
+						if (newDestEnt)
+						{
+							orderToUpdate.DestEnt = newDestEnt;
+							Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Order's " + orderToUpdate.OrderType + " DestEnt has been updated: " + Left4Bots.BotOrderToString(orderToUpdate));
+						}
+						else
+						{
+							Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Order's " + orderToUpdate.OrderType + " DestEnt was lost. Cancelling the order: " + Left4Bots.BotOrderToString(orderToUpdate));
+							if (Left4Bots.Settings.carry_debug)
+								Say(bot, orderToUpdate.OrderType + " item was lost", false);
+
+							BotCancelOrder(orderToUpdate);
+						}
+					}
+				}
+				
+				CarryItem = null;
+				CarryItemWeaponId = 0;
+			}
+		}
+	}
+	else
+	{
+		if (ActiveWeaponSlot == 5)
+		{
+			CarryItem = ActiveWeapon;
+			CarryItemWeaponId = ActiveWeaponId;
+			
+			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Carry item picked up: " + CarryItem);
+			
+			if (Left4Bots.Settings.carry_debug)
+				Say(player, "Carry item picked up: " + CarryItem, false);
+			
+			local isCarryOrder = false;
+			local ordersToUpdate = BotGetOrders(null, null, CarryItemWeaponId);
+			foreach (orderToUpdate in ordersToUpdate)
+			{
+				if (orderToUpdate.DestEnt.IsValid())
+				{
+					if (orderToUpdate.DestEnt == CarryItem)
+					{
+						Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Order's " + orderToUpdate.OrderType + " item DestEnt has not changed: " + Left4Bots.BotOrderToString(orderToUpdate));
+						isCarryOrder = isCarryOrder || orderToUpdate.OrderType == "carry";
+					}
+					else
+						Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Unrelated order: " + Left4Bots.BotOrderToString(orderToUpdate));
+				}
+				else
+				{
+					orderToUpdate.DestEnt = CarryItem;
+					Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Order's " + orderToUpdate.OrderType + " item DestEnt has been updated: " + Left4Bots.BotOrderToString(orderToUpdate));
+					isCarryOrder = isCarryOrder || orderToUpdate.OrderType == "carry";
 				}
 			}
 			
-			local orderToUpdate = BotGetOrder("use", CarryItem, CarryItemWeaponId);
-			while (orderToUpdate)
-			{
-				orderToUpdate.DestEnt = newCarryItem;
-			
-				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - CurrentOrder's carry item DestEnt has been updated: " + Left4Bots.BotOrderToString(CurrentOrder));
-			
-				orderToUpdate = BotGetOrder("use", CarryItem, CarryItemWeaponId);
-			}
-		
-			CarryItem = null;
-			CarryItemWeaponId = 0;
+			if (isCarryOrder)
+				Left4Bots.CarryItemStart(self);
 		}
 	}
-	
+
 	// Can't do anything at the moment
 	if (Left4Bots.SurvivorCantMove(self, Waiting))
 	{
 		if (!CanReset)
 		{
 			CanReset = true; // Now we can safely send RESET commands again
-		
+
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "Bot " + self.GetPlayerName() + " CanReset = true");
-		
+
 			// Delayed resets are executed as soon as we can reset again
 			if (DelayedReset)
 				BotReset(true);
 		}
 		return Left4Bots.Settings.bot_think_interval;
 	}
-	
+
 	// Don't do anything if the bot is on a ladder or the mode hasn't started yet
 	if (NetProps.GetPropInt(self, "movetype") == 9 /* MOVETYPE_LADDER */ || !Left4Bots.ModeStarted)
 		return Left4Bots.Settings.bot_think_interval;
@@ -249,7 +364,7 @@ enum AI_DOOR_ACTION {
 
 		return Left4Bots.Settings.bot_think_interval;
 	}
-	
+
 	if (Left4Bots.Settings.fall_velocity_warp != 0 && self.GetVelocity().z <= (-Left4Bots.Settings.fall_velocity_warp))
 	{
 		local others = Left4Bots.GetOtherAliveSurvivors(UserId);
@@ -260,17 +375,17 @@ enum AI_DOOR_ACTION {
 			{
 				self.SetVelocity(Vector(0,0,0));
 				self.SetOrigin(to.GetOrigin());
-				
+
 				Left4Bots.Log(LOG_LEVEL_INFO, self.GetPlayerName() + " has been teleported to " + to.GetPlayerName() + " while falling");
-				
+
 				return Left4Bots.Settings.bot_think_interval;
 			}
 		}
 	}
-	
+
 	if (Left4Bots.Settings.stuck_detection)
 		BotStuckMonitor();
-	
+
 	// HighPriority MOVEs are spit/charger dodging and such
 	if (MovePos && MoveType == AI_MOVE_TYPE.HighPriority)
 	{
@@ -278,21 +393,21 @@ enum AI_DOOR_ACTION {
 		if ((Origin - MovePos).Length() <= Left4Bots.Settings.move_end_radius)
 		{
 			// Yes, we did
-			
+
 			// No longer needed if we set sb_debug_apoproach_wait_time to something like 0.5 or even 0
 			// BotReset();
-			
+
 			BotMoveReset();
 			//MovePos = null;
 			//MovePosReal = null;
 			//MoveType = AI_MOVE_TYPE.None;
 		}
-		else if ((Time() - MoveTime) >= MoveTimeout)
+		else if ((CurTime - MoveTime) >= MoveTimeout)
 		{
 			// No but the move timed out
-			
+
 			//BotReset();
-			
+
 			BotMoveReset();
 			//MovePos = null;
 			//MovePosReal = null;
@@ -301,10 +416,17 @@ enum AI_DOOR_ACTION {
 		else
 			BotMoveTo(MovePos); // No, keep moving
 	}
-	
+
+	if (CurTime < HurryUntil)
+	{
+		// "hurry" command was used
+		BotThink_Misc(); // Still need to trigger car alarms
+		return Left4Bots.Settings.bot_think_interval;
+	}
+
 	if (Left4Bots.Settings.close_saferoom_door_highres)
 		BotThink_Door();
-	
+
 	switch (FuncI)
 	{
 		case 1:
@@ -331,14 +453,14 @@ enum AI_DOOR_ACTION {
 		{
 			if (!Left4Bots.Settings.close_saferoom_door_highres)
 				BotThink_Door();
-			
+
 			BotThink_Misc();
 			break;
 		}
 	}
-	
+
 	BotManualAttack();
-	
+
 	return Left4Bots.Settings.bot_think_interval;
 }
 
@@ -349,25 +471,34 @@ enum AI_DOOR_ACTION {
 	// https://github.com/smilz0/Left4Bots/issues/2
 	if (++FuncI > 5)
 		FuncI = 1;
-	
+
 	Origin = self.GetOrigin();
-	
+	CurTime = Time();
+	ActiveWeapon = self.GetActiveWeapon();
+	ActiveWeaponId = 0;
+	ActiveWeaponSlot = -1;
+	if (ActiveWeapon)
+	{
+		ActiveWeaponId = Left4Utils.GetWeaponId(ActiveWeapon);
+		ActiveWeaponSlot = Left4Utils.GetWeaponSlotById(ActiveWeaponId);
+	}
+
 	// Can't do anything at the moment
 	if (Left4Bots.SurvivorCantMove(self, Waiting))
 	{
 		if (!CanReset)
 		{
 			CanReset = true; // Now we can safely send RESET commands again
-		
+
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "L4D1 Bot " + self.GetPlayerName() + " CanReset = true");
-		
+
 			// Delayed resets are executed as soon as we can reset again
 			if (DelayedReset)
 				BotReset(true);
 		}
 		return Left4Bots.Settings.bot_think_interval;
 	}
-	
+
 	// Don't do anything if the bot is on a ladder or the mode hasn't started yet
 	if (NetProps.GetPropInt(self, "movetype") == 9 /* MOVETYPE_LADDER */ || !Left4Bots.ModeStarted)
 		return Left4Bots.Settings.bot_think_interval;
@@ -382,10 +513,10 @@ enum AI_DOOR_ACTION {
 
 		return Left4Bots.Settings.bot_think_interval;
 	}
-	
+
 	//if (Left4Bots.Settings.stuck_detection)
 	//	BotStuckMonitor();
-	
+
 	switch (FuncI)
 	{
 		case 1:
@@ -399,9 +530,9 @@ enum AI_DOOR_ACTION {
 			break;
 		}
 	}
-	
+
 	BotManualAttack(false);
-	
+
 	return Left4Bots.Settings.bot_think_interval;
 }
 
@@ -409,17 +540,17 @@ enum AI_DOOR_ACTION {
 // Runs in the scope of the bot entity
 ::Left4Bots.BotThink_Pickup <- function ()	// TODO fix: The sacrifice finale, Francis near the fence started moving for the medkit, while walking around the fence the pickup went too far and stopped, then started again and again.
 {
-	if ((Time() - TimePickup) < Left4Bots.Settings.pickups_min_interval)
+	if ((CurTime - TimePickup) < Left4Bots.Settings.pickups_min_interval)
 		return;
-	
+
 	// Don't do this here. Let the bot pick up items that can be picked up directly (without a MOVE command) even if we are moving for something else
 	//if (MoveType > AI_MOVE_TYPE.Pickup)
 	//	return; // Do nothing if there is an ongoing MOVE with higher priority
-	
+
 	local pickup = BotGetNearestPickupWithin(Left4Bots.Settings.pickups_scan_radius);
 	if (!pickup && MoveType == AI_MOVE_TYPE.Pickup && Left4Bots.IsValidPickup(MoveEnt))
 		pickup = MoveEnt; // We have no visible pickup nearby at the moment but, if we already got a MoveEnt we are moving to and it's still valid, we'll stick to it even if we can't see it
-	
+
 	if (!pickup)
 	{
 		// No item to pick up
@@ -427,46 +558,46 @@ enum AI_DOOR_ACTION {
 		if (MoveType == AI_MOVE_TYPE.Pickup)
 		{
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - No item to pick up; resetting previous pick-up MOVE");
-			
+
 			// We were moving for a pick-up tho, so we must reset
 			BotMoveReset();
 		}
 		return;
 	}
-	
+
 	// Is the item close enough?
 	if ((self.GetCenter() - pickup.GetCenter()).Length() <= Left4Bots.Settings.pickups_pick_range) // There is a cvar (player_use_radius 96) but idk how the distance is calculated, seems not to be from the player's origin or center
 	{
 		// Yes, pick it up
-		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Picking up: " + pickup.GetClassname());
-		
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Picking up: " + pickup);
+
 		// After this item, wait till WeaponsToSearch gets updated before picking up anything else
 		WeaponsToSearch.clear();
-		
-		TimePickup = Time();
-		
+
+		TimePickup = CurTime;
+
 		Left4Timers.AddTimer(null, Left4Bots.Settings.pickups_failsafe_delay, @(params) Left4Bots.PickupFailsafe(params.bot, params.item), { bot = self, item = pickup });
 		Left4Utils.PlayerPressButton(self, BUTTON_USE, Left4Bots.Settings.button_holdtime_tap, pickup, 0, 0, true);
 
 		if (MoveType == AI_MOVE_TYPE.Pickup)
 		{
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Item picked up: resetting MOVE");
-			
+
 			// Reset if we were moving for this item
 			BotMoveReset();
 		}
 		// else means that we picked up an item while moving for something else
-		
+
 		// We are done with this item
 		return;
-	}	
-	
+	}
+
 	// So, we have an item to pickup but it's not close enough yet. Should we move for it?
 
 	// Do it here
 	if (MoveType > AI_MOVE_TYPE.Pickup)
 		return; // Do not move for the item if there is an ongoing MOVE with higher priority
-	
+
 	// Don't move for the item if finale escape started, there are teammates who need help or we are too far from the human survivors
 	// if (BotIsInPause()) // TODO: Should we?
 	if (Left4Bots.EscapeStarted || Left4Bots.SurvivorsHeldOrIncapped() || (Left4Bots.Settings.pickups_max_separation > 0 && Left4Bots.IsFarFromHumanSurvivors(UserId, Origin, Left4Bots.Settings.pickups_max_separation))) // TODO: max separation only if lagging behind?
@@ -474,7 +605,7 @@ enum AI_DOOR_ACTION {
 		if (MoveType == AI_MOVE_TYPE.Pickup)
 		{
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Teammates need help or too far: resetting MOVE");
-			
+
 			// Reset if we were moving for this item
 			BotMoveReset();
 		}
@@ -488,17 +619,17 @@ enum AI_DOOR_ACTION {
 		// 2. The previous MOVE has a lower priority
 		// 3. Our destination item (MoveEnt) wasn't set or is no longer valid
 		// 4. Our destination item (MoveEnt) changed
-		
+
 		MoveType = AI_MOVE_TYPE.Pickup;
 		MoveEnt = pickup;
-		BotMoveTo(MoveEnt.GetOrigin(), true);
-		
-		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Started moving for: " + MoveEnt.GetClassname());
+		BotMoveToNav(MoveEnt.GetOrigin(), true);
+
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Started moving for: " + MoveEnt);
 	}
 	else
 	{
 		// Already moving for the item (MoveEnt), keep moving
-		BotMoveTo(MoveEnt.GetOrigin());
+		BotMoveToNav(MoveEnt.GetOrigin());
 	}
 }
 
@@ -508,50 +639,50 @@ enum AI_DOOR_ACTION {
 {
 	if (MoveType > AI_MOVE_TYPE.Defib)
 		return; // Do nothing if there is an ongoing MOVE with higher priority
-	
+
 	if (Left4Bots.IsSomeoneElseHolding(UserId, "weapon_defibrillator"))
 	{
 		// Someone else is holding a defibrillator, likely they are already about to defib the dead one
-		
+
 		if (MoveType == AI_MOVE_TYPE.Defib)
 		{
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Someone else is about to defib; resetting");
-			
+
 			BotMoveReset();
 		}
 		return;
 	}
-	
+
 	if (MoveType != AI_MOVE_TYPE.Defib)
 	{
 		// We aren't executing any defib atm
-		
+
 		// Is there any survivor_death_model we can actually defib?
 		local death = null;
 		if (Left4Utils.HasDefib(self))
 			death = Left4Bots.GetNearestDeathModelWithin(self, Origin, Left4Bots.Settings.deads_scan_radius, Left4Bots.Settings.deads_scan_maxaltdiff); // If we have a defibrillator we'll search the nearest death model within a certain radius
 		else
 			death = Left4Bots.GetNearestDeathModelWithDefibWithin(self, Origin, Left4Bots.Settings.deads_scan_radius, Left4Bots.Settings.deads_scan_maxaltdiff); // Otherwise we'll search the nearest death model within a certain radius with a defibrillator nearby
-		
+
 		if (!death || !death.IsValid())
 			return; // No one to defib
-		
+
 		// TODO?
 		//if (Left4Bots.HasAngryCommonsWithin(orig, 3, 100) != false || Left4Utils.HasSpecialInfectedWithin(self, 400) || Left4Bots.SurvivorsHeldOrIncapped())
 		if (BotIsInPause()) // TODO: maxSeparation
 			return;
-		
+
 		MoveType = AI_MOVE_TYPE.Defib;
 		MoveEnt = death;
-		BotMoveTo(MoveEnt.GetOrigin(), true);
-			
-		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Started moving for: " + MoveEnt.GetClassname());
-		
+		BotMoveToNav(MoveEnt.GetOrigin(), true);
+
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Started moving for: " + MoveEnt);
+
 		return;
 	}
-	
+
 	// We are already moving for a survivor_death_model
-	
+
 	// TODO?
 	//if (Left4Bots.HasAngryCommonsWithin(orig, 3, 100) != false || Left4Utils.HasSpecialInfectedWithin(self, 400) || Left4Bots.SurvivorsHeldOrIncapped())
 	if (BotIsInPause()) // TODO: maxSeparation
@@ -561,12 +692,12 @@ enum AI_DOOR_ACTION {
 	if (!MovePos || !MoveEnt || !MoveEnt.IsValid())
 	{
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Dest death model no longer valid; resetting");
-		
+
 		BotMoveReset();
-		
+
 		return;
 	}
-	
+
 	// Destination survivor_death_model is still there and no one is defibbing it, let's see if we reached it
 	if ((Origin - MovePos).Length() <= Left4Bots.Settings.move_end_radius_defib)
 	{
@@ -578,40 +709,39 @@ enum AI_DOOR_ACTION {
 			if (!defib)
 			{
 				// We don't have a defib and we came for a death model with defib nearby that is no longer available, so let's reset
-				
+
 				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Dest death had a defib nearby but it's no longer available; resetting");
-				
+
 				BotMoveReset();
-				
+
 				return;
 			}
-			
+
 			DoEntFire("!self", "Use", "", 0, self, defib);
-			
+
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Picked up a defib near the death model");
-			
+
 			// Do nothing until the defib is fully in our inventory
 		}
 		else
 		{
 			// We either came here with a defibrillator or we picked it up here, but are we holding it?
-			local holdingItem = self.GetActiveWeapon();
-			if (holdingItem && holdingItem.GetClassname() == "weapon_defibrillator")
+			if (ActiveWeapon && ActiveWeapon.GetClassname() == "weapon_defibrillator")
 			{
 				// Yes, but can we use it right now?
-				if (Time() > NetProps.GetPropFloat(holdingItem, "m_flNextPrimaryAttack") + 0.1) // <- Add a little delay or the animation will be bugged
+				if (CurTime > NetProps.GetPropFloat(ActiveWeapon, "m_flNextPrimaryAttack") + 0.1) // <- Add a little delay or the animation will be bugged
 					Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, Left4Bots.Settings.button_holdtime_defib, MoveEnt, 0, 0, true); // Yes
 			}
-			else if (holdingItem && holdingItem.GetClassname() != "weapon_pain_pills" && holdingItem.GetClassname() != "weapon_adrenaline") // We'll run into an infinite switch loop if the vanilla AI wants to use pills/adrenaline
+			else if (ActiveWeapon && ActiveWeapon.GetClassname() != "weapon_pain_pills" && ActiveWeapon.GetClassname() != "weapon_adrenaline") // We'll run into an infinite switch loop if the vanilla AI wants to use pills/adrenaline
 			{
 				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - About to start defib");
-			
+
 				self.SwitchToItem("weapon_defibrillator");
 			}
 		}
 	}
 	else
-		BotMoveTo(MoveEnt.GetOrigin()); // Not there yet, keep moving
+		BotMoveToNav(MoveEnt.GetOrigin()); // Not there yet, keep moving
 }
 
 // Handles the bot's items give and nades throw logics
@@ -623,11 +753,11 @@ enum AI_DOOR_ACTION {
 	if (nearestTank && !nearestTank.IsDead() && !nearestTank.IsDying() && !nearestTank.IsIncapacitated())
 	{
 		Left4Utils.BotCmdRetreat(self, nearestTank);
-		
+
 		Left4Bots.Log(LOG_LEVEL_DEBUG, self.GetPlayerName() + " RETREAT");
 	}
 	*/
-	
+
 	// Handle give items
 	local lookAtHuman = NetProps.GetPropEntity(self, "m_lookatPlayer");
 	if (lookAtHuman && lookAtHuman.IsValid() && !IsPlayerABot(lookAtHuman) && NetProps.GetPropInt(lookAtHuman, "m_iTeamNum") == TEAM_SURVIVORS && !Left4Bots.SurvivorCantMove(lookAtHuman, Waiting) && (Origin - lookAtHuman.GetOrigin()).Length() <= Left4Bots.Settings.give_max_range)
@@ -635,47 +765,46 @@ enum AI_DOOR_ACTION {
 		// Then try with pills and adrenaline
 		if (Left4Bots.GiveInventoryItem(self, lookAtHuman, INV_SLOT_PILLS))
 			return; // Don't do anything else if the give succedes
-		
+
 		// Try give a throwable
 		if (Left4Bots.GiveInventoryItem(self, lookAtHuman, INV_SLOT_THROW))
 			return; // Don't do anything else if the give succedes
-		
+
 		// Last try with medkits / defib / upgrade packs
 		if (Left4Bots.GiveInventoryItem(self, lookAtHuman, INV_SLOT_MEDKIT))
 			return; // Don't do anything else if the give succedes
 	}
-	
+
 	// Handle throw nades
-	if ((ThrowStartedOn && (Time() - ThrowStartedOn) > 5.0) || Left4Bots.SurvivorCantMove(self, Waiting))
+	if ((ThrowStartedOn && (CurTime - ThrowStartedOn) > 5.0) || Left4Bots.SurvivorCantMove(self, Waiting))
 	{
 		// Reset last attempted throw if takes too long (likely we got interrupted while switching) or bot can't move (probably got pinned)
 		ThrowType = AI_THROW_TYPE.None;
 		ThrowTarget = null;
 		ThrowStartedOn = 0;
-		
+
 		// Don't forget to re-enable the fire button
 		NetProps.SetPropInt(self, "m_afButtonDisabled", NetProps.GetPropInt(self, "m_afButtonDisabled") & (~BUTTON_ATTACK));
-		
+
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Throw expired");
 	}
-	
+
 	local heldClass = null;
-	local held = self.GetActiveWeapon();
-	if (held && held.IsValid())
-		heldClass = held.GetClassname();
-	
+	if (ActiveWeapon && ActiveWeapon.IsValid())
+		heldClass = ActiveWeapon.GetClassname();
+
 	if (heldClass && (heldClass == "weapon_molotov" || heldClass == "weapon_pipe_bomb" || heldClass == "weapon_vomitjar"))
 	{
 		// Probably we're about to throw this. Let's see if we can...
-		if (Time() > NetProps.GetPropFloat(held, "m_flNextPrimaryAttack"))
+		if (CurTime > NetProps.GetPropFloat(ActiveWeapon, "m_flNextPrimaryAttack"))
 		{
 			if (ThrowTarget && Left4Bots.ShouldStillThrow(self, UserId, Origin, ThrowType, ThrowTarget, heldClass))
 			{
 				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Throw finalization - ThrowType: " + ThrowType + " - ThrowTarget: " + ThrowTarget);
-				
+
 				// Don't forget to re-enable the fire button
 				NetProps.SetPropInt(self, "m_afButtonDisabled", NetProps.GetPropInt(self, "m_afButtonDisabled") & (~BUTTON_ATTACK));
-				
+
 				switch (ThrowType)
 				{
 					case AI_THROW_TYPE.Tank:
@@ -699,7 +828,7 @@ enum AI_DOOR_ACTION {
 						Left4Bots.BotSwitchToAnotherWeapon(self);
 					}
 				}
-				
+
 				ThrowType = AI_THROW_TYPE.None;
 				ThrowTarget = null;
 				ThrowStartedOn = 0;
@@ -710,12 +839,12 @@ enum AI_DOOR_ACTION {
 				ThrowType = AI_THROW_TYPE.None;
 				ThrowTarget = null;
 				ThrowStartedOn = 0;
-				
+
 				// Don't forget to re-enable the fire button
 				NetProps.SetPropInt(self, "m_afButtonDisabled", NetProps.GetPropInt(self, "m_afButtonDisabled") & (~BUTTON_ATTACK));
-				
+
 				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Throw no longer valid");
-				
+
 				Left4Bots.BotSwitchToAnotherWeapon(self);
 			}
 		}
@@ -726,7 +855,7 @@ enum AI_DOOR_ACTION {
 		if (throwItem && throwItem.IsValid())
 		{
 			local itemClass = throwItem.GetClassname();
-			
+
 			// Do we have a throw target?
 			ThrowTarget = Left4Bots.GetThrowTarget(self, UserId, Origin, itemClass);
 			if (ThrowTarget)
@@ -735,13 +864,13 @@ enum AI_DOOR_ACTION {
 					ThrowType = AI_THROW_TYPE.Tank;
 				else
 					ThrowType = AI_THROW_TYPE.Horde;
-				ThrowStartedOn = Time();
-				
+				ThrowStartedOn = CurTime;
+
 				// Need to disable the fire button until we are ready to throw (or throw is interrupted) otherwise the bot's vanilla AI can trigger the fire before our PressButton and the throw pos will be totally random
 				NetProps.SetPropInt(self, "m_afButtonDisabled", NetProps.GetPropInt(self, "m_afButtonDisabled") | BUTTON_ATTACK);
-				
+
 				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Throw (" + itemClass + ") -> " + ThrowTarget);
-				
+
 				self.SwitchToItem(itemClass); // Yes, switch to the throw item
 			}
 		}
@@ -765,85 +894,21 @@ enum AI_DOOR_ACTION {
 	if (!CurrentOrder)
 		return; // Nothing to do
 	
-	if (CurrentOrder.OrderType == "use" && CurrentOrder.Param1)
+	if (CurrentOrder.OrderType == "carry" && CarryItem == CurrentOrder.DestEnt)
 	{
-		// This is a carriable item
-		if (CurrentOrder.DestEnt && CurrentOrder.DestEnt.IsValid())
-		{
-			// DestEnt is still valid
-			local mp = CurrentOrder.DestEnt.GetMoveParent();
-			if (mp != null)
-			{
-				// The item is being carried by someone
-				if (mp == self)
-				{
-					// Carried by us. Do nothing
-					BotIsInPause(CurrentOrder.CanPause, false, CurrentOrder.MaxSeparation);
-				}
-				else
-				{
-					// Carried by someone else. Cancel this order
-					Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - CurrentOrder's carry item was picked up by someone else. Cancelling the order: " + Left4Bots.BotOrderToString(CurrentOrder));
-			
-					BotCancelCurrentOrder();
-				}
-				return;
-			}
-			else
-			{
-				// Do not return. We need to move to the item and pick it up
-			}
-		}
-		else
-		{
-			// DestEnt is no longer valid 
-			local aw = self.GetActiveWeapon();
-			if (aw && aw.IsValid() && Left4Utils.GetWeaponId(aw) == CurrentOrder.Param1)
-			{
-				// We actually picked up the item but it's no longer the same entity. Update DestEnt and do nothing
-				CurrentOrder.DestEnt = aw;
-				
-				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - CurrentOrder's carry item's entity has changed after pick-up: " + Left4Bots.BotOrderToString(CurrentOrder));
-				
-				BotIsInPause(CurrentOrder.CanPause, false, CurrentOrder.MaxSeparation);
-			}
-			else
-			{
-				// We lost the item
-				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - CurrentOrder's carry item was lost. Cancelling the order: " + Left4Bots.BotOrderToString(CurrentOrder));
-					
-				BotCancelCurrentOrder();
-			}
-			return;
-		}
+		// We're holding our carry item. Do nothing but handle the pauses
+		BotIsInPause(CurrentOrder.CanPause, false, CurrentOrder.MaxSeparation);
+		return;
 	}
-	else
+	
+	if (CurrentOrder.DestEnt && !Left4Bots.IsValidUseItem(CurrentOrder.DestEnt, (CurrentOrder.OrderType == "scavenge" || CurrentOrder.OrderType == "carry") ? self : null))
 	{
-		if (CurrentOrder.DestEnt && !Left4Bots.IsValidUseItem(CurrentOrder.DestEnt))
-		{
-			// Order's DestEnt is no longer valid or it was picked up by someone. Cancel this order
-			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - CurrentOrder's DestEnt is no longer valid: " + Left4Bots.BotOrderToString(CurrentOrder));
-
-			BotCancelCurrentOrder();
-
-			return;
-		}
+		// Order's DestEnt is no longer valid or it was picked up by someone. Cancel this order
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - CurrentOrder's DestEnt is no longer valid: " + Left4Bots.BotOrderToString(CurrentOrder));
 		
-		if (CurrentOrder.OrderType == "scavenge" && CurrentOrder.DestPos)
-		{
-			// We are going to the scavenge pour target and so we are supposed to be carrying the scavenge item. Let's check if we still have it or we lost it
-			
-			local aw = self.GetActiveWeapon();
-			if (!aw || !aw.IsValid() || (aw.GetClassname() != "weapon_gascan" && aw.GetClassname() != "weapon_cola_bottles"))
-			{
-				// Nope, we lost it. Cancel the order
-				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - CurrentOrder's scavenge item was dropped: " + Left4Bots.BotOrderToString(CurrentOrder));
-			
-				BotCancelCurrentOrder();
+		BotCancelCurrentOrder();
 
-				return;
-			}
-		}
+		return;
 	}
 	
 	// Execute CurrentOrder
@@ -890,7 +955,12 @@ enum AI_DOOR_ACTION {
 		{
 			// Not yet. Keep moving...
 			if (destPos)
-				BotMoveTo(destPos);
+			{
+				if (CurrentOrder.OrderType == "scavenge" || CurrentOrder.OrderType == "carry")
+					BotMoveToNav(destPos);
+				else
+					BotMoveTo(destPos);
+			}
 			else
 				BotFinalizeCurrentOrder();
 		}
@@ -903,33 +973,33 @@ enum AI_DOOR_ACTION {
 {
 	if (MoveType > AI_MOVE_TYPE.Door)
 		return; // Do nothing if there is an ongoing MOVE with higher priority
-	
+
 	if (!DoorEnt)
 		return; // Nothing to do
-	
+
 	// Is our door still valid?
 	if (!DoorEnt.IsValid())
 	{
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - DoorEnt is no longer valid");
-		
+
 		// Nope, reset
 		DoorEnt = null;
 		DoorZ = 0;
 		DoorAct = AI_DOOR_ACTION.None;
-		
+
 		if (MoveType == AI_MOVE_TYPE.Door)
 			BotMoveReset();
 
 		return;
 	}
-	
+
 	// We do have a door to open/close
 	local doorPos = Vector(DoorEnt.GetCenter().x, DoorEnt.GetCenter().y, DoorZ);
-	
+
 	if (DoorAct == AI_DOOR_ACTION.Saferoom)
 	{
 		// This means that we need to close a saferoom door and we must do it without locking ourselves out
-		
+
 		local area = self.GetLastKnownArea(); // Get the area currently occupied by the bot
 		if (area)
 		{
@@ -951,15 +1021,15 @@ enum AI_DOOR_ACTION {
 				DoorEnt = null;
 				DoorZ = 0;
 				DoorAct = AI_DOOR_ACTION.None;
-				
+
 				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - DoorEnt reset; bot stepped outside the saferoom");
 			}
 		}
 	}
-	
+
 	if (DoorAct != AI_DOOR_ACTION.Open && DoorAct != AI_DOOR_ACTION.Close)
 		return; // Likely it's still AI_DOOR_ACTION.Saferoom, we must wait until we can actually close it
-	
+
 	// Are we close enough to the door, yet?
 	if ((Origin - doorPos).Length() <= Left4Bots.Settings.move_end_radius_door)
 	{
@@ -972,12 +1042,12 @@ enum AI_DOOR_ACTION {
 
 		Left4Utils.PlayerPressButton(self, BUTTON_USE, Left4Bots.Settings.button_holdtime_tap, DoorEnt, 0, 0, true);
 		Left4Timers.AddTimer(null, Left4Bots.Settings.door_failsafe_delay, @(params) Left4Bots.DoorFailsafe(params.bot, params.door, params.action), { bot = self, door = DoorEnt, action = DoorAct });
-		
+
 		// Reset
 		DoorEnt = null;
 		DoorZ = 0;
 		DoorAct = AI_DOOR_ACTION.None;
-		
+
 		if (MoveType == AI_MOVE_TYPE.Door)
 			BotMoveReset();
 	}
@@ -1012,9 +1082,8 @@ enum AI_DOOR_ACTION {
 // Runs in the scope of the bot entity
 ::Left4Bots.BotManualAttack <- function (shootWhileMove = true)
 {
-	local aw = self.GetActiveWeapon();
-	local canMelee = aw && aw.GetClassname() == "weapon_melee" && Time() >= NetProps.GetPropFloat(aw, "m_flNextPrimaryAttack");
-	local canShove = !self.IsFiringWeapon() && Time() >= NetProps.GetPropFloat(self, "m_flNextShoveTime"); // TODO: add shove penalty?
+	local canMelee = ActiveWeapon && ActiveWeapon.GetClassname() == "weapon_melee" && CurTime >= NetProps.GetPropFloat(ActiveWeapon, "m_flNextPrimaryAttack");
+	local canShove = !self.IsFiringWeapon() && CurTime >= NetProps.GetPropFloat(self, "m_flNextShoveTime"); // TODO: add shove penalty?
 	local target = null;
 	local dot = 0;
 	if (canMelee || canShove)
@@ -1045,29 +1114,16 @@ enum AI_DOOR_ACTION {
 	else if (shootWhileMove && MovePos && Paused == 0 && NetProps.GetPropInt(self, "m_hasVisibleThreats")) // m_hasVisibleThreats indicates that a threat is in the bot's current field of view. An infected behind the bot won't set this
 	{
 		// If no close target or we cannot melee or shove it at the moment, then handle manual shooting to targets in our field of view, but only if we are executing a MOVE command
-		local aw = self.GetActiveWeapon();
-		if (aw && !NetProps.GetPropInt(aw, "m_bInReload"))
+		if (ActiveWeapon && !NetProps.GetPropInt(ActiveWeapon, "m_bInReload"))
 		{
-			local wId = Left4Utils.GetWeaponId(aw);
-			//local slot = Left4Utils.FindSlotForItemClass(self, aw.GetClassname());
-			local slot = Left4Utils.GetWeaponSlotById(wId);
-			//if (slot == INV_SLOT_PRIMARY || slot == INV_SLOT_SECONDARY)
-			if (slot == 0 || slot == 1)
+			if (ActiveWeaponSlot == 0 || ActiveWeaponSlot == 1)
 			{
-				local tgt = Left4Bots.FindBotNearestEnemy(self, Origin, Left4Bots.GetWeaponRangeById(wId), Left4Bots.Settings.manual_attack_mindot);
+				local tgt = Left4Bots.FindBotNearestEnemy(self, Origin, Left4Bots.GetWeaponRangeById(ActiveWeaponId), Left4Bots.Settings.manual_attack_mindot);
 				if (tgt)
-				{
-					/*
-					local v = tgt.GetCenter() - self.EyePosition();
-					v.Norm();
-					self.SnapEyeAngles(Left4Utils.VectorAngles(v));
-					Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, Left4Bots.Settings.button_holdtime_tap, null, 0, 0, false);
-					*/
 					Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, Left4Bots.Settings.button_holdtime_tap, tgt.GetCenter(), 0, 0, false);
-				}
-				
+
 				// Bots always reload for no reason while executing a MOVE command. Don't let them if there are visible threats and still rounds in the magazine
-				if (aw.Clip1() >= 5)
+				if (ActiveWeapon.Clip1() >= 5)
 				{
 					Left4Utils.PlayerDisableButton(self, BUTTON_RELOAD);
 					return;
@@ -1084,34 +1140,32 @@ enum AI_DOOR_ACTION {
 // Runs in the scope of the bot entity
 ::Left4Bots.BotStuckMonitor <- function ()
 {
-	local t = Time();
-	
 	if ((NetProps.GetPropInt(self, "m_nButtons") & (BUTTON_FORWARD + BUTTON_BACK + BUTTON_MOVELEFT + BUTTON_MOVERIGHT)) != 0)
 	{
 		// Bot is trying to move
 		if (SM_MoveTime == 0)
-			SM_MoveTime = t; // Start of the move
+			SM_MoveTime = CurTime; // Start of the move
 	}
 	else
 		SM_MoveTime = 0; // No longer trying to move
-	
-	if (SM_MoveTime == 0 || (t - SM_MoveTime) < 0.25)
+
+	if (SM_MoveTime == 0 || (CurTime - SM_MoveTime) < 0.25)
 	{
 		if (Left4Bots.Settings.stuck_nomove_unstuck && SM_IsStuck)
 		{
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " [UN-STUCK]");
 			if (Left4Bots.Settings.stuck_debug)
 				Say(self, "[UN-STUCK]", false);
-			
+
 			SM_IsStuck = false;
 		}
 
 		SM_StuckPos = Origin;
-		SM_StuckTime = t;
+		SM_StuckTime = CurTime;
 
 		return false;
 	}
-	
+
 	if (SM_IsStuck)
 	{
 		if ((Origin - SM_StuckPos).Length() > Left4Bots.Settings.stuck_range)
@@ -1119,10 +1173,10 @@ enum AI_DOOR_ACTION {
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " [UN-STUCK]");
 			if (Left4Bots.Settings.stuck_debug)
 				Say(self, "[UN-STUCK]", false);
-			
+
 			SM_IsStuck = false;
 			SM_StuckPos = Origin;
-			SM_StuckTime = t;
+			SM_StuckTime = CurTime;
 		}
 	}
 	else
@@ -1131,23 +1185,23 @@ enum AI_DOOR_ACTION {
 		if ((Origin - SM_StuckPos).Length() > Left4Bots.Settings.stuck_range)
 		{
 			SM_StuckPos = Origin;
-			SM_StuckTime = t;
+			SM_StuckTime = CurTime;
 		}
 		else
 		{
 			local m_StuckLast = NetProps.GetPropInt(self, "m_StuckLast");
 			if (m_StuckLast != 0)
 				printl(self.GetPlayerName() + " m_StuckLast: " + m_StuckLast);
-			
+
 			//local minMoveSpeed = 0.1 * GetDesiredSpeed() + 0.1;
 			//local escapeTime = Left4Bots.Settings.stuck_range / minMoveSpeed;
-			//if ((t - SM_StuckTime) > escapeTime)
-			if ((t - SM_StuckTime) >= Left4Bots.Settings.stuck_time)
+			//if ((CurTime - SM_StuckTime) > escapeTime)
+			if ((CurTime - SM_StuckTime) >= Left4Bots.Settings.stuck_time)
 			{
 				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " [STUCK]");
 				if (Left4Bots.Settings.stuck_debug)
 					Say(self, "[STUCK]", false);
-				
+
 				SM_IsStuck = true;
 
 				//if (MovePos)
@@ -1156,7 +1210,7 @@ enum AI_DOOR_ACTION {
 			}
 		}
 	}
-	
+
 	return SM_IsStuck;
 }
 
@@ -1167,13 +1221,13 @@ enum AI_DOOR_ACTION {
 {
 	if (!dest)
 		return;
-	
+
 	if (force || !MovePos)
 		NeedMove = 2;	// For some reason, sometimes, the first MOVE does nothing so let's send at least 2
-	
+
 	if (NeedMove <= 0 && (dest - MovePos).Length() <= 5) // <- This checks if the destination entity moved after the bot started moving towards it and forces a move command to the new entity position if the entity moved
 		return;
-	
+
 	if (NetProps.GetPropInt(self, "m_fFlags") & (1 << 5))
 		return;
 
@@ -1182,16 +1236,57 @@ enum AI_DOOR_ACTION {
 	if (NetProps.GetPropInt(self, "movetype") == 0)
 		NetProps.SetPropInt(self, "movetype", 2);
 	NetProps.SetPropInt(self, "m_afButtonForced", NetProps.GetPropInt(self, "m_afButtonForced") & (~BUTTON_DUCK));
-	
+
 	MovePos = dest;
-	
+	MovePosReal = MovePos;
+
+	if (Left4Bots.Settings.moveto_debug_duration > 0)
+		DebugDrawCircle(MovePosReal, Vector(255, 0, 0), 255, 6, true, Left4Bots.Settings.moveto_debug_duration);
+
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - MOVE -> " + MovePos + " (real: " + MovePosReal + ")");
+
+	Left4Utils.BotCmdMove(self, MovePosReal);
+	DelayedReset = false; // Reset no longer needed as the MOVE replaced the previous one
+
+	NeedMove--;
+}
+
+// Send the MOVE command to reach the given position, but only when really needed
+// force = true to start moving or to force a MOVE command. force = false to keep moving and only send another MOVE command if needed
+// If the dest pos is not in a nav area, it is moved into the nearest nav area
+// Runs in the scope of the bot entity
+::Left4Bots.BotMoveToNav <- function (dest, force = false)
+{
+	if (!dest)
+		return;
+
+	if (force || !MovePos)
+		NeedMove = 2;	// For some reason, sometimes, the first MOVE does nothing so let's send at least 2
+
+	if (NeedMove <= 0 && (dest - MovePos).Length() <= 5) // <- This checks if the destination entity moved after the bot started moving towards it and forces a move command to the new entity position if the entity moved
+		return;
+
+	if (NetProps.GetPropInt(self, "m_fFlags") & (1 << 5))
+		return;
+
+	// Reset movetype if needed
+	Waiting = false;
+	if (NetProps.GetPropInt(self, "movetype") == 0)
+		NetProps.SetPropInt(self, "movetype", 2);
+	NetProps.SetPropInt(self, "m_afButtonForced", NetProps.GetPropInt(self, "m_afButtonForced") & (~BUTTON_DUCK));
+
+	MovePos = dest;
+
+	// checkLOS = true -> ignores blocked areas which is bad for c1m2_streets when to press the gunshop button because it gets the previous area that is too far from the button so the bot fails to press the button
 	local area = NavMesh.GetNearestNavArea(MovePos, 120, true, false);
+	// checkLOS = false -> good for c1m2_streets but bad for all the rest because it doesn't check the LOS and gets the area behind the wall if it's closer to the item. RIP c1m2_streets button i guess...
+	//local area = NavMesh.GetNearestNavArea(MovePos, 120, false, false); // checkLOS = false -> ignores blocked areas
 	if (area)
 	{
 		local center = area.GetCenter();
 		local halfX = area.GetSizeX() / 2;
 		local halfY = area.GetSizeY() / 2;
-		
+
 		if (MovePos.x >= center.x - halfX && MovePos.x <= center.x + halfX && MovePos.y >= center.y - halfY && MovePos.y <= center.y + halfY)
 		{
 			// Dest pos is inside the area's 2D bounds
@@ -1203,17 +1298,21 @@ enum AI_DOOR_ACTION {
 			MovePosReal = Vector(Left4Utils.Max(center.x - halfX, Left4Utils.Min(MovePos.x, center.x + halfX)), Left4Utils.Max(center.y - halfY, Left4Utils.Min(MovePos.y, center.y + halfY)), center.z);
 		}
 		MovePosReal = Vector(MovePosReal.x, MovePosReal.y, area.GetZ(MovePosReal)); // Adjust the height at the specified point
-		
-		//DebugDrawCircle(MovePosReal, Vector(255, 0, 0), 255, 10, true, 10);
+
+		if (Left4Bots.Settings.moveto_debug_duration > 0)
+			area.DebugDrawFilled(0, 0, 255, 255, Left4Bots.Settings.moveto_debug_duration, true);
 	}
 	else
 	{
-		Left4Bots.Log(LOG_LEVEL_WARN, "[AI]" + self.GetPlayerName() + " - BotMoveTo -> " + MovePos + " - No NavArea found nearby; using the dest pos");
+		Left4Bots.Log(LOG_LEVEL_WARN, "[AI]" + self.GetPlayerName() + " - BotMoveToNav -> " + MovePos + " - No NavArea found nearby; using the dest pos");
 		MovePosReal = MovePos;
 	}
-	
+
+	if (Left4Bots.Settings.moveto_debug_duration > 0)
+		DebugDrawCircle(MovePosReal, Vector(255, 0, 0), 255, 6, true, Left4Bots.Settings.moveto_debug_duration);
+
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - MOVE -> " + MovePos + " (real: " + MovePosReal + ")");
-	
+
 	Left4Utils.BotCmdMove(self, MovePosReal);
 	DelayedReset = false; // Reset no longer needed as the MOVE replaced the previous one
 
@@ -1227,13 +1326,13 @@ enum AI_DOOR_ACTION {
 	// Reset the MOVE if needed
 	if (MovePos)
 		BotReset();
-	
+
 	// Reset movetype if needed
 	Waiting = false;
 	if (NetProps.GetPropInt(self, "movetype") == 0)
 		NetProps.SetPropInt(self, "movetype", 2);
 	NetProps.SetPropInt(self, "m_afButtonForced", NetProps.GetPropInt(self, "m_afButtonForced") & (~BUTTON_DUCK));
-	
+
 	// Reset MOVE parameters
 	MoveEnt = null;
 	MovePos = null;
@@ -1252,17 +1351,17 @@ enum AI_DOOR_ACTION {
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - DELAYED RESET");
 		else
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - RESET");
-		
+
 		// TODO: Should we send delayed resets or not? It seems that they can get the bots stuck sometimes. Need to verify
 		//if (!isDelayed)
 			Left4Utils.BotCmdReset(self);
-		
+
 		DelayedReset = false;
 	}
 	else
 	{
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - RESET has been delayed");
-		
+
 		DelayedReset = true;
 	}
 }
@@ -1273,7 +1372,7 @@ enum AI_DOOR_ACTION {
 {
 	WeaponsToSearch.clear();
 	UpgradesToSearch.clear();
-	
+
 	local currWeps = [Left4Utils.WeaponId.none, Left4Utils.WeaponId.none, Left4Utils.WeaponId.none, Left4Utils.WeaponId.none, Left4Utils.WeaponId.none]; // Will be filled with the weapon ids of the bot's current weapons
 	local hasT1Shotgun = false;
 	local hasT2Shotgun = false;
@@ -1301,17 +1400,17 @@ enum AI_DOOR_ACTION {
 	local inv = {};
 
 	GetInvTable(self, inv);
-	
+
 	// For each slot...
 	for (local i = 0; i < 5; i++)
 	{
 		local slot = "slot" + i;
-		
+
 		// Get the current weapon id for this slot (if any)
 		if (slot in inv)
 		{
 			currWeps[i] = Left4Utils.GetWeaponId(inv[slot]);
-			
+
 			if (i == 0)
 			{
 				hasT1Shotgun = (currWeps[i] == Left4Utils.WeaponId.weapon_shotgun_chrome) || (currWeps[i] == Left4Utils.WeaponId.weapon_pumpshotgun);
@@ -1344,107 +1443,131 @@ enum AI_DOOR_ACTION {
 			}
 		}
 	}
-	
+
 	local slotIdx = 0;
+	local useWeapon = (slotIdx in UseWeapons) ? UseWeapons[slotIdx] : 0;
 	if (Left4Bots.Settings.pickups_wep_always || (MovePos && MoveType == AI_MOVE_TYPE.Order && Paused == 0))
 	{
 		// PRIMARY
-		if (Left4Bots.TeamShotguns <= Left4Bots.Settings.team_min_shotguns && (hasT1Shotgun || hasT2Shotgun))
+		if (useWeapon != 0 && useWeapon == currWeps[slotIdx])
 		{
-			// We have a shotgun but TeamShotguns <= team_min_shotguns so we need to make sure to keep it. Just upgrade it if needed
-			
-			if (!hasT2Shotgun)
-			{
-				WeaponsToSearch[Left4Utils.WeaponId.weapon_autoshotgun] <- 0;
-				WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_spas] <- 0;
-			}
+			// They ordered to pickup a weapon with the "use" order and we already picked that weapon up. No need to look for other weapons
 		}
 		else
 		{
-			// We either don't have a shotgun or TeamShotguns > team_min_shotguns so we can follow our preference and try to get an higher priority weapon
+			if (useWeapon != 0)
+				WeaponsToSearch[useWeapon] <- 0; // Always add the "use" weapon, if any
 			
-			for (local x = 0; x < WeapPref[slotIdx].len(); x++)
+			if (Left4Bots.TeamShotguns <= Left4Bots.Settings.team_min_shotguns && (hasT1Shotgun || hasT2Shotgun))
 			{
-				// Add all the preference weapons that have higher priority than the one we have in the inventory
-				// But add them all if ammo percent of our primary weapon is < pickups_wep_replace_ammo
-				local prefId = WeapPref[slotIdx][x];
-				if (prefId != currWeps[slotIdx] || priAmmoPercent < Left4Bots.Settings.pickups_wep_replace_ammo)
-					WeaponsToSearch[prefId] <- 0;
-				else
-					break;
-			}
-			
-			// But if TeamShotguns < team_min_shotguns we must also make sure to try to get a shotgun as we currently don't have one
-			if (Left4Bots.TeamShotguns < Left4Bots.Settings.team_min_shotguns)
-			{
-				WeaponsToSearch[Left4Utils.WeaponId.weapon_autoshotgun] <- 0;
-				WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_spas] <- 0;
-				WeaponsToSearch[Left4Utils.WeaponId.weapon_pumpshotgun] <- 0;
-				WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_chrome] <- 0;
-			}
-			
-			// If ammo percent < 95 and no laser/ammo upgrade, add the current weapon too so we can get one with full ammo
-			// ???
-			//if (currWeps[slotIdx] > Left4Utils.WeaponId.none && priAmmoPercent < 95 && !hasLaserSight && !hasAmmoUpgrade)
-			//	WeaponsToSearch[currWeps[slotIdx]] <- 0;
-		}
-		
-		// If ammo percent < 95 and no laser/ammo upgrade, add the current weapon too so we can get one with full ammo
-		if (currWeps[slotIdx] > Left4Utils.WeaponId.none && priAmmoPercent < 95 && !hasLaserSight && !hasAmmoUpgrade)
-			WeaponsToSearch[currWeps[slotIdx]] <- 0;
-		
-		// SECONDARY
-		slotIdx = 1;
-		for (local x = 0; x < WeapPref[slotIdx].len(); x++)
-		{
-			local prefId = WeapPref[slotIdx][x];
-			if (hasChainsaw && Left4Bots.TeamChainsaws > Left4Bots.Settings.team_max_chainsaws)
-			{
-				// Try to get rid of chainsaw by replacing with anything else
-				if (prefId != Left4Utils.WeaponId.weapon_chainsaw)
+				// We have a shotgun but TeamShotguns <= team_min_shotguns so we need to make sure to keep it. Just upgrade it if needed
+
+				if (!hasT2Shotgun)
 				{
-					if (prefId > Left4Utils.MeleeWeaponId.none && Left4Bots.TeamMelee >= Left4Bots.Settings.team_max_melee)
-					{
-						// But always take care of the team_max_chainsaws / team_max_melee limits
-					}
-					else
-						WeaponsToSearch[prefId] <- 0;
-				}
-			}
-			else if (hasMelee && Left4Bots.TeamMelee > Left4Bots.Settings.team_max_melee)
-			{
-				// Try to get rid of melee by replacing with any non melee secondary
-				if (prefId < Left4Utils.MeleeWeaponId.none)
-				{
-					if (prefId == Left4Utils.WeaponId.weapon_chainsaw && Left4Bots.TeamChainsaws >= Left4Bots.Settings.team_max_chainsaws)
-					{
-						// But always take care of the team_max_chainsaws / team_max_melee limits
-					}
-					else
-						WeaponsToSearch[prefId] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_autoshotgun] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_spas] <- 0;
 				}
 			}
 			else
 			{
-				// Add all the preference weapons that have higher priority than the one we have in the inventory
-				if (prefId != currWeps[slotIdx])
+				// We either don't have a shotgun or TeamShotguns > team_min_shotguns so we can follow our preference and try to get an higher priority weapon
+
+				for (local x = 0; x < WeapPref[slotIdx].len(); x++)
 				{
-					if ((prefId == Left4Utils.WeaponId.weapon_chainsaw && Left4Bots.TeamChainsaws >= Left4Bots.Settings.team_max_chainsaws) || (prefId > Left4Utils.MeleeWeaponId.none && Left4Bots.TeamMelee >= Left4Bots.Settings.team_max_melee && !hasMelee))
-					{
-						// Take care of the team_max_chainsaws / team_max_melee limits
-					}
-					else if (currWeps[0] == Left4Utils.WeaponId.none && prefId > Left4Utils.MeleeWeaponId.none && !Left4Bots.Settings.pickups_melee_noprimary)
-					{
-						// Don't pickup melee weapons if we don't have a primary weapon and pickups_melee_noprimary is 0
-					}
-					else
+					// Add all the preference weapons that have higher priority than the one we have in the inventory
+					// Or add them all if ammo percent of our primary weapon is < pickups_wep_replace_ammo
+					local prefId = WeapPref[slotIdx][x];
+					if (prefId != currWeps[slotIdx] || priAmmoPercent < Left4Bots.Settings.pickups_wep_replace_ammo)
 						WeaponsToSearch[prefId] <- 0;
+					else
+						break;
 				}
-				else
-					break;
+
+				// But if TeamShotguns < team_min_shotguns we must also make sure to try to get a shotgun as we currently don't have one
+				if (Left4Bots.TeamShotguns < Left4Bots.Settings.team_min_shotguns)
+				{
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_autoshotgun] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_spas] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_pumpshotgun] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_chrome] <- 0;
+				}
+
+				// If ammo percent < 95 and no laser/ammo upgrade, add the current weapon too so we can get one with full ammo
+				// ???
+				//if (currWeps[slotIdx] > Left4Utils.WeaponId.none && priAmmoPercent < 95 && !hasLaserSight && !hasAmmoUpgrade)
+				//	WeaponsToSearch[currWeps[slotIdx]] <- 0;
 			}
 		}
-		
+
+		// If ammo percent < 95 and no laser/ammo upgrade, add the current weapon too so we can get one with full ammo
+		if (currWeps[slotIdx] > Left4Utils.WeaponId.none && priAmmoPercent < 95 && !hasLaserSight && !hasAmmoUpgrade)
+			WeaponsToSearch[currWeps[slotIdx]] <- 0;
+
+		// SECONDARY
+		slotIdx = 1;
+		useWeapon = (slotIdx in UseWeapons) ? UseWeapons[slotIdx] : 0;
+		if (useWeapon != 0 && useWeapon == currWeps[slotIdx])
+		{
+			// They ordered to pickup a weapon with the "use" order and we already picked that weapon up. No need to look for other weapons
+			
+			printl("CIAO SECCO!! " + useWeapon);
+		}
+		else
+		{
+			if (useWeapon != 0)
+				WeaponsToSearch[useWeapon] <- 0; // Always add the "use" weapon, if any
+			
+			for (local x = 0; x < WeapPref[slotIdx].len(); x++)
+			{
+				local prefId = WeapPref[slotIdx][x];
+				if (hasChainsaw && Left4Bots.TeamChainsaws > Left4Bots.Settings.team_max_chainsaws)
+				{
+					// Try to get rid of chainsaw by replacing with anything else
+					if (prefId != Left4Utils.WeaponId.weapon_chainsaw)
+					{
+						if (prefId > Left4Utils.MeleeWeaponId.none && Left4Bots.TeamMelee >= Left4Bots.Settings.team_max_melee)
+						{
+							// But always take care of the team_max_chainsaws / team_max_melee limits
+						}
+						else
+							WeaponsToSearch[prefId] <- 0;
+					}
+				}
+				else if (hasMelee && Left4Bots.TeamMelee > Left4Bots.Settings.team_max_melee)
+				{
+					// Try to get rid of melee by replacing with any non melee secondary
+					if (prefId < Left4Utils.MeleeWeaponId.none)
+					{
+						if (prefId == Left4Utils.WeaponId.weapon_chainsaw && Left4Bots.TeamChainsaws >= Left4Bots.Settings.team_max_chainsaws)
+						{
+							// But always take care of the team_max_chainsaws / team_max_melee limits
+						}
+						else
+							WeaponsToSearch[prefId] <- 0;
+					}
+				}
+				else
+				{
+					// Add all the preference weapons that have higher priority than the one we have in the inventory
+					if (prefId != currWeps[slotIdx])
+					{
+						if ((prefId == Left4Utils.WeaponId.weapon_chainsaw && Left4Bots.TeamChainsaws >= Left4Bots.Settings.team_max_chainsaws) || (prefId > Left4Utils.MeleeWeaponId.none && Left4Bots.TeamMelee >= Left4Bots.Settings.team_max_melee && !hasMelee))
+						{
+							// Take care of the team_max_chainsaws / team_max_melee limits
+						}
+						else if (currWeps[0] == Left4Utils.WeaponId.none && prefId > Left4Utils.MeleeWeaponId.none && !Left4Bots.Settings.pickups_melee_noprimary)
+						{
+							// Don't pickup melee weapons if we don't have a primary weapon and pickups_melee_noprimary is 0
+						}
+						else
+							WeaponsToSearch[prefId] <- 0;
+					}
+					else
+						break;
+				}
+			}
+		}
+
 		// Handle Dual Pistols
 		if (hasPistol && !hasDualPistol)
 		{
@@ -1452,63 +1575,248 @@ enum AI_DOOR_ACTION {
 			WeaponsToSearch[Left4Utils.WeaponId.weapon_pistol] <- 0;
 		}
 	}
-	
+
 	// THROWABLES
 	slotIdx = 2;
-	for (local x = 0; x < WeapPref[slotIdx].len(); x++)
+	useWeapon = (slotIdx in UseWeapons) ? UseWeapons[slotIdx] : 0;
+	if (useWeapon != 0 && useWeapon == currWeps[slotIdx])
 	{
-		// Just take note of the requested higher priority items, we'll build the search list later
-		local prefId = WeapPref[slotIdx][x];
-		if (prefId != currWeps[slotIdx])
+		// They ordered to pickup a weapon with the "use" order and we already picked that weapon up. No need to look for other weapons
+	}
+	else
+	{
+		if (useWeapon != 0)
+			WeaponsToSearch[useWeapon] <- 0; // Always add the "use" weapon, if any
+		
+		for (local x = 0; x < WeapPref[slotIdx].len(); x++)
 		{
-			if (prefId == Left4Utils.WeaponId.weapon_molotov)
-				wantsMolotov = true;
-			else if (prefId == Left4Utils.WeaponId.weapon_pipe_bomb)
-				wantsPipeBomb = true;
-			else if (prefId == Left4Utils.WeaponId.weapon_vomitjar)
-				wantsVomitJar = true;
+			// Just take note of the requested higher priority items, we'll build the search list later
+			local prefId = WeapPref[slotIdx][x];
+			if (prefId != currWeps[slotIdx])
+			{
+				if (prefId == Left4Utils.WeaponId.weapon_molotov)
+					wantsMolotov = true;
+				else if (prefId == Left4Utils.WeaponId.weapon_pipe_bomb)
+					wantsPipeBomb = true;
+				else if (prefId == Left4Utils.WeaponId.weapon_vomitjar)
+					wantsVomitJar = true;
+			}
+			else
+				break;
+		}
+		
+		// TODO: This IF nesting is ugly af. I'm sure there is a better way to write this
+		if (!hasMolotov && !hasPipeBomb && !hasVomitJar)
+		{
+			// If the slot is empty we'll pick up anything that is in our assigned priority list
+			if (wantsMolotov)
+				WeaponsToSearch[Left4Utils.WeaponId.weapon_molotov] <- 0;
+
+			if (wantsPipeBomb)
+				WeaponsToSearch[Left4Utils.WeaponId.weapon_pipe_bomb] <- 0;
+
+			if (wantsVomitJar)
+				WeaponsToSearch[Left4Utils.WeaponId.weapon_vomitjar] <- 0;
 		}
 		else
-			break;
+		{
+			// Otherwise...
+			if (Left4Bots.TeamMolotovs < Left4Bots.Settings.team_min_molotovs)
+			{
+				// If there are not enough team molotovs, we'll go for the molotov
+				if (!hasMolotov)
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_molotov] <- 0;
+			}
+			else
+			{
+				// Otherwise...
+				if (Left4Bots.TeamMolotovs == Left4Bots.Settings.team_min_molotovs && hasMolotov)
+				{
+					// Do nothing or TeamMolotovs will drop below team_min_molotovs
+				}
+				else
+				{
+					if (Left4Bots.TeamPipeBombs < Left4Bots.Settings.team_min_pipebombs)
+					{
+						// If there are not enough team pipe bombs, we'll go for the pipe bomb
+						if (!hasPipeBomb)
+							WeaponsToSearch[Left4Utils.WeaponId.weapon_pipe_bomb] <- 0;
+					}
+					else
+					{
+						// Otherwise...
+						if (Left4Bots.TeamPipeBombs == Left4Bots.Settings.team_min_pipebombs && hasPipeBomb)
+						{
+							// Do nothing or TeamPipeBombs will drop below team_min_pipebombs
+						}
+						else
+						{
+							if (Left4Bots.TeamVomitJars < Left4Bots.Settings.team_min_vomitjars)
+							{
+								// If there are not enough team vomit jars, we'll go for the vomit jar
+								if (!hasVomitJar)
+									WeaponsToSearch[Left4Utils.WeaponId.weapon_vomitjar] <- 0;
+							}
+							else
+							{
+								if (Left4Bots.TeamVomitJars == Left4Bots.Settings.team_min_vomitjars && hasVomitJar)
+								{
+									// Do nothing or TeamVomitJars will drop below team_min_vomitjars
+								}
+								else
+								{
+									// Otherwise we'll just follow our assigned priority list
+									if (wantsMolotov && !hasMolotov)
+										WeaponsToSearch[Left4Utils.WeaponId.weapon_molotov] <- 0;
+
+									if (wantsPipeBomb && !hasPipeBomb)
+										WeaponsToSearch[Left4Utils.WeaponId.weapon_pipe_bomb] <- 0;
+
+									if (wantsVomitJar && !hasVomitJar)
+										WeaponsToSearch[Left4Utils.WeaponId.weapon_vomitjar] <- 0;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 
 	// MEDKIT
 	slotIdx = 3;
-	for (local x = 0; x < WeapPref[slotIdx].len(); x++)
+	useWeapon = (slotIdx in UseWeapons) ? UseWeapons[slotIdx] : 0;
+	if (useWeapon != 0 && useWeapon == currWeps[slotIdx])
 	{
-		// Just take note of the requested higher priority items, we'll build the search list later
-		local prefId = WeapPref[slotIdx][x];
-		if (prefId != currWeps[slotIdx])
+		// They ordered to pickup a weapon with the "use" order and we already picked that weapon up. No need to look for other weapons
+	}
+	else
+	{
+		if (useWeapon != 0)
+			WeaponsToSearch[useWeapon] <- 0; // Always add the "use" weapon, if any
+		
+		for (local x = 0; x < WeapPref[slotIdx].len(); x++)
 		{
-			if (prefId == Left4Utils.WeaponId.weapon_first_aid_kit)
-				wantsMedkit = true;
-			else if (prefId == Left4Utils.WeaponId.weapon_defibrillator)
-				wantsDefib = true;
-			else if (prefId == Left4Utils.WeaponId.weapon_upgradepack_incendiary)
-				wantsUpgdInc = true;
-			else if (prefId == Left4Utils.WeaponId.weapon_upgradepack_explosive)
-				wantsUpgdExp = true;
+			// Just take note of the requested higher priority items, we'll build the search list later
+			local prefId = WeapPref[slotIdx][x];
+			if (prefId != currWeps[slotIdx])
+			{
+				if (prefId == Left4Utils.WeaponId.weapon_first_aid_kit)
+					wantsMedkit = true;
+				else if (prefId == Left4Utils.WeaponId.weapon_defibrillator)
+					wantsDefib = true;
+				else if (prefId == Left4Utils.WeaponId.weapon_upgradepack_incendiary)
+					wantsUpgdInc = true;
+				else if (prefId == Left4Utils.WeaponId.weapon_upgradepack_explosive)
+					wantsUpgdExp = true;
+			}
+			else
+				break;
+		}
+		
+		if (!hasMedkit && !hasDefib && !hasUpgdInc && !hasUpgdExp)
+		{
+			// If the slot is empty we'll pick up anything that is in our assigned priority list
+			if (wantsMedkit)
+				WeaponsToSearch[Left4Utils.WeaponId.weapon_first_aid_kit] <- 0;
+
+			if (wantsDefib)
+				WeaponsToSearch[Left4Utils.WeaponId.weapon_defibrillator] <- 0;
+
+			if (wantsUpgdInc)
+				WeaponsToSearch[Left4Utils.WeaponId.weapon_upgradepack_incendiary] <- 0;
+
+			if (wantsUpgdExp)
+				WeaponsToSearch[Left4Utils.WeaponId.weapon_upgradepack_explosive] <- 0;
 		}
 		else
-			break;
+		{
+			// Otherwise...
+			if (Left4Bots.HasDeathModelWithin(Origin, Left4Bots.Settings.deads_scan_radius))
+			{
+				// If there is a dead survivor to defib, our top priority is the defibrillator
+				if (!hasDefib)
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_defibrillator] <- 0; // Search one if we don't have it
+			}
+			else
+			{
+				// Otherwise...
+				if (Left4Bots.TeamMedkits < Left4Bots.Settings.team_min_medkits || (self.GetHealth() + self.GetHealthBuffer()) < 30)
+				{
+					// If we need to heal or there are not enough team medkits, we'll go for the medkit
+					if (!hasMedkit)
+						WeaponsToSearch[Left4Utils.WeaponId.weapon_first_aid_kit] <- 0;
+				}
+				else
+				{
+					// Otherwise...
+					if (Left4Bots.TeamMedkits == Left4Bots.Settings.team_min_medkits && hasMedkit)
+					{
+						// Do nothing or TeamMedkits will drop below team_min_medkits
+					}
+					else
+					{
+						if (Left4Bots.TeamDefibs < Left4Bots.Settings.team_min_defibs)
+						{
+							// If there are not enough team defibrillators, we'll go for the defibrillator
+							if (!hasDefib)
+								WeaponsToSearch[Left4Utils.WeaponId.weapon_defibrillator] <- 0;
+						}
+						else
+						{
+							if (Left4Bots.TeamDefibs == Left4Bots.Settings.team_min_defibs && hasDefib)
+							{
+								// Do nothing or TeamDefibs will drop below team_min_defibs
+							}
+							else
+							{
+								// Otherwise we'll just follow our assigned priority list
+								if (wantsMedkit && !hasMedkit)
+									WeaponsToSearch[Left4Utils.WeaponId.weapon_first_aid_kit] <- 0;
+
+								if (wantsDefib && !hasDefib)
+									WeaponsToSearch[Left4Utils.WeaponId.weapon_defibrillator] <- 0;
+
+								if (wantsUpgdInc && !hasUpgdInc)
+									WeaponsToSearch[Left4Utils.WeaponId.weapon_upgradepack_incendiary] <- 0;
+
+								if (wantsUpgdExp && !hasUpgdExp)
+									WeaponsToSearch[Left4Utils.WeaponId.weapon_upgradepack_explosive] <- 0;
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 
 	// PILLS
 	slotIdx = 4;
-	for (local x = 0; x < WeapPref[slotIdx].len(); x++)
+	useWeapon = (slotIdx in UseWeapons) ? UseWeapons[slotIdx] : 0;
+	if (useWeapon != 0 && useWeapon == currWeps[slotIdx])
 	{
-		// Add all the preference weapons that have higher priority than the one we have in the inventory
-		local prefId = WeapPref[slotIdx][x];
-		if (prefId != currWeps[slotIdx])
-			WeaponsToSearch[prefId] <- 0;
-		else
-			break;
+		// They ordered to pickup a weapon with the "use" order and we already picked that weapon up. No need to look for other weapons
 	}
-	
+	else
+	{
+		if (useWeapon != 0)
+			WeaponsToSearch[useWeapon] <- 0; // Always add the "use" weapon, if any
+		
+		for (local x = 0; x < WeapPref[slotIdx].len(); x++)
+		{
+			// Add all the preference weapons that have higher priority than the one we have in the inventory
+			local prefId = WeapPref[slotIdx][x];
+			if (prefId != currWeps[slotIdx])
+				WeaponsToSearch[prefId] <- 0;
+			else
+				break;
+		}
+	}
+
 	// Handle Ammo
 	if (priAmmoPercent < Left4Bots.Settings.pickups_wep_ammo_replenish)
 		WeaponsToSearch[Left4Utils.WeaponId.weapon_ammo] <- 0;
-	
+
 	// Handle Upgrades
 	if (!hasAmmoUpgrade)
 	{
@@ -1517,161 +1825,7 @@ enum AI_DOOR_ACTION {
 	}
 	if (!hasLaserSight)
 		UpgradesToSearch[Left4Utils.UpgradeWeaponId.upgrade_laser_sight] <- 0;
-	
-	// Handle Throwables
-	// TODO: This IF nesting is ugly af. I'm sure there is a better way to write this
-	if (!hasMolotov && !hasPipeBomb && !hasVomitJar)
-	{
-		// If the slot is empty we'll pick up anything that is in our assigned priority list
-		if (wantsMolotov)
-			WeaponsToSearch[Left4Utils.WeaponId.weapon_molotov] <- 0;
 
-		if (wantsPipeBomb)
-			WeaponsToSearch[Left4Utils.WeaponId.weapon_pipe_bomb] <- 0;
-
-		if (wantsVomitJar)
-			WeaponsToSearch[Left4Utils.WeaponId.weapon_vomitjar] <- 0;
-	}
-	else
-	{
-		// Otherwise...
-		if (Left4Bots.TeamMolotovs < Left4Bots.Settings.team_min_molotovs)
-		{
-			// If there are not enough team molotovs, we'll go for the molotov
-			if (!hasMolotov)
-				WeaponsToSearch[Left4Utils.WeaponId.weapon_molotov] <- 0;
-		}
-		else
-		{
-			// Otherwise...
-			if (Left4Bots.TeamMolotovs == Left4Bots.Settings.team_min_molotovs && hasMolotov)
-			{
-				// Do nothing or TeamMolotovs will drop below team_min_molotovs
-			}
-			else
-			{
-				if (Left4Bots.TeamPipeBombs < Left4Bots.Settings.team_min_pipebombs)
-				{
-					// If there are not enough team pipe bombs, we'll go for the pipe bomb
-					if (!hasPipeBomb)
-						WeaponsToSearch[Left4Utils.WeaponId.weapon_pipe_bomb] <- 0;
-				}
-				else
-				{
-					// Otherwise...
-					if (Left4Bots.TeamPipeBombs == Left4Bots.Settings.team_min_pipebombs && hasPipeBomb)
-					{
-						// Do nothing or TeamPipeBombs will drop below team_min_pipebombs
-					}
-					else
-					{
-						if (Left4Bots.TeamVomitJars < Left4Bots.Settings.team_min_vomitjars)
-						{
-							// If there are not enough team vomit jars, we'll go for the vomit jar
-							if (!hasVomitJar)
-								WeaponsToSearch[Left4Utils.WeaponId.weapon_vomitjar] <- 0;
-						}
-						else
-						{
-							if (Left4Bots.TeamVomitJars == Left4Bots.Settings.team_min_vomitjars && hasVomitJar)
-							{
-								// Do nothing or TeamVomitJars will drop below team_min_vomitjars
-							}
-							else
-							{
-								// Otherwise we'll just follow our assigned priority list
-								if (wantsMolotov && !hasMolotov)
-									WeaponsToSearch[Left4Utils.WeaponId.weapon_molotov] <- 0;
-
-								if (wantsPipeBomb && !hasPipeBomb)
-									WeaponsToSearch[Left4Utils.WeaponId.weapon_pipe_bomb] <- 0;
-
-								if (wantsVomitJar && !hasVomitJar)
-									WeaponsToSearch[Left4Utils.WeaponId.weapon_vomitjar] <- 0;
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	
-	// Handle Medkit/Defib/Upgradepacks
-	if (!hasMedkit && !hasDefib && !hasUpgdInc && !hasUpgdExp)
-	{
-		// If the slot is empty we'll pick up anything that is in our assigned priority list
-		if (wantsMedkit)
-			WeaponsToSearch[Left4Utils.WeaponId.weapon_first_aid_kit] <- 0;
-
-		if (wantsDefib)
-			WeaponsToSearch[Left4Utils.WeaponId.weapon_defibrillator] <- 0;
-
-		if (wantsUpgdInc)
-			WeaponsToSearch[Left4Utils.WeaponId.weapon_upgradepack_incendiary] <- 0;
-
-		if (wantsUpgdExp)
-			WeaponsToSearch[Left4Utils.WeaponId.weapon_upgradepack_explosive] <- 0;
-	}
-	else
-	{
-		// Otherwise...
-		if (Left4Bots.HasDeathModelWithin(Origin, Left4Bots.Settings.deads_scan_radius))
-		{
-			// If there is a dead survivor to defib, our top priority is the defibrillator
-			if (!hasDefib)
-				WeaponsToSearch[Left4Utils.WeaponId.weapon_defibrillator] <- 0; // Search one if we don't have it
-		}
-		else
-		{
-			// Otherwise...
-			if (Left4Bots.TeamMedkits < Left4Bots.Settings.team_min_medkits || (self.GetHealth() + self.GetHealthBuffer()) < 30)
-			{
-				// If we need to heal or there are not enough team medkits, we'll go for the medkit
-				if (!hasMedkit)
-					WeaponsToSearch[Left4Utils.WeaponId.weapon_first_aid_kit] <- 0;
-			}
-			else
-			{
-				// Otherwise...
-				if (Left4Bots.TeamMedkits == Left4Bots.Settings.team_min_medkits && hasMedkit)
-				{
-					// Do nothing or TeamMedkits will drop below team_min_medkits
-				}
-				else
-				{
-					if (Left4Bots.TeamDefibs < Left4Bots.Settings.team_min_defibs)
-					{
-						// If there are not enough team defibrillators, we'll go for the defibrillator
-						if (!hasDefib)
-							WeaponsToSearch[Left4Utils.WeaponId.weapon_defibrillator] <- 0;
-					}
-					else
-					{
-						if (Left4Bots.TeamDefibs == Left4Bots.Settings.team_min_defibs && hasDefib)
-						{
-							// Do nothing or TeamDefibs will drop below team_min_defibs
-						}
-						else
-						{
-							// Otherwise we'll just follow our assigned priority list
-							if (wantsMedkit && !hasMedkit)
-								WeaponsToSearch[Left4Utils.WeaponId.weapon_first_aid_kit] <- 0;
-
-							if (wantsDefib && !hasDefib)
-								WeaponsToSearch[Left4Utils.WeaponId.weapon_defibrillator] <- 0;
-
-							if (wantsUpgdInc && !hasUpgdInc)
-								WeaponsToSearch[Left4Utils.WeaponId.weapon_upgradepack_incendiary] <- 0;
-
-							if (wantsUpgdExp && !hasUpgdExp)
-								WeaponsToSearch[Left4Utils.WeaponId.weapon_upgradepack_explosive] <- 0;
-						}
-					}
-				}
-			}
-		}
-	}
-	
 	//Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - WeaponsToSearch: " + WeaponsToSearch.len() + " - UpgradesToSearch: " + UpgradesToSearch.len());
 }
 
@@ -1691,7 +1845,7 @@ enum AI_DOOR_ACTION {
 		priWeaponId = Left4Utils.GetWeaponId(pri);
 		priAmmoPercent = Left4Utils.GetAmmoPercent(pri);
 	}
-	
+
 	if (WeaponsToSearch.len() > 0)
 	{
 		while (ent = Entities.FindByClassnameWithin(ent, "weapon_*", orig, radius)) // TODO: SLOW! We should find another way to do this
@@ -1709,7 +1863,7 @@ enum AI_DOOR_ACTION {
 						if (Left4Utils.GetWeaponSlotById(weaponId) == 0)
 						{
 							// Primary
-							
+
 							// If we are going to pick-up the same weapon, make sure it has more ammo than the current one
 							local ammoPercent = Left4Utils.GetAmmoPercent(ent);
 							if ((weaponId != priWeaponId && ammoPercent >= Left4Bots.Settings.pickups_wep_min_ammo) || (weaponId == priWeaponId && ammoPercent > priAmmoPercent))
@@ -1722,7 +1876,7 @@ enum AI_DOOR_ACTION {
 						else
 						{
 							// Any other
-							
+
 							ret = ent;
 							minDist = dist;
 						}
@@ -1731,7 +1885,7 @@ enum AI_DOOR_ACTION {
 			}
 		}
 	}
-	
+
 	if (UpgradesToSearch.len() > 0)
 	{
 		ent = null;
@@ -1759,7 +1913,7 @@ enum AI_DOOR_ACTION {
 {
 	// Whatever the previous MovePos was, our order has higher priority, so let's start moving...
 	MoveType = AI_MOVE_TYPE.Order;
-	
+
 	if (CurrentOrder.OrderType == "lead")
 	{
 		// If we are coming back to leading after an higher priority move we need to check if we already moved ahead on the flow, so let's force the BotFinalizeCurrentOrder
@@ -1772,18 +1926,18 @@ enum AI_DOOR_ACTION {
 		{
 			// Nope, nothing to do then
 			//Left4Bots.Log(LOG_LEVEL_WARN, "[AI]" + self.GetPlayerName() + " can't execute 'heal' order; no medkit in inventory");
-			
+
 			BotFinalizeCurrentOrder();
 			return;
 		}
-		
+
 		self.SwitchToItem("weapon_first_aid_kit");
-		
+
 		if (CurrentOrder.DestEnt.GetPlayerUserId() == self.GetPlayerUserId())
 		{
 			// We have to heal ourselves, we don't really need to move
 			MovePos = Origin; // Set this or BotThink_Orders will call BotInitializeCurrentOrder again
-			
+
 			BotFinalizeCurrentOrder();
 		}
 		else
@@ -1794,9 +1948,19 @@ enum AI_DOOR_ACTION {
 		// If the order has a DestPos, we'll move there, otherwise we'll move to DestEnt's origin
 		// If both DestPos and DestEnt are null we call the current order finalization
 		if (CurrentOrder.DestPos)
-			BotMoveTo(CurrentOrder.DestPos, true);
+		{
+			if (CurrentOrder.OrderType == "scavenge" || CurrentOrder.OrderType == "carry")
+				BotMoveToNav(CurrentOrder.DestPos, true);
+			else
+				BotMoveTo(CurrentOrder.DestPos, true);
+		}
 		else if (CurrentOrder.DestEnt)
-			BotMoveTo(CurrentOrder.DestEnt.GetOrigin(), true);
+		{
+			if (CurrentOrder.OrderType == "scavenge" || CurrentOrder.OrderType == "carry")
+				BotMoveToNav(CurrentOrder.DestEnt.GetOrigin(), true);
+			else
+				BotMoveTo(CurrentOrder.DestEnt.GetOrigin(), true);
+		}
 		else
 			BotFinalizeCurrentOrder();
 	}
@@ -1810,16 +1974,16 @@ enum AI_DOOR_ACTION {
 	if (!CurrentOrder)
 	{
 		Left4Bots.Log(LOG_LEVEL_ERROR, "[AI]" + self.GetPlayerName() + " - Finalizing current order without a current order!");
-		
+
 		NeedMove = 0;
 		MovePos = null;
 		MovePosReal = null;
 		MoveType = AI_MOVE_TYPE.None;
 		return;
 	}
-	
+
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Finalizing order: " + Left4Bots.BotOrderToString(CurrentOrder));
-	
+
 	local orderComplete = true;
 	switch (CurrentOrder.OrderType)
 	{
@@ -1837,15 +2001,14 @@ enum AI_DOOR_ACTION {
 							Left4Bots.Log(LOG_LEVEL_INFO, "[AI]" + self.GetPlayerName() + " started leading; order from: " + CurrentOrder.From.GetPlayerName());
 						else
 							Left4Bots.Log(LOG_LEVEL_WARN, "[AI]" + self.GetPlayerName() + " started leading; order from: ?");
-						
-						local t = Time();
-						if ((t - Left4Bots.LastLeadStartVocalize) >= Left4Bots.Settings.lead_vocalize_interval)
+
+						if ((CurTime - Left4Bots.LastLeadStartVocalize) >= Left4Bots.Settings.lead_vocalize_interval)
 						{
 							Left4Bots.SpeakRandomVocalize(self, Left4Bots.VocalizerLeadStart, RandomFloat(0.4, 0.9));
-							Left4Bots.LastLeadStartVocalize = t;
+							Left4Bots.LastLeadStartVocalize = CurTime;
 						}
 					}
-					
+
 					// Self add another "lead" order but with the next position as DestPos so we can start/continue travel
 					///Left4Bots.BotOrderAppend(self, "lead", null, null, nextPos);
 					/// Avoid the ^slow GetScriptScope(), if possible
@@ -1853,11 +2016,11 @@ enum AI_DOOR_ACTION {
 					//Orders.append(order);
 					//Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Appended order (queue pos. " + Orders.len() + "): " + Left4Bots.BotOrderToString(order));
 					orderComplete = false; // This way is better
-					
+
 					// Update CurrentOrder.DestPos with the next segment's end
 					CurrentOrder.DestPos = nextPos;
 					Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - CurrentOrder.DestPos updated: " + CurrentOrder.DestPos);
-					
+
 					// Is this the lead's first or a resume MOVE?
 					if (!MovePos)
 						BotMoveTo(CurrentOrder.DestPos, true); // Yes. We need to start the move here or BotThink_Orders will call BotFinalizeCurrentOrder resulting in an infinite loop
@@ -1869,14 +2032,14 @@ enum AI_DOOR_ACTION {
 					{
 						// This was a Start lead order from a player, so the travel didn't even start
 						Left4Bots.Log(LOG_LEVEL_WARN, "[AI]" + self.GetPlayerName() + " can't start leading; goal already reached");
-						
+
 						Left4Bots.SpeakRandomVocalize(self, Left4Bots.VocalizerLeadStop, RandomFloat(0.5, 1.0));
 					}
 					else
 					{
 						// It was a continuation of the travel, so it's a legit end of the travel
 						Left4Bots.Log(LOG_LEVEL_INFO, "[AI]" + self.GetPlayerName() + " stopped leading; goal reached");
-						
+
 						Left4Bots.SpeakRandomVocalize(self, Left4Bots.VocalizerLeadStop, RandomFloat(0, 0.5));
 					}
 				}
@@ -1888,14 +2051,14 @@ enum AI_DOOR_ACTION {
 				{
 					// This was a Start lead order from a player, so the travel didn't even start
 					Left4Bots.Log(LOG_LEVEL_ERROR, "[AI]" + self.GetPlayerName() + " can't start leading; nextPos is null!");
-					
+
 					DoEntFire("!self", "SpeakResponseConcept", "PlayerNo", RandomFloat(0.5, 1.0), null, self);
 				}
 				else
 				{
 					// It was a continuation of the travel, so it's an "abnormal" end of the travel
 					Left4Bots.Log(LOG_LEVEL_ERROR, "[AI]" + self.GetPlayerName() + " stopped leading; nextPos is null!");
-					
+
 					Left4Bots.SpeakRandomVocalize(self, Left4Bots.VocalizerLeadStop, RandomFloat(0, 0.5));
 				}
 			}
@@ -1906,9 +2069,9 @@ enum AI_DOOR_ACTION {
 			if (CurrentOrder.DestEnt && CurrentOrder.DestEnt.IsValid() && ("LookupAttachment" in CurrentOrder.DestEnt))
 			{
 				local attachId = CurrentOrder.DestEnt.LookupAttachment("forward");
-				
+
 				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Found witch 'forward' attachment id: " + attachId);
-				
+
 				// Shoot 3 bullets to her head as quick as possible (if using slow weapons like pump shotguns the bullets will be 2 but usually 1 is enough)
 				NetProps.SetPropInt(self, "m_fFlags", NetProps.GetPropInt(self, "m_fFlags") | (1 << 5)); // set FL_FROZEN for the entire duration of the 3 shoots
 				Left4Timers.AddTimer(null, 0.01, @(params) Left4Bots.BotShootAtEntityAttachment(params.bot, params.witch, params.attachmentid ), { bot = self, witch = CurrentOrder.DestEnt, attachmentid = attachId });
@@ -1917,76 +2080,88 @@ enum AI_DOOR_ACTION {
 			}
 			else
 				Left4Bots.Log(LOG_LEVEL_ERROR, "[AI]" + self.GetPlayerName() + " - Witch has no LookupAttachment!");
-			
+
 			break;
 		}
 		case "use":
 		{
-			Left4Bots.Log(LOG_LEVEL_INFO, "[AI]" + self.GetPlayerName() + " is using " + CurrentOrder.DestEnt.GetClassname());
-			
+			Left4Bots.Log(LOG_LEVEL_INFO, "[AI]" + self.GetPlayerName() + " is using " + CurrentOrder.DestEnt);
+
 			Left4Utils.PlayerPressButton(self, BUTTON_USE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
-			
+
+			break;
+		}
+		case "carry":
+		{
+			Left4Bots.Log(LOG_LEVEL_INFO, "[AI]" + self.GetPlayerName() + " is carrying " + CurrentOrder.DestEnt);
+
+			Left4Timers.AddTimer(null, Left4Bots.Settings.pickups_failsafe_delay, @(params) Left4Bots.PickupFailsafe(params.bot, params.item), { bot = self, item = CurrentOrder.DestEnt });
+			Left4Utils.PlayerPressButton(self, BUTTON_USE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
+
 			// Do not complete the order if we need to carry this item
-			orderComplete = !CurrentOrder.Param1 || !Left4Bots.Settings.use_carry_items || Left4Utils.GetWeaponSlotById(CurrentOrder.Param1) != 5;
-			
+			orderComplete = !CurrentOrder.Param1 || Left4Utils.GetWeaponSlotById(CurrentOrder.Param1) != 5;
+
 			break;
 		}
 		case "scavenge":
 		{
-			if (CurrentOrder.DestEnt && !CurrentOrder.DestPos)
+			if (CurrentOrder.DestPos)
 			{
-				// If DestPos (the pour target pos) is not set it means that we reached the scavenge item and we need to pick it up
-				
-				// Pick-up
+				if (Left4Bots.Settings.scavenge_pour)
+				{
+					// Pour
+					if (NetProps.GetPropInt(Left4Bots.ScavengeUseTarget, "m_useActionOwner") > 0)
+					{
+						Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " can't pour; pour target is busy. Pausing...");
+						BotPause();
+					}
+					else
+					{
+						Left4Bots.CarryItemStop(self);
+						Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " is pouring");
+						Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, Left4Bots.Settings.button_holdtime_pour, Left4Bots.ScavengeUseTarget, 0, 0, true);
+					}
+				}
+				else
+				{
+					// Drop it
+					Left4Bots.CarryItemStop(self);
+					Left4Bots.DropCarryItem(self);
+				}
+			}
+			else
+			{
+				Left4Bots.Log(LOG_LEVEL_INFO, "[AI]" + self.GetPlayerName() + " is carrying " + CurrentOrder.DestEnt);
+
 				Left4Timers.AddTimer(null, Left4Bots.Settings.pickups_failsafe_delay, @(params) Left4Bots.PickupFailsafe(params.bot, params.item), { bot = self, item = CurrentOrder.DestEnt });
-				Left4Utils.PlayerPressButton(self, BUTTON_USE, Left4Bots.Settings.button_holdtime_tap, CurrentOrder.DestEnt, 0, 0, true);
-				
-				// Go to pour target
-				CurrentOrder.DestEnt = null;
+				Left4Utils.PlayerPressButton(self, BUTTON_USE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
+
 				CurrentOrder.DestPos = Left4Bots.ScavengeUseTargetPos;
 				if (Left4Bots.Settings.scavenge_pour)
 					CurrentOrder.DestRadius <- Left4Bots.Settings.move_end_radius_pour;
 				else
 					CurrentOrder.DestRadius <- Left4Bots.Settings.scavenge_drop_radius - 20;
-				
+
 				BotMoveTo(CurrentOrder.DestPos, true);
-				
+
+				// Do not complete the order, we need to carry this item to the pour target
 				orderComplete = false;
-			}
-			else if (CurrentOrder.DestPos)
-			{
-				// Here we are supposed to be near the pour target with the scavenge item in our hands
-				
-				// Do we still have it?
-				local aw = self.GetActiveWeapon();
-				if (aw && aw.IsValid() && (aw.GetClassname() == "weapon_gascan" || aw.GetClassname() == "weapon_cola_bottles"))
-				{
-					// Yes. Do we have to pour or drop?
-					if (Left4Bots.Settings.scavenge_pour)
-					{
-						// Pour
-						if (NetProps.GetPropInt(Left4Bots.ScavengeUseTarget, "m_useActionOwner") > 0)
-						{
-							Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " can't pour; pour target is busy");
-							
-							orderComplete = false;
-						}
-						else
-						{
-							Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " is pouring");
-					
-							Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, Left4Bots.Settings.button_holdtime_pour, Left4Bots.ScavengeUseTarget, 0, 0, true);
-						}
-					}
-					else
-					{
-						// Drop
-						Left4Utils.PlayerPressButton(self, BUTTON_USE, Left4Bots.Settings.button_holdtime_tap, Left4Bots.ScavengeUseTarget, 0, 0, true);
-					}
-				}
-				else
-					Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - CurrentOrder's scavenge item was dropped: " + Left4Bots.BotOrderToString(CurrentOrder));
-			}
+			}			
+
+			break;
+		}
+		case "deploy":
+		{
+			Left4Bots.Log(LOG_LEVEL_INFO, "[AI]" + self.GetPlayerName() + " is deploying " + CurrentOrder.DestEnt);
+
+			// Disable the AI stuff for a while so the bot doesn't switch back to medkit before finishing the deploy
+			HurryUntil = Left4Utils.Max(HurryUntil, CurTime + 5);
+
+			Left4Utils.PlayerPressButton(self, BUTTON_USE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
+
+			Left4Timers.AddTimer(null, 1, @(params) params.bot.SwitchToItem(params.cls), { bot = self, cls = Left4Utils.StringReplace(CurrentOrder.DestEnt.GetClassname(), "_spawn", "") });
+
+			Left4Timers.AddTimer(null, 2, @(params) Left4Bots.DoDeployUpgrade(params.bot), { bot = self });
 
 			break;
 		}
@@ -1994,21 +2169,20 @@ enum AI_DOOR_ACTION {
 		{
 			if (Left4Utils.HasMedkit(self))
 			{
-				local aw = self.GetActiveWeapon();
-				if (aw && aw.GetClassname() == "weapon_first_aid_kit")
+				if (ActiveWeapon && ActiveWeapon.GetClassname() == "weapon_first_aid_kit")
 				{
 					// Are we ready to use the medkit?
-					if (Time() > NetProps.GetPropFloat(aw, "m_flNextPrimaryAttack") + 0.1) // <- Add a little delay or the animation will be bugged
+					if (CurTime > NetProps.GetPropFloat(ActiveWeapon, "m_flNextPrimaryAttack") + 0.1) // <- Add a little delay or the animation will be bugged
 					{
 						// Yes
 						Left4Bots.Log(LOG_LEVEL_INFO, "[AI]" + self.GetPlayerName() + " is healing " + CurrentOrder.DestEnt.GetPlayerName());
-						
+
 						if (CurrentOrder.DestEnt.GetPlayerUserId() == self.GetPlayerUserId())
 							Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, CurrentOrder.HoldTime, null, 0, 0, true); // <- NOTE: Vanilla AI will likely interrupt the healing if lockLook is false
 						else
 						{
 							Left4Utils.PlayerPressButton(self, BUTTON_SHOVE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
-							
+
 							// This will check if the healing started and the healing target is the right target. If not, it will abort the healing and the current order and will re-add the order to try again
 							Left4Timers.AddTimer(null, 0.8, @(params) Left4Bots.CheckHealingTarget(params.bot, params.order), { bot = self, order = CurrentOrder });
 						}
@@ -2024,13 +2198,13 @@ enum AI_DOOR_ACTION {
 			}
 			else
 				Left4Bots.Log(LOG_LEVEL_WARN, "[AI]" + self.GetPlayerName() + " can't execute 'heal' order; no medkit in inventory");
-			
+
 			break;
 		}
 		case "goto":
 		{
 			Left4Bots.SpeakRandomVocalize(self, Left4Bots.VocalizerGotoStop, RandomFloat(0.1, 0.6));
-			
+
 			break;
 		}
 		case "follow":
@@ -2038,11 +2212,7 @@ enum AI_DOOR_ACTION {
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Followed ent is in range");
 
 			// Start the Pause if needed
-			if (Paused == 0)
-			{
-				Paused = Time();
-				BotOnPause();
-			}
+			BotPause();
 			orderComplete = false;
 
 			break;
@@ -2059,7 +2229,7 @@ enum AI_DOOR_ACTION {
 			{
 				// Cancel the current wait order if its wait location is in an elevator
 				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Cancelling wait order with wait position in elevator");
-				
+
 				BotCancelCurrentOrder(); // This is actually needed. orderComplete = true does not reset the MOVE
 			}
 			else
@@ -2070,21 +2240,21 @@ enum AI_DOOR_ACTION {
 
 					// Give control back to the vanilla AI
 					BotReset();
-					
+
 					// But don't let it move
 					NetProps.SetPropInt(self, "movetype", 0);
-					
+
 					self.SetVelocity(Vector(0, 0, 0)); // This will reset the bot's animation from running to idle
-					
+
 					if (Left4Bots.Settings.wait_crouch)
 						NetProps.SetPropInt(self, "m_afButtonForced", NetProps.GetPropInt(self, "m_afButtonForced") | BUTTON_DUCK);
-					
+
 					Waiting = true;
 				}
-			
+
 				orderComplete = false;
 			}
-			
+
 			break;
 		}
 		default:
@@ -2092,7 +2262,7 @@ enum AI_DOOR_ACTION {
 			// Do nothing
 		}
 	}
-	
+
 	if (orderComplete)
 	{
 		NeedMove = 0;
@@ -2100,24 +2270,29 @@ enum AI_DOOR_ACTION {
 		MovePosReal = null;
 		MoveType = AI_MOVE_TYPE.None;
 		CurrentOrder = null; // Order is done
-	
+
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - CurrentOrder done. " + Orders.len() + " order(s) in queue.");
 	}
 	else
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - CurrentOrder not done yet");
 }
 
-// Returns first the order (current and queued) matching the given parameters
-::Left4Bots.BotGetOrder <- function (orderType = null, destEnt = null, param1 = null)
+// Returns all the orders (current and queued) matching the given parameters
+::Left4Bots.BotGetOrders <- function (orderType = null, destEnt = null, param1 = null)
 {
+	local ret = {};
+	local idx = 0;
+
 	if (CurrentOrder && (!orderType || CurrentOrder.OrderType == orderType) && (!destEnt || CurrentOrder.DestEnt == destEnt) && (!param1 || CurrentOrder.Param1 == param1))
-		return CurrentOrder;
-	
-	for (local i = Orders.len() - 1; i >= 0; i--)
+		ret[idx++] <- CurrentOrder;
+
+	for (local i = 0; i < Orders.len(); i++)
 	{
-		if (CurrentOrder && (!orderType || CurrentOrder.OrderType == orderType) && (!destEnt || CurrentOrder.DestEnt == destEnt) && (!param1 || CurrentOrder.Param1 == param1))
-			return Orders[i];
+		if ((!orderType || Orders[i].OrderType == orderType) && (!destEnt || Orders[i].DestEnt == destEnt) && (!param1 || Orders[i].Param1 == param1))
+			ret[idx++] <- Orders[i];
 	}
+	
+	return ret;
 }
 
 // Cancel the current order (does not affect the orders in the queue)
@@ -2126,23 +2301,40 @@ enum AI_DOOR_ACTION {
 {
 	if (!CurrentOrder)
 		return;
-	
+
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Cancelling order: " + Left4Bots.BotOrderToString(CurrentOrder));
 
 	if (MoveType == AI_MOVE_TYPE.Order)
 		BotMoveReset();
 
-	if (CurrentOrder.OrderType == "use" && CurrentOrder.Param1)
+	
+	if (CurrentOrder.OrderType == "scavenge" || CurrentOrder.OrderType == "carry")
 	{
-		Left4Bots.OnCarryItemDrop(self);
-		
-		local aw = self.GetActiveWeapon();
-		if (aw && aw.IsValid() && Left4Utils.GetWeaponSlotById(Left4Utils.GetWeaponId(aw)) == 5) // <- Carry item
-			Left4Timers.AddTimer(null, 0.01, @(params) Left4Utils.PlayerPressButton(params.bot, params.button, params.holdtime), { bot = self, button = BUTTON_USE, holdtime = Left4Bots.Settings.button_holdtime_tap });
-			//Left4Utils.PlayerPressButton(self, BUTTON_USE, Left4Bots.Settings.button_holdtime_tap); // Drop it
+		Left4Bots.CarryItemStop(self);
+		Left4Bots.DropCarryItem(self);
 	}
 
 	CurrentOrder = null;
+}
+
+// Cancel the given order (it can be either the current or a queued one)
+// Runs in the scope of the bot entity
+::Left4Bots.BotCancelOrder <- function (order)
+{
+	if (!order)
+		return;
+	
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Cancelling the order: " + Left4Bots.BotOrderToString(order));
+
+	for (local i = Orders.len() - 1; i >= 0; i--)
+	{
+		if (Orders[i] == order)
+			Orders.remove(i);
+	}
+	if (CurrentOrder == order)
+		BotCancelCurrentOrder();
+
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Orders still in queue: " + Orders.len());
 }
 
 // Cancel all the orders (current and queued) of type 'orderType'. if 'orderType' is null, all the bot's orders will be cancelled
@@ -2152,7 +2344,7 @@ enum AI_DOOR_ACTION {
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Cancelling all the orders of type: " + orderType);
 	else
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Cancelling all the orders");
-	
+
 	if (orderType)
 	{
 		for (local i = Orders.len() - 1; i >= 0; i--)
@@ -2168,7 +2360,7 @@ enum AI_DOOR_ACTION {
 		Orders.clear();
 		BotCancelCurrentOrder();
 	}
-	
+
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Orders still in queue: " + Orders.len());
 }
 
@@ -2176,7 +2368,7 @@ enum AI_DOOR_ACTION {
 ::Left4Bots.BotCancelOrdersDestEnt <- function (destEntClass)
 {
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Cancelling all the orders with DestEnt of class: " + destEntClass);
-	
+
 	for (local i = Orders.len() - 1; i >= 0; i--)
 	{
 		if (Orders[i].DestEnt && Orders[i].DestEnt.GetClassname() == destEntClass)
@@ -2184,7 +2376,7 @@ enum AI_DOOR_ACTION {
 	}
 	if (CurrentOrder && CurrentOrder.DestEnt && CurrentOrder.DestEnt.GetClassname() == destEntClass)
 		BotCancelCurrentOrder();
-	
+
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Orders still in queue: " + Orders.len());
 }
 
@@ -2192,7 +2384,7 @@ enum AI_DOOR_ACTION {
 ::Left4Bots.BotCancelDefib <- function ()
 {
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Cancelling defib");
-	
+
 	// MOVE stuff
 	if (MoveType == AI_MOVE_TYPE.Defib)
 		BotMoveReset();
@@ -2202,25 +2394,29 @@ enum AI_DOOR_ACTION {
 ::Left4Bots.BotCancelAll <- function ()
 {
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Cancelling everything");
-	
+
 	// Orders stuff
 	BotCancelOrders();
-	
+
 	// MOVE stuff
 	//if (MoveType != AI_MOVE_TYPE.None)
 		BotMoveReset();
-	
+
 	// Door stuff
 	DoorEnt = null;
 	DoorZ = 0;
 	DoorAct = AI_DOOR_ACTION.None;
-	
+
 	// Just in case...
 	NetProps.SetPropInt(self, "m_fFlags", NetProps.GetPropInt(self, "m_fFlags") & ~(1 << 5)); // unset FL_FROZEN
 	NetProps.SetPropInt(self, "m_afButtonDisabled", NetProps.GetPropInt(self, "m_afButtonDisabled") & (~BUTTON_ATTACK)); // enable FIRE button
 	NetProps.SetPropInt(self, "m_afButtonForced", 0); // clear forced buttons
-	
-	Left4Bots.OnCarryItemDrop(self);
+
+	/*
+	Left4Bots.CarryItemStop(self);
+	CarryItem = null;
+	CarryItemWeaponId = 0;
+	*/
 }
 
 // Check if the bot should pause what he is doing. Handles the Paused flag and the RESET command
@@ -2240,25 +2436,37 @@ enum AI_DOOR_ACTION {
 		{
 			local r = Left4Bots.BotShouldStartPause(self, UserId, Origin, SM_IsStuck, isHealOrder, maxSeparation);
 			if (r)
-			{
-				// Yes, let's give control back to the vanilla AI
-				Paused = Time();
-				BotOnPause(r);
-			}
+				BotPause(r); // Yes, let's give control back to the vanilla AI
 		}
 	}
-	else if (followEnt || (Time() - Paused) >= Left4Bots.Settings.pause_min_time) // Only stop the pause if at least pause_min_time seconds passed, or we are following someone
+	else if (followEnt || (CurTime - Paused) >= Left4Bots.Settings.pause_min_time) // Only stop the pause if at least pause_min_time seconds passed, or we are following someone
 	{
 		// Should we stop the pause?
 		if ((!followEnt || (followEnt.GetOrigin() - Origin).Length() > followRange) && Left4Bots.BotShouldStopPause(self, UserId, Origin, SM_IsStuck, isHealOrder, maxSeparation))
-		{
-			// Yes, unpause and refresh the last MOVE if needed
-			Paused = 0;
-			BotOnResume();
-		}
+			BotUnPause(); // Yes, unpause and refresh the last MOVE if needed
 	}
-	
+
 	return (Paused != 0);
+}
+
+// Starts a pause with the given 'reason'
+::Left4Bots.BotPause <- function (reason = true)
+{
+	if (Paused != 0)
+		return;
+
+	Paused = CurTime;
+	BotOnPause(reason);
+}
+
+// Stops the current pause
+::Left4Bots.BotUnPause <- function ()
+{
+	if (Paused == 0)
+		return;
+
+	Paused = 0;
+	BotOnResume();
 }
 
 // Called when the bot starts the pause
@@ -2267,13 +2475,13 @@ enum AI_DOOR_ACTION {
 {
 	if (MovePos)
 		BotReset();
-		
+
 	// Reset movetype if needed
 	Waiting = false;
 	if (NetProps.GetPropInt(self, "movetype") == 0)
 		NetProps.SetPropInt(self, "movetype", 2);
 	NetProps.SetPropInt(self, "m_afButtonForced", NetProps.GetPropInt(self, "m_afButtonForced") & (~BUTTON_DUCK));
-	
+
 	// reason is actually the return value of Left4Bots.BotShouldStartPause (but cannot be false here)
 	// - ent (entity of the special infected / tank / witch that is the reason to start the pause)
 	// - 1 (common infected horde)
@@ -2292,11 +2500,10 @@ enum AI_DOOR_ACTION {
 		{
 			if (Left4Bots.Settings.witch_autocrown)
 			{
-				local aw = self.GetActiveWeapon();
-				if (aw && aw.GetClassname().find("shotgun") != null)
+				if (ActiveWeapon && ActiveWeapon.GetClassname().find("shotgun") != null)
 					Left4Bots.BotOrderAdd(self, "witch", null, reason, null, null, 0, false);
 			}
-			
+
 			reason = "witch";
 			if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_onpause_witch_chance)
 				DoEntFire("!self", "SpeakResponseConcept", "PlayerWarnWitch", RandomFloat(0, 0.8), null, self);
@@ -2309,47 +2516,47 @@ enum AI_DOOR_ACTION {
 				case Z_SMOKER:
 				{
 					Left4Timers.AddTimer(null, 0.01, @(params) Left4Utils.BotCmdAttack(params.bot, params.target), { bot = self, target = reason });
-					
+
 					reason = "smoker";
 					if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_onpause_special_chance)
 						DoEntFire("!self", "SpeakResponseConcept", "PlayerWarnSmoker", RandomFloat(0, 0.8), null, self);
-					
+
 					break;
 				}
 				case Z_BOOMER:
 				{
 					Left4Timers.AddTimer(null, 0.01, @(params) Left4Utils.BotCmdAttack(params.bot, params.target), { bot = self, target = reason });
-					
+
 					reason = "boomer";
 					if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_onpause_special_chance)
 						DoEntFire("!self", "SpeakResponseConcept", "PlayerWarnBoomer", RandomFloat(0, 0.8), null, self);
-					
+
 					break;
 				}
 				case Z_HUNTER:
 				{
 					Left4Timers.AddTimer(null, 0.01, @(params) Left4Utils.BotCmdAttack(params.bot, params.target), { bot = self, target = reason });
-					
+
 					reason = "hunter";
-					if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_onpause_special_chance)					
+					if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_onpause_special_chance)
 						DoEntFire("!self", "SpeakResponseConcept", "PlayerWarnHunter", RandomFloat(0, 0.8), null, self);
-						
+
 					break;
 				}
 				case Z_SPITTER:
 				{
 					Left4Timers.AddTimer(null, 0.01, @(params) Left4Utils.BotCmdAttack(params.bot, params.target), { bot = self, target = reason });
-					
+
 					reason = "spitter";
 					if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_onpause_special_chance)
 						DoEntFire("!self", "SpeakResponseConcept", "PlayerWarnSpitter", RandomFloat(0, 0.8), null, self);
-					
+
 					break;
 				}
 				case Z_JOCKEY:
 				{
 					Left4Timers.AddTimer(null, 0.01, @(params) Left4Utils.BotCmdAttack(params.bot, params.target), { bot = self, target = reason });
-					
+
 					reason = "jockey";
 					if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_onpause_special_chance)
 						DoEntFire("!self", "SpeakResponseConcept", "PlayerWarnJockey", RandomFloat(0, 0.8), null, self);
@@ -2359,11 +2566,11 @@ enum AI_DOOR_ACTION {
 				case Z_CHARGER:
 				{
 					Left4Timers.AddTimer(null, 0.01, @(params) Left4Utils.BotCmdAttack(params.bot, params.target), { bot = self, target = reason });
-					
+
 					reason = "charger";
 					if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_onpause_special_chance)
 						DoEntFire("!self", "SpeakResponseConcept", "PlayerWarnCharger", RandomFloat(0, 0.8), null, self);
-					
+
 					break;
 				}
 				case Z_TANK:
@@ -2371,7 +2578,7 @@ enum AI_DOOR_ACTION {
 					reason = "tank";
 					if (RandomInt(1, 100) <= Left4Bots.Settings.vocalizer_onpause_tank_chance)
 						DoEntFire("!self", "SpeakResponseConcept", "PlayerWarnTank", RandomFloat(0, 0.8), null, self);
-					
+
 					break;
 				}
 				default:
@@ -2381,14 +2588,10 @@ enum AI_DOOR_ACTION {
 			}
 		}
 	}
-	
-	Left4Bots.OnCarryItemDrop(self);
-	
-	local aw = self.GetActiveWeapon();
-	if (aw && aw.IsValid() && Left4Utils.GetWeaponSlotById(Left4Utils.GetWeaponId(aw)) == 5) // <- Carry item
-		Left4Timers.AddTimer(null, 0.01, @(params) Left4Utils.PlayerPressButton(params.bot, params.button, params.holdtime), { bot = self, button = BUTTON_USE, holdtime = Left4Bots.Settings.button_holdtime_tap });
-		//Left4Utils.PlayerPressButton(self, BUTTON_USE, Left4Bots.Settings.button_holdtime_tap); // Drop it
-	
+
+	Left4Bots.CarryItemStop(self);
+	Left4Bots.DropCarryItem(self);
+
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " [P] (" + reason + ")");
 	if (Left4Bots.Settings.pause_debug)
 		Say(self, "[P] (" + reason + ")", false);
@@ -2401,7 +2604,7 @@ enum AI_DOOR_ACTION {
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " [->]");
 	if (Left4Bots.Settings.pause_debug)
 		Say(self, "[->]", false);
-			
+
 	if (MoveType == AI_MOVE_TYPE.Order && CurrentOrder.OrderType == "lead")
 	{
 		if (CurrentOrder.DestPos)
@@ -2411,12 +2614,11 @@ enum AI_DOOR_ACTION {
 		}
 		else if (MovePos)
 			NeedMove = 2; // Refresh previous MOVE
-		
-		local t = Time();
-		if ((t - Left4Bots.LastLeadStartVocalize) >= Left4Bots.Settings.lead_vocalize_interval)
+
+		if ((CurTime - Left4Bots.LastLeadStartVocalize) >= Left4Bots.Settings.lead_vocalize_interval)
 		{
 			Left4Bots.SpeakRandomVocalize(self, Left4Bots.VocalizerLeadStart, RandomFloat(0.4, 0.9));
-			Left4Bots.LastLeadStartVocalize = t;
+			Left4Bots.LastLeadStartVocalize = CurTime;
 		}
 	}
 	else if (MovePos)
@@ -2444,7 +2646,7 @@ enum AI_DOOR_ACTION {
 		case "witch":
 		{
 			Left4Bots.SpeakRandomVocalize(bot, Left4Bots.VocalizerYes, RandomFloat(0.5, 1.0));
-			
+
 			order.DestRadius <- Left4Bots.Settings.move_end_radius_witch;
 			order.MaxSeparation <- 0;
 			break;
@@ -2452,7 +2654,7 @@ enum AI_DOOR_ACTION {
 		case "heal":
 		{
 			//Left4Bots.SpeakRandomVocalize(bot, Left4Bots.VocalizerYes, RandomFloat(0.5, 1.0));
-			
+
 			order.DestRadius <- Left4Bots.Settings.move_end_radius_heal;
 			order.MaxSeparation <- 0;
 			break;
@@ -2460,18 +2662,10 @@ enum AI_DOOR_ACTION {
 		case "use":
 		{
 			Left4Bots.SpeakRandomVocalize(bot, Left4Bots.VocalizerYes, RandomFloat(0.5, 1.0));
-			
+
 			local entClass = destEnt.GetClassname();
 			if (entClass.find("weapon_") != null || entClass.find("prop_physics") != null)
-			{
 				order.DestRadius <- Left4Bots.Settings.pickups_pick_range;
-				if (Left4Bots.Settings.use_carry_items)
-				{
-					local wId = Left4Utils.GetWeaponId(destEnt);
-					if (Left4Utils.GetWeaponSlotById(wId) == 5)
-						order.Param1 <- wId;
-				}
-			}
 			//else if (entClass.find("func_button") != null || entClass.find("trigger_finale") != null || entClass.find("prop_door_rotating") != null)
 			//	order.DestRadius <- 50;
 			else// if (entClass == "prop_minigun")
@@ -2482,7 +2676,33 @@ enum AI_DOOR_ACTION {
 		}
 		case "scavenge":
 		{
+			local wId = Left4Utils.GetWeaponId(destEnt);
+			if (Left4Utils.GetWeaponSlotById(wId) != 5)
+				return null; // Not a carriable item
+
+			order.Param1 <- wId;
 			order.DestRadius <- Left4Bots.Settings.move_end_radius_scavenge;
+			order.MaxSeparation <- 0;
+			break;
+		}
+		case "carry":
+		{
+			local wId = Left4Utils.GetWeaponId(destEnt);
+			if (Left4Utils.GetWeaponSlotById(wId) != 5)
+				return null; // Not a carriable item
+
+			Left4Bots.SpeakRandomVocalize(bot, Left4Bots.VocalizerYes, RandomFloat(0.5, 1.0));
+
+			order.Param1 <- wId;
+			order.DestRadius <- Left4Bots.Settings.pickups_pick_range;
+			order.MaxSeparation <- 0;
+			break;
+		}
+		case "deploy":
+		{
+			Left4Bots.SpeakRandomVocalize(bot, Left4Bots.VocalizerYes, RandomFloat(0.5, 1.0));
+
+			order.DestRadius <- Left4Bots.Settings.pickups_pick_range;
 			order.MaxSeparation <- 0;
 			break;
 		}
@@ -2495,7 +2715,7 @@ enum AI_DOOR_ACTION {
 		case "wait":
 		{
 			Left4Bots.SpeakRandomVocalize(bot, Left4Bots.VocalizerYes, RandomFloat(0.5, 1.0));
-			
+
 			order.DestRadius <- Left4Bots.Settings.move_end_radius_wait;
 			order.MaxSeparation <- 0;
 			break;
@@ -2503,7 +2723,7 @@ enum AI_DOOR_ACTION {
 		default:
 		{
 			Left4Bots.SpeakRandomVocalize(bot, Left4Bots.VocalizerYes, RandomFloat(0.5, 1.0));
-			
+
 			order.DestRadius <- Left4Bots.Settings.move_end_radius;
 			order.MaxSeparation <- 0;
 		}
@@ -2518,13 +2738,13 @@ enum AI_DOOR_ACTION {
 	local order = Left4Bots.BotOrderPrepare(bot, orderType, from, destEnt, destPos, destLookAtPos, holdTime, canPause, param1);
 	if (!order)
 		return -1;
-	
+
 	local scope = bot.GetScriptScope();
 	scope.Orders.append(order);
 	local queuePos = scope.Orders.len();
-	
+
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " - Appended order (queue pos. " + queuePos + "): " + Left4Bots.BotOrderToString(order));
-	
+
 	return queuePos;
 }
 
@@ -2535,13 +2755,13 @@ enum AI_DOOR_ACTION {
 	local order = Left4Bots.BotOrderPrepare(bot, orderType, from, destEnt, destPos, destLookAtPos, holdTime, canPause, param1);
 	if (!order)
 		return -1;
-	
+
 	local scope = bot.GetScriptScope();
 	if (scope.CurrentOrder)
 	{
 		scope.Orders.insert(0, scope.CurrentOrder);
 		scope.CurrentOrder = order;
-		
+
 		if (scope.MoveType == AI_MOVE_TYPE.Order)
 		{
 			scope.MovePos = null; // Force a MOVE to the new destination
@@ -2550,17 +2770,12 @@ enum AI_DOOR_ACTION {
 	}
 	else
 		scope.Orders.insert(0, order);
-	
+
 	local queueLen = scope.Orders.len();
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " - Inserted order (queue len " + queueLen + "): " + Left4Bots.BotOrderToString(order));
-	
-	if (scope.Paused)
-	{
-		// Unpause
-		scope.Paused = 0;
-		scope.BotOnResume();
-	}
-	
+
+	scope.BotUnPause();
+
 	return queueLen;
 }
 
@@ -2571,10 +2786,10 @@ enum AI_DOOR_ACTION {
 	local order = Left4Bots.BotOrderPrepare(bot, orderType, from, destEnt, destPos, destLookAtPos, holdTime, canPause, param1);
 	if (!order)
 		return -1;
-	
+
 	local scope = bot.GetScriptScope();
 	local idx;
-	
+
 	if (Left4Bots.Settings.orders_no_queue && from != null)
 	{
 		scope.BotCancelOrders();
@@ -2589,7 +2804,7 @@ enum AI_DOOR_ACTION {
 		}
 	}
 	// idx now contains the queue index the new order should be inserted to
-	
+
 	if (idx == 0)
 	{
 		// If idx is 0 we must also check CurrentOrder and its priority
@@ -2600,45 +2815,40 @@ enum AI_DOOR_ACTION {
 			{
 				scope.Orders.insert(0, scope.CurrentOrder); // Shift CurrentOrder to the first pos of the queue
 				scope.CurrentOrder = order; // Replace CurrentOrder
-				
+
 				if (scope.MoveType == AI_MOVE_TYPE.Order)
 				{
 					scope.MovePos = null; // Force a MOVE to the new destination
 					scope.MovePosReal = null;
 				}
-				
+
 				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " - New order replaced CurrentOrder: " + Left4Bots.BotOrderToString(order));
 			}
 			else
 			{
 				scope.CurrentOrder = order; // Set CurrentOrder
-				
+
 				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " - New order set to CurrentOrder: " + Left4Bots.BotOrderToString(order));
 			}
-			
-			if (scope.Paused)
-			{
-				// Unpause
-				scope.Paused = 0;
-				scope.BotOnResume();
-			}
-			
+
+			scope.BotUnPause();
+
 			return 0;
 		}
-		
+
 		// CurrentOrder must stay, just insert the new order to the first pos in the queue
 		scope.Orders.insert(0, order);
-			
+
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " - New order (queue pos. 0): " + Left4Bots.BotOrderToString(order));
-			
+
 		return 1;
 	}
-	
+
 	// If idx is >0 then CurrentOrder is not null and its priority is likely higher, so no need to check it
 	scope.Orders.insert(idx, order); // Insert the new order to its pos in the queue
-		
+
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " - New order (queue pos. " + idx + "): " + Left4Bots.BotOrderToString(order));
-		
+
 	return (idx+1);
 }
 
@@ -2646,12 +2856,12 @@ enum AI_DOOR_ACTION {
 ::Left4Bots.BotOrderRetry <- function(bot, order)
 {
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "BotOrderRetry");
-	
+
 	if (!bot || !order || !bot.IsValid() || !IsPlayerABot(bot))
 		return;
-	
+
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "BotOrderRetry - bot: " + bot.GetPlayerName() + " - order: " + order.OrderType);
-	
+
 	Left4Bots.BotOrderAdd(bot, order.OrderType, order.From, order.DestEnt, order.DestPos, order.DestLookAtPos, order.HoldTime, order.CanPause); // Retry
 }
 
@@ -2660,21 +2870,21 @@ enum AI_DOOR_ACTION {
 {
 	if (!Left4Bots.IsHandledBot(bot))
 		return -1;
-	
+
 	local count = 0;
 	local scope = bot.GetScriptScope();
-	
+
 	if (scope.CurrentOrder && scope.CurrentOrder.OrderType == orderType)
 		count++;
-	
+
 	for (local i = 0; i < scope.Orders.len(); i++)
 	{
 		if (scope.Orders[i].OrderType == orderType)
 			count++;
 	}
-	
+
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " - Has " + count + " orders of type: " + orderType);
-	
+
 	return count;
 }
 
@@ -2683,7 +2893,7 @@ enum AI_DOOR_ACTION {
 {
 	if (!order)
 		return "[null]";
-	
+
 	local ret = "OrderType: " + order.OrderType + " - Priority: " + order.Priority + " - From: ";
 	if (order.From)
 	{
@@ -2695,12 +2905,7 @@ enum AI_DOOR_ACTION {
 	else
 		ret += "[null]";
 	if (order.DestEnt)
-	{
-		if (order.DestEnt.IsValid())
-			ret += " - DestEnt: " + order.DestEnt.GetClassname() + " (" + order.DestEnt.GetName() + ")";
-		else
-			ret += "[Invalid Entity]";
-	}
+		ret += " - DestEnt: " + order.DestEnt;
 	if (order.DestPos)
 		ret += " - DestPos: " + order.DestPos;
 	if (order.DestLookAtPos)
@@ -2709,7 +2914,123 @@ enum AI_DOOR_ACTION {
 	ret += " - MaxSeparation: " + order.MaxSeparation;
 	ret += " - HoldTime: " + order.HoldTime;
 	ret += " - CanPause: " + order.CanPause;
+
+	return ret;
+}
+
+// Returns a string representing the current state of the L4B2 AI
+::Left4Bots.BotAIToString <- function (bot)
+{
+	local isBot = Left4Bots.IsHandledBot(bot);
+	local isL4D1Bot = Left4Bots.IsHandledL4D1Bot(bot);
 	
+	if (!isBot && !isL4D1Bot)
+		return "[null]";
+
+	local ret = "--------------------------------------------------------------------- L4B2 AI DUMP ---------------------------------------------------------------------\n";
+	if (isL4D1Bot)
+		ret += "- L4D1 Bot: " + bot.GetPlayerName() + "\n";
+	else
+		ret += "- Bot: " + bot.GetPlayerName() + "\n";
+	
+	local scope = bot.GetScriptScope();
+	if (isL4D1Bot)
+	{
+		ret += "- UserId: " + scope.UserId + "\n";
+		ret += "- CharId: " + scope.CharId + "\n";
+		ret += "- FuncI: " + scope.FuncI + "\n";
+		ret += "- Origin: " + scope.Origin + "\n";
+		ret += "- CurTime: " + scope.CurTime + "\n";
+		ret += "- ActiveWeapon: " + scope.ActiveWeapon + "\n";
+		ret += "- ActiveWeaponId: " + scope.ActiveWeaponId + "\n";
+		ret += "- ActiveWeaponSlot: " + scope.ActiveWeaponSlot + "\n";
+		ret += "- MoveEnt: " + scope.MoveEnt + "\n";
+		ret += "- MovePos: " + scope.MovePos + "\n";
+		ret += "- MovePosReal: " + scope.MovePosReal + "\n";
+		ret += "- MoveType: AI_MOVE_TYPE." + Left4Utils.TableKeyFromValue(getconsttable()["AI_MOVE_TYPE"], scope.MoveType) + "\n";
+		ret += "- MoveTime: " + scope.MoveTime + "\n";
+		ret += "- MoveTimeout: " + scope.MoveTimeout + "\n";
+		ret += "- NeedMove: " + scope.NeedMove + "\n";
+		ret += "- CanReset: " + scope.CanReset + "\n";
+		ret += "- DelayedReset: " + scope.DelayedReset + "\n";
+		ret += "- TimePickup: " + scope.TimePickup + "\n";
+		ret += "- LastPickup: " + scope.LastPickup + "\n";
+		ret += "- ThrowType: AI_THROW_TYPE." + Left4Utils.TableKeyFromValue(getconsttable()["AI_THROW_TYPE"], scope.ThrowType) + "\n";
+		ret += "- ThrowTarget: " + scope.ThrowTarget + "\n";
+		ret += "- ThrowStartedOn: " + scope.ThrowStartedOn + "\n";
+		ret += "- HurryUntil: " + scope.HurryUntil + "\n";
+		ret += "- Paused: " + scope.Paused + "\n";
+		ret += "\n- Num. WeapPref (" + scope.WeapPref.len() + "): ";
+		for (local i = 0; i < scope.WeapPref.len(); i++)
+		{
+			if (i == 0)
+				ret += "[" + i + "]: " + scope.WeapPref[i].len();
+			else
+				ret += ", [" + i + "]: " + scope.WeapPref[i].len();
+		}
+		ret += "\n- Num. WeaponsToSearch: " + scope.WeaponsToSearch.len() + "\n";
+		ret += "- Num. UpgradesToSearch: " + scope.UpgradesToSearch.len() + "\n";
+	}
+	else
+	{
+		ret += "- UserId: " + scope.UserId + "\n";
+		ret += "- CharId: " + scope.CharId + "\n";
+		ret += "- FuncI: " + scope.FuncI + "\n";
+		ret += "- Origin: " + scope.Origin + "\n";
+		ret += "- CurTime: " + scope.CurTime + "\n";
+		ret += "- ActiveWeapon: " + scope.ActiveWeapon + "\n";
+		ret += "- ActiveWeaponId: " + scope.ActiveWeaponId + "\n";
+		ret += "- ActiveWeaponSlot: " + scope.ActiveWeaponSlot + "\n";
+		ret += "- MoveEnt: " + scope.MoveEnt + "\n";
+		ret += "- MovePos: " + scope.MovePos + "\n";
+		ret += "- MovePosReal: " + scope.MovePosReal + "\n";
+		ret += "- MoveType: AI_MOVE_TYPE." + Left4Utils.TableKeyFromValue(getconsttable()["AI_MOVE_TYPE"], scope.MoveType) + "\n";
+		ret += "- MoveTime: " + scope.MoveTime + "\n";
+		ret += "- MoveTimeout: " + scope.MoveTimeout + "\n";
+		ret += "- NeedMove: " + scope.NeedMove + "\n";
+		ret += "- CanReset: " + scope.CanReset + "\n";
+		ret += "- DelayedReset: " + scope.DelayedReset + "\n";
+		ret += "- TimePickup: " + scope.TimePickup + "\n";
+		ret += "- LastPickup: " + scope.LastPickup + "\n";
+		ret += "- ThrowType: AI_THROW_TYPE." + Left4Utils.TableKeyFromValue(getconsttable()["AI_THROW_TYPE"], scope.ThrowType) + "\n";
+		ret += "- ThrowTarget: " + scope.ThrowTarget + "\n";
+		ret += "- ThrowStartedOn: " + scope.ThrowStartedOn + "\n";
+		ret += "- DoorEnt: " + scope.DoorEnt + "\n";
+		ret += "- DoorZ: " + scope.DoorZ + "\n";
+		ret += "- DoorAct: AI_DOOR_ACTION." + Left4Utils.TableKeyFromValue(getconsttable()["AI_DOOR_ACTION"], scope.DoorAct) + "\n";
+		ret += "- Waiting: " + scope.Waiting + "\n";
+		ret += "- SM_IsStuck: " + scope.SM_IsStuck + "\n";
+		ret += "- SM_StuckPos: " + scope.SM_StuckPos + "\n";
+		ret += "- SM_StuckTime: " + scope.SM_StuckTime + "\n";
+		ret += "- SM_MoveTime: " + scope.SM_MoveTime + "\n";
+		ret += "- CarryItem: " + scope.CarryItem + "\n";
+		ret += "- CarryItemWeaponId: " + scope.CarryItemWeaponId + "\n";
+		ret += "- HurryUntil: " + scope.HurryUntil + "\n";
+		ret += "- Paused: " + scope.Paused + "\n";
+		ret += "- CurrentOrder: " + Left4Bots.BotOrderToString(scope.CurrentOrder) + "\n";
+		ret += "- Queued Orders (" + scope.Orders.len() + "): ";
+		for (local i = 0; i < scope.Orders.len(); i++)
+		{
+			if (i == 0)
+				ret += scope.Orders[i].OrderType;
+			else
+				ret += ", " + scope.Orders[i].OrderType;
+		}
+		ret += "\n- Num. WeapPref (" + scope.WeapPref.len() + "): ";
+		for (local i = 0; i < scope.WeapPref.len(); i++)
+		{
+			if (i == 0)
+				ret += "[" + i + "]: " + scope.WeapPref[i].len();
+			else
+				ret += ", [" + i + "]: " + scope.WeapPref[i].len();
+		}
+		ret += "\n- Num. WeaponsToSearch: " + scope.WeaponsToSearch.len() + "\n";
+		ret += "- Num. UpgradesToSearch: " + scope.UpgradesToSearch.len() + "\n";
+		
+		// TODO: print buttons disabled/forced, movetype etc.
+	}
+	
+	ret += "--------------------------------------------------------------------------------------------------------------------------------------------------------";
 	return ret;
 }
 
@@ -2719,17 +3040,17 @@ enum AI_DOOR_ACTION {
 {
 	if (!Left4Bots.IsHandledBot(bot))
 		return null;
-	
+
 	local scope = bot.GetScriptScope();
 	if (scope.CurrentOrder && scope.CurrentOrder.OrderType == orderType)
 		return true;
-	
+
 	for (local i = 0; i < scope.Orders.len(); i++)
 	{
 		if (scope.Orders[i].OrderType == orderType)
 			return true;
 	}
-	
+
 	return false;
 }
 
@@ -2739,17 +3060,17 @@ enum AI_DOOR_ACTION {
 {
 	if (!Left4Bots.IsHandledBot(bot))
 		return null;
-	
+
 	local scope = bot.GetScriptScope();
 	if (scope.CurrentOrder && scope.CurrentOrder.DestEnt && scope.CurrentOrder.DestEnt.GetClassname() == destEntClass)
 		return true;
-	
+
 	for (local i = 0; i < scope.Orders.len(); i++)
 	{
 		if (scope.Orders[i].DestEnt && scope.Orders[i].DestEnt.GetClassname() == destEntClass)
 			return true;
 	}
-	
+
 	return false;
 }
 
@@ -2758,20 +3079,20 @@ enum AI_DOOR_ACTION {
 {
 	if (!destEnt || !destEnt.IsValid())
 		return false;
-	
+
 	foreach (bot in Left4Bots.Bots)
 	{
 		local scope = bot.GetScriptScope();
 		if (scope.CurrentOrder && scope.CurrentOrder.DestEnt && scope.CurrentOrder.DestEnt.IsValid() && scope.CurrentOrder.DestEnt.GetEntityIndex() == destEnt.GetEntityIndex())
 			return true;
-		
+
 		for (local i = 0; i < scope.Orders.len(); i++)
 		{
 			if (scope.Orders[i].DestEnt && scope.Orders[i].DestEnt.IsValid() && scope.Orders[i].DestEnt.GetEntityIndex() == destEnt.GetEntityIndex())
 				return true;
 		}
 	}
-	
+
 	return false;
 }
 
@@ -2792,11 +3113,11 @@ enum AI_DOOR_ACTION {
 			local q = scope.Orders.len();
 			if (q == 0 && !scope.CurrentOrder)
 				q = -1;
-			
+
 			local d = 0;
 			if (closestTo)
 				d = (bot.GetOrigin() - closestTo).Length();
-			
+
 			// Get the bot with the shortest queue (and closer to closestTo if closestTo is not null)
 			if (q < bestQueue || (q == bestQueue && d < bestDistance))
 			{
@@ -2817,22 +3138,22 @@ enum AI_DOOR_ACTION {
 		Left4Bots.Log(LOG_LEVEL_ERROR, "[AI]Can't execute High Priority MOVE; invalid bot/destination (bot: " + bot + " - destPos: " + destPos + ")");
 		return false;
 	}
-	
+
 	local scope = bot.GetScriptScope();
-	
+
 	if (Left4Bots.SurvivorCantMove(bot, scope.Waiting))
 	{
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " can't execute High Priority MOVE now; bot can't move");
 		return false;
 	}
-	
+
 	scope.MoveType = AI_MOVE_TYPE.HighPriority;
 	scope.MoveTime = Time();
 	scope.MoveTimeout = Left4Bots.Settings.move_hipri_timeout;
 	scope.BotMoveTo(destPos, true);
-	
+
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " - High Priority MOVE -> " + destPos);
-	
+
 	return true;
 }
 
@@ -2844,33 +3165,33 @@ enum AI_DOOR_ACTION {
 		Left4Bots.Log(LOG_LEVEL_ERROR, "[AI]Can't throw; invalid bot/destination (bot: " + bot + " - destPos: " + destPos + ")");
 		return false;
 	}
-	
+
 	local throwItem = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_THROW);
 	if (!throwItem || !throwItem.IsValid())
 	{
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " can't throw; no throw item in inventory");
 		return false;
 	}
-	
+
 	local scope = bot.GetScriptScope();
-	
+
 	if (Left4Bots.SurvivorCantMove(bot, scope.Waiting))
 	{
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " can't throw now; bot can't move");
 		return false;
 	}
-	
+
 	scope.ThrowType = AI_THROW_TYPE.Manual;
 	scope.ThrowTarget = destPos;
 	scope.ThrowStartedOn = Time();
-	
+
 	// Need to disable the fire button until we are ready to throw (or throw is interrupted) otherwise the bot's vanilla AI can trigger the fire before our PressButton and the throw pos will be totally random
 	NetProps.SetPropInt(bot, "m_afButtonDisabled", NetProps.GetPropInt(bot, "m_afButtonDisabled") | BUTTON_ATTACK);
-	
+
 	bot.SwitchToItem(throwItem.GetClassname());
-	
-	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " - Throw (" + throwItem.GetClassname() + ") -> " + destPos);
-	
+
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + bot.GetPlayerName() + " - Throw (" + throwItem + ") -> " + destPos);
+
 	return true;
 }
 
