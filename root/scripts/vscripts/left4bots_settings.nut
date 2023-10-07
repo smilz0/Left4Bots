@@ -19,6 +19,9 @@
 	// How long do the bots hold down a button to do single tap button press (it needs to last at least 2 ticks, so it must be greater than 0.033333 or the weapons firing can fail)
 	button_holdtime_tap = 0.04
 
+	// [1/0] Enable/Disable debug chat messages when the bot picks-up/drops the assigned carry item
+	carry_debug = 0
+
 	// Chance that the bot will chat one of the BG lines at the end of the campaign (if dead or incapped)
 	chat_bg_chance = 50
 
@@ -184,6 +187,9 @@
 	// When scanning for an actual horde, this is the minimum number of common infected to count
 	horde_nades_size = 10
 
+	// When you use the "hurry" command, the bot(s) improved AI will be disabled (they will not pick-up items/execute orders/defib teammates/throw items/scavenge) for this amount of seconds
+	hurry_time = 15
+
 	// [1/0] 1 = Reverse itemstoavoid logics (tells the vanilla AI to avoid all the items except the ones in the itemstoavoid.txt file). 0 = Normal logics (vanilla AI should avoid only the items in the file)
 	items_not_to_avoid = 1
 
@@ -253,7 +259,7 @@
 	move_end_radius_lead = 110
 
 	// Maximum distance from the destination pour position before starting to pour
-	move_end_radius_pour = 20
+	move_end_radius_pour = 16
 
 	// Maximum distance from the destination scavenge item before picking it up
 	move_end_radius_scavenge = 80
@@ -266,6 +272,12 @@
 
 	// High priority MOVEs will be automatically terminated after this time, regardless the destination position was reached or not (likely unreachable position)
 	move_hipri_timeout = 5.0
+
+	// >0 = BotMoveTo area and move pos are drawn on screen for this amount of time (only the host can see it). 0 = Disable
+	moveto_debug_duration = 0
+
+	// [1/0] Enable/Disable orders debug text overlays (only visible to the host)
+	orders_debug = 0
 
 	// [1/0] 1 = No orders queue. Any order given to a bot will automatically cancel any previous order for that bot (auto orders like the auto crown witch will still use the queue system)
 	//       0 = Orders are queued according to their priorities. You can always cancel the previous orders with the 'cancel' command
@@ -280,7 +292,6 @@
 	// Minimum interval between each pick-up
 	pickups_min_interval = 0.8
 
-	// TODO: remove
 	// When the addon tells a bot to pickup an item, the bot does it via USE button (in order to do the hand animation)
 	// But if, for some reason, the pickup fails (too far or something) the item is forced into the bot's inventory after this delay (to prevent stuck situations)
 	pickups_failsafe_delay = 0.15
@@ -292,7 +303,7 @@
 	pickups_melee_noprimary = 1
 
 	// Pick up the item we are looking for when within this range
-	pickups_pick_range = 99
+	pickups_pick_range = 90
 
 	// Items to pick up must be within this radius (and be visible to the bot)
 	pickups_scan_radius = 400
@@ -337,7 +348,7 @@
 
 	// Max angle difference between the tank's rock current direction and the direction to the bot when deciding whether the bot should shoot the rock or not
 	shoot_rock_diffangle = 8
-	
+
 	// This is how far ahead of the rock's current direction the bot will shoot in order to compensate for its speed
 	shoot_rock_ahead = 4
 
@@ -371,19 +382,28 @@
 	// [1/0] 1 = When the bots pick up an item, they will chat about that item ("Weapons here", "Ammo here" etc.) if there is at least one human survivor who may need that item. 0 = they only vocalize about it
 	// NOTE: signal_max_distance must be > 0 for the entire signal system to work
 	signal_chat = 0
-	
+
 	// Maximum distance from the human survivor who may need the item in order to signal the item. 0 = The entire signal system is disabled
 	signal_max_distance = 2500
-	
+
 	// Minimum distance from the human survivor who may need the item in order to signal the item
 	signal_min_distance = 150
-	
+
 	// Minimum interval between 2 or more signals of the same type (ex. Ammo, Weapon, Throwable, etc.)
 	signal_min_interval = 5.0
-	
+
 	// [1/0] If 1, and the "Left 4 Fun" addon is installed and enabled, the bot will also use the L4F PING command on the item to signal. 0 = They don't
 	// NOTE: signal_max_distance must be > 0 for the entire signal system to work
 	signal_ping = 0
+
+	// [1/0] Enable/Disable the smart use command for carriable items. "use" order on a carriable item (gascans, gnome, cola, etc.) will automatically convert to the "carry" order
+	smart_use_carry = 1
+
+	// [1/0] Enable/Disable the smart use command for deployable items. "use" order on a deployable item (upgrade ammo packs) will automatically convert to the "deploy" order
+	smart_use_deploy = 1
+
+	// [1/0] Enable/Disable the smart use command for scavenge items. "use" order on a scavenge item (gascans, cola while a pouring target is active) will automatically convert to the "scavenge" order
+	smart_use_scavenge = 1
 
 	// [1/0] Enable/Disable shooting the smoker's tongue that is strangling a teammate
 	// NOTE: This isn't perfect and in some situations might slow down the rescue even more
@@ -491,14 +511,17 @@
 	// [1/0] Enable/Disable throwing bile jars
 	throw_vomitjar = 1
 
+	// TraceLine mask used to look for pick-up items
+	tracemask_pickups = 134242379 // 0x1 | 0x2 | 0x8 | 0x40 | 0x2000 | 0x4000 | 0x8000000 (CONTENTS_SOLID | CONTENTS_WINDOW | CONTENTS_GRATE | CONTENTS_BLOCKLOS | CONTENTS_IGNORE_NODRAW_OPAQUE | CONTENTS_MOVEABLE | CONTENTS_DETAIL)
+	
+	// TraceLine mask used for other traces
+	tracemask_others = 1174421507 // TRACE_MASK_DEFAULT from left4lib_consts.nut
+
 	// [1/0] 1 = The bots will trigger the car alarms when they accidentally shoot or jump on the car (like human players). 0 = normal behavior
 	trigger_caralarm = 0
-	
+
 	// [1/0] 1 = The bots will trigger the witch when they accidentally shoot her (like human players). 0 = normal behavior
 	trigger_witch = 0
-
-	// [1/0] 1 = "use" command on a carriable item (gnome, gascan, cola, etc.) will make the bots pick-up the and carry that item until you cancel the order. 0 = They drop it after a while
-	use_carry_items = 1
 
 	// Minimum L4U level for receiving medkits/defibs from the bots (2 = Admin, 1 = Friend, 0 = Random player, -1 = Griefer)
 	userlevel_give_medkit = 1
