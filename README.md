@@ -9,6 +9,8 @@ If you are uncomfortable with development versions or you simply don't like this
 
 The addon gives them some functions that the vanilla AI was missing, like defib dead players, scavenge gascans, deadstop special intefected etc, so their combat capabilities are also improved but they can also fail and fu** things up, sometimes. But isn't this part of the human behavior? :stuck_out_tongue:
 
+Despite the use of the term **AI** there is no real AI/machine learning algorithm, it's just a bunch of `if then else`, so do not expect them to start learning and eventually become self-conscious and do things on their own acting perfectly in every situation.
+
 
 ### What changed?
 Almost everything. The bots are more active while executing the orders, they can attack and shove infected and scavenge items. The **lead** order has been completely reworked and it will work on most maps, including finales. Now you can order each bot to follow another survivor or to go and hold a certain position. Bots have weapon preferences you can change. And more.
