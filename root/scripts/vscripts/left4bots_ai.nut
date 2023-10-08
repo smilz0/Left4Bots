@@ -220,7 +220,7 @@ enum AI_DOOR_ACTION {
 				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Carry item changed: " + CarryItem + " -> " + ActiveWeapon);
 				
 				if (Left4Bots.Settings.carry_debug)
-					Say(player, "Carry item changed: " + CarryItem + " -> " + ActiveWeapon, false);
+					Say(self, "Carry item changed: " + CarryItem + " -> " + ActiveWeapon, false);
 				
 				local isCarryOrder = false;
 				local ordersToUpdate = BotGetOrders(null, null, ActiveWeaponId);
@@ -255,7 +255,7 @@ enum AI_DOOR_ACTION {
 				Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Carry item dropped: " + CarryItem);
 				
 				if (Left4Bots.Settings.carry_debug)
-					Say(player, "Carry item dropped: " + CarryItem, false);
+					Say(self, "Carry item dropped: " + CarryItem, false);
 				
 				Left4Bots.CarryItemStop(self);
 				
@@ -283,7 +283,7 @@ enum AI_DOOR_ACTION {
 						{
 							Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Order's " + orderToUpdate.OrderType + " DestEnt was lost. Cancelling the order: " + Left4Bots.BotOrderToString(orderToUpdate));
 							if (Left4Bots.Settings.carry_debug)
-								Say(bot, orderToUpdate.OrderType + " item was lost", false);
+								Say(self, orderToUpdate.OrderType + " item was lost", false);
 
 							BotCancelOrder(orderToUpdate);
 						}
@@ -305,7 +305,7 @@ enum AI_DOOR_ACTION {
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Carry item picked up: " + CarryItem);
 			
 			if (Left4Bots.Settings.carry_debug)
-				Say(player, "Carry item picked up: " + CarryItem, false);
+				Say(self, "Carry item picked up: " + CarryItem, false);
 			
 			local isCarryOrder = false;
 			local ordersToUpdate = BotGetOrders(null, null, CarryItemWeaponId);
