@@ -161,6 +161,7 @@ enum AI_DOOR_ACTION {
 	scope.Waiting <- false;
 	scope.WeapPref <- Left4Bots.LoadWeaponPreferences(bot);
 	scope.HurryUntil <- 0;
+	scope.UseWeapons <- {};
 
 	scope["BotThink_Main"] <- ::Left4Bots.BotThink_Main_L4D1;
 	scope["BotThink_Pickup"] <- ::Left4Bots.BotThink_Pickup;
