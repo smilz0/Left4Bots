@@ -2207,8 +2207,11 @@ witch_autocrown = 0";
 
 	//Left4Bots.Log(LOG_LEVEL_DEBUG, "LoadWeaponPreferences - survivor: " + survivor.GetPlayerName());
 
-	//local filename = Left4Bots.Settings.file_weapons_prefix + survivor.GetPlayerName().tolower() + ".txt";
-	local filename = Left4Bots.Settings.file_weapons_prefix + GetCharacterDisplayName(survivor).tolower() + ".txt";
+	// TODO: do this with the character id instead
+	local filename = GetCharacterDisplayName(survivor);
+	if (filename == null || filename == "")
+		filename = survivor.GetPlayerName(); // Apparently the L4D1 survivors in The Passing 3 don't have a CharacterDisplayName
+	filename = Left4Bots.Settings.file_weapons_prefix + filename.tolower() + ".txt";
 	local lines = Left4Utils.FileToStringList(filename);
 	if (!lines)
 		return ret;
