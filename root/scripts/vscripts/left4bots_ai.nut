@@ -1510,8 +1510,6 @@ enum AI_DOOR_ACTION {
 		if (useWeapon != 0 && useWeapon == currWeps[slotIdx])
 		{
 			// They ordered to pickup a weapon with the "use" order and we already picked that weapon up. No need to look for other weapons
-			
-			printl("CIAO SECCO!! " + useWeapon);
 		}
 		else
 		{
