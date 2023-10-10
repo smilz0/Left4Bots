@@ -1684,6 +1684,8 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		
 		Left4Bots.PlayerIn(player);
 		
+		player.SetContext("userid", player.GetPlayerUserId().tostring(), -1);
+		
 		if (Left4Bots.IsValidSurvivor(player))
 		{
 			//if (NetProps.GetPropInt(player, "m_iTeamNum") != TEAM_SPECTATORS)
@@ -3207,10 +3209,10 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		{
 			Left4Bots.Log(LOG_LEVEL_DEBUG, "Left4Bots.DoSignal - " + who.GetPlayerName() + " -> " + what.GetClassname() + " - " + concept + " - " + weaponname);
 			
-			//DoEntFire("!self", "AddContext", "subject:" + actor, 0, null, who);
-			DoEntFire("!self", "AddContext", "weaponname:" + weaponname, 0, null, who);
+			who.SetContext("weaponname", weaponname, 0.1);
+			//DoEntFire("!self", "AddContext", "weaponname:" + weaponname, 0, null, who);
 			DoEntFire("!self", "SpeakResponseConcept", concept, 0, null, who);
-			DoEntFire("!self", "ClearContext", "", 0, null, who);
+			//DoEntFire("!self", "ClearContext", "", 0, null, who);
 		}
 		else
 		{
@@ -4694,22 +4696,18 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 			return;
 		
 		local who = null;
-		if ("who" in query)
-			who = query.who;
+		if ("userid" in query)
+			who = g_MapScript.GetPlayerFromUserID(query.userid.tointeger());
+		else if ("who" in query)
+			who = Left4Bots.GetSurvivorFromActor(query.who);
 		else if ("Who" in query)
-			who = query.Who;
+			who = Left4Bots.GetSurvivorFromActor(query.Who);
 		
 		local subject = null;
 		if ("subject" in query)
-			subject = query.subject;
+			subject = Left4Bots.GetSurvivorFromActor(query.subject);
 		else if ("Subject" in query)
-			subject = query.Subject;
-		
-		if (who != null)
-			who = Left4Bots.GetSurvivorFromActor(who);
-
-		if (subject != null)
-			subject = Left4Bots.GetSurvivorFromActor(subject);
+			subject = Left4Bots.GetSurvivorFromActor(query.Subject);
 
 		local canOrder = Left4Bots.Settings.vocalizer_commands && (who && !IsPlayerABot(who) && (Left4Bots.Settings.user_can_command_bots || Left4Bots.IsOnlineAdmin(who)));
 		
@@ -6208,17 +6206,21 @@ z_tank_incapacitated_health              : 5000     : , "sv", "cheat"  : Health 
 		
 		local actor = Left4Utils.GetActorFromSurvivor(player);
 		
-		DoEntFire("!self", "AddContext", "subject:" + actor, 0, null, player);
-		DoEntFire("!self", "AddContext", "panictype:CarAlarm", 0, null, player);
+		player.SetContext("subject", actor, 0.1);
+		player.SetContext("panictype", "CarAlarm", 0.1);
+		//DoEntFire("!self", "AddContext", "subject:" + actor, 0, null, player);
+		//DoEntFire("!self", "AddContext", "panictype:CarAlarm", 0, null, player);
 		DoEntFire("!self", "SpeakResponseConcept", "PanicEvent", 0, null, player);
-		DoEntFire("!self", "ClearContext", "", 0, null, player);
+		//DoEntFire("!self", "ClearContext", "", 0, null, player);
 		
 		foreach (surv in ::Left4Utils.GetOtherAliveSurvivors(player))
 		{
-			DoEntFire("!self", "AddContext", "subject:" + actor, 0, null, surv);
-			DoEntFire("!self", "AddContext", "panictype:CarAlarm", 0, null, surv);
+			surv.SetContext("subject", actor, 0.1);
+			surv.SetContext("panictype", "CarAlarm", 0.1);
+			//DoEntFire("!self", "AddContext", "subject:" + actor, 0, null, surv);
+			//DoEntFire("!self", "AddContext", "panictype:CarAlarm", 0, null, surv);
 			DoEntFire("!self", "SpeakResponseConcept", "PanicEvent", 0, null, surv);
-			DoEntFire("!self", "ClearContext", "", 0, null, surv);
+			//DoEntFire("!self", "ClearContext", "", 0, null, surv);
 		}
 	}
 	
