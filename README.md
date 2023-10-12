@@ -27,7 +27,7 @@ You can change the settings by editing the file `ems/left4bots2/cfg/settings.txt
 
 
 ### Addon commands
-The list of L4B2 commands can be found [HERE](https://github.com/smilz0/Left4Bots/blob/main/COMMANDS.md).
+The list of L4B2 commands can be found [HERE](https://github.com/smilz0/Left4Bots/blob/main/COMMANDS.md) and can be seen [HERE](https://www.youtube.com/playlist?list=PLFEEMMIutAbsDQHsp6sMLiAo2l5682lqi).
 
 
 ### Want to customize the addon even further
