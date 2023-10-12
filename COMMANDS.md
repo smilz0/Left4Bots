@@ -17,6 +17,9 @@ nick heal
 ```
 
 ### Order commands
+
+[L4B2 commands on YouTube](https://www.youtube.com/playlist?list=PLFEEMMIutAbsDQHsp6sMLiAo2l5682lqi).
+
 The following commands are in this format: <_botsource_> <**command**> [_parameter_]
 
 <_botsource_> can be:
