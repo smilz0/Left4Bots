@@ -1900,10 +1900,10 @@ Available commands:
 	<botsource> carry			: The order is added to the given bot(s) orders queue. The bot(s) will pick and hold the carriable item (gnome, gascan, cola, etc.) you are looking at
 	<botsource> deploy			: The order is added to the given bot(s) orders queue or executed immediately. The bot(s) will go pick the deployable item (ammo upgrade packs) you are looking at and deploy it immediately. If you aren't looking at any item and the bot already has a deployable item in his inventory, he will deploy that item immediately
 	<botsource> usereset		: The order is executed immediately. The bot(s) will stop using the weapons picked up via "use" order and will go back to its weapon preferences / team weapon rules
-	<botsource> warp			: The order is executed immediately. The bot(s) will teleport to your position
-	<botsource> warp here		: The order is executed immediately. The bot(s) will teleport to your position
-	<botsource> warp there		: The order is executed immediately. The bot(s) will teleport to the location you are looking at
-	<botsource> warp move		: The order is executed immediately. The bot(s) will teleport to the current MOVE location (if any)
+	<botsource> warp			: The order is executed immediately. The bot(s) will teleport to your position. If "bot" botsource is used, the selected bot will be the bot you are looking at
+	<botsource> warp here		: The order is executed immediately. The bot(s) will teleport to your position. If "bot" botsource is used, the selected bot will be the bot you are looking at
+	<botsource> warp there		: The order is executed immediately. The bot(s) will teleport to the location you are looking at. If "bot" botsource is used, the selected bot will be the bot you are looking at
+	<botsource> warp move		: The order is executed immediately. The bot(s) will teleport to the current MOVE location (if any). If "bot" botsource is used, the selected bot will be the bot you are looking at
 	<botsource> give			: The order is executed immediately. The bot will give you one item from their pills/throwable/medkit inventory slot if your slot is emtpy. "bot" and "bots" botsources are the same here, the first available bot is selected
 	<botsource> swap			: The order is executed immediately. You will swap the item you are holding (only for items from the pills/throwable/medkit inventory slots) with the selected bot. "bot" and "bots" botsources will both select the bot you are looking at
 	<botsource> tempheal		: The order is executed immediately. The bot(s) will use their pain pils/adrenaline. If "bot" botsource is used, the selected bot will be the bot you are looking at
@@ -2577,7 +2577,7 @@ settings
 				else
 				{
 					if (!tgtBot)
-						tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2);
+						tgtBot = Left4Bots.GetPickerBot(player); // player, radius = 999999, threshold = 0.95, visibleOnly = false
 
 					if (tgtBot)
 					{
