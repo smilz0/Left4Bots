@@ -69,32 +69,6 @@ const LOG_LEVEL_DEBUG = 4;
 		use = 2
 		witch = 3
 	}
-	AllCommands =
-	{
-		cancel = 0
-		carry = 0
-		come = 0
-		deploy = 0
-		die = 0
-		dump = 0
-		follow = 0
-		give = 0
-		goto = 0
-		heal = 0
-		hurry = 0
-		lead = 0
-		move = 0
-		pause = 0
-		scavenge = 0
-		swap = 0
-		tempheal = 0
-		//throw = 0  // Maybe there is a way to do this?
-		use = 0
-		usereset = 0
-		wait = 0
-		warp = 0
-		witch = 0
-	}
 
 	Events = {}
 	Survivors = {}		// Used for performance reasons, instead of doing (very slow) Entities search every time
@@ -147,8 +121,6 @@ const LOG_LEVEL_DEBUG = 4;
 	OnTankCvars = {}
 	OnTankCvarsBak = {}
 }
-
-::Left4Bots.AllCommands["throw"] <- 0;
 
 IncludeScript("left4bots_settings");
 
@@ -1280,6 +1252,11 @@ witch_autocrown = 0";
 		if (!Left4Bots.Settings.give_bots_medkits || lvl < Left4Bots.Settings.userlevel_give_medkit)
 			return false; // Disabled via settings or user level too low
 	}
+	else if (invSlot == INV_SLOT_PRIMARY || invSlot == INV_SLOT_SECONDARY)
+	{
+		if (!Left4Bots.Settings.give_bots_weapons || lvl < Left4Bots.Settings.userlevel_give_weapons)
+			return false; // Disabled via settings or user level too low
+	}
 	else if (lvl < Left4Bots.Settings.userlevel_give_others)
 		return false; // User level too low
 
@@ -1291,16 +1268,15 @@ witch_autocrown = 0";
 
 	// Ok, we can give the item...
 
-	local itemSkin = NetProps.GetPropInt(item, "m_nSkin");
+	//local itemSkin = NetProps.GetPropInt(item, "m_nSkin");
 
 	Left4Bots.GiveItemIndex1 = item.GetEntityIndex();
 
 	bot.DropItem(itemClass);
 
-	//survDest.GiveItemWithSkin(itemClass, itemSkin);
-	Left4Utils.GiveItemWithSkin(survDest, itemClass, itemSkin);
+	//Left4Utils.GiveItemWithSkin(survDest, itemClass, itemSkin);
 
-	Left4Timers.AddTimer(null, 0.1, Left4Bots.ItemGiven, { player1 = bot, player2 = survDest, item = item });
+	Left4Timers.AddTimer(null, 0.3, Left4Bots.ItemGiven, { player1 = bot, player2 = survDest, item = item });
 
 	DoEntFire("!self", "SpeakResponseConcept", "PlayerAlertGiveItem", 0, null, bot);
 
@@ -1316,8 +1292,11 @@ witch_autocrown = 0";
 	local player2 = params["player2"];
 	local item = params["item"];
 
-	if (item && item.IsValid())
-		DoEntFire("!self", "Kill", "", 0, null, item);
+	//if (item && item.IsValid())
+	//	DoEntFire("!self", "Kill", "", 0, null, item);
+	
+	if (item && player2 && item.IsValid() && player2.IsValid())
+		DoEntFire("!self", "Use", "", 0, player2, item);
 
 	Left4Bots.GiveItemIndex1 = 0;
 
@@ -1345,10 +1324,15 @@ witch_autocrown = 0";
 	local item1 = params["item1"];
 	local item2 = params["item2"];
 
-	if (item1 && item1.IsValid())
-		DoEntFire("!self", "Kill", "", 0, null, item1);
-	if (item2 && item2.IsValid())
-		DoEntFire("!self", "Kill", "", 0, null, item2);
+	//if (item1 && item1.IsValid())
+	//	DoEntFire("!self", "Kill", "", 0, null, item1);
+	//if (item2 && item2.IsValid())
+	//	DoEntFire("!self", "Kill", "", 0, null, item2);
+	
+	if (item1 && player1 && item1.IsValid() && player1.IsValid())
+		DoEntFire("!self", "Use", "", 0, player1, item1);
+	if (item2 && player2 && item2.IsValid() && player2.IsValid())
+		DoEntFire("!self", "Use", "", 0, player2, item2);
 
 	Left4Bots.GiveItemIndex1 = 0;
 	Left4Bots.GiveItemIndex2 = 0;
@@ -1392,39 +1376,18 @@ witch_autocrown = 0";
 				if (!held || !held.IsValid() || held.GetEntityIndex() != item.GetEntityIndex())
 				{
 					// If we are going to give a medkit/defib, check if the user level of the receiver is high enough
-					if (slot != INV_SLOT_MEDKIT || (itemClass != "weapon_first_aid_kit" && itemClass != "weapon_defibrillator") || (Left4Bots.Settings.give_bots_medkits && userlevel >= Left4Bots.Settings.userlevel_give_medkit))
+					if (slot != INV_SLOT_MEDKIT && slot != INV_SLOT_PRIMARY && slot != INV_SLOT_SECONDARY)
+						return bot;
+					
+					if (slot == INV_SLOT_MEDKIT && ((itemClass != "weapon_first_aid_kit" && itemClass != "weapon_defibrillator") || (Left4Bots.Settings.give_bots_medkits && userlevel >= Left4Bots.Settings.userlevel_give_medkit)))
+						return bot;
+					
+					if ((slot == INV_SLOT_PRIMARY || slot == INV_SLOT_SECONDARY) && Left4Bots.Settings.give_bots_weapons && userlevel >= Left4Bots.Settings.userlevel_give_weapons)
 						return bot;
 				}
 			}
 		}
 	}
-
-	/*
-	foreach (bot in ::Left4Bots.L4D1Survivors)
-	{
-		// Add some restrictions
-		//if (bot.IsValid() && !bot.IsDead() && !bot.IsDying() && !bot.IsIncapacitated() && !Left4Bots.SurvivorCantMove(bot, bot.GetScriptScope().Waiting))
-		if (bot.IsValid() && !bot.IsDead() && !bot.IsDying() && !Left4Bots.SurvivorCantMove(bot, bot.GetScriptScope().Waiting))
-		{
-			// Does the bot have any item in that slot?
-			local item = Left4Utils.GetInventoryItemInSlot(bot, slot);
-			if (item && item.IsValid())
-			{
-				// Yes.
-				local itemClass = item.GetClassname();
-
-				// But don't give items that are being held by the bot to avoid giving away items that are about to be used by the bot
-				local held = bot.GetActiveWeapon();
-				if (!held || !held.IsValid() || held.GetEntityIndex() != item.GetEntityIndex())
-				{
-					// If we are going to give a medkit/defib, check if the user level of the receiver is high enough
-					if (slot != INV_SLOT_MEDKIT || (itemClass != "weapon_first_aid_kit" && itemClass != "weapon_defibrillator") || (Left4Bots.Settings.give_bots_medkits && userlevel >= Left4Bots.Settings.userlevel_give_medkit))
-						return bot;
-				}
-			}
-		}
-	}
-	*/
 
 	return null;
 }
@@ -1455,30 +1418,6 @@ witch_autocrown = 0";
 			}
 		}
 	}
-
-	/*
-	foreach (bot in ::Left4Bots.L4D1Survivors)
-	{
-		//if (bot.IsValid() && !bot.IsDead() && !bot.IsDying() && !bot.IsIncapacitated() && !Left4Bots.SurvivorCantMove(bot, bot.GetScriptScope().Waiting))
-		if (bot.IsValid() && !bot.IsDead() && !bot.IsDying() && !Left4Bots.SurvivorCantMove(bot, bot.GetScriptScope().Waiting))
-		{
-			local item = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_MEDKIT);
-			if (item && item.IsValid())
-			{
-				local itemClass = item.GetClassname();
-				if (itemClass == "weapon_upgradepack_explosive" || itemClass == "weapon_upgradepack_incendiary")
-				{
-					local d = (bot.GetOrigin() - orig).Length();
-					if (d < minDist)
-					{
-						ret = bot;
-						minDist = d;
-					}
-				}
-			}
-		}
-	}
-	*/
 
 	return ret;
 }
@@ -3193,6 +3132,7 @@ Left4Bots.GetOtherMedkitSpawn <- function (srcSpawn, radius = 100.0)
 
 IncludeScript("left4bots_ai");
 IncludeScript("left4bots_events");
+IncludeScript("left4bots_commands");
 
 try
 {
