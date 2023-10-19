@@ -934,7 +934,7 @@ Msg("Including left4bots_events...\n");
 		return;
 
 	local arg2 = strip(args[1].tolower());
-	if (!(arg2 in ::Left4Bots.AllCommands))
+	if (::Left4Bots.UserCommands.find(arg2) == null && ::Left4Bots.AdminCommands.find(arg2) == null)
 		return;
 
 	local arg3 = null;
@@ -1677,10 +1677,9 @@ Left4Bots.OnThinker <- function (params)
 
 		attacker.DropItem(attackerItemClass);
 
-		//victim.GiveItemWithSkin(attackerItemClass, attackerItemSkin);
-		Left4Utils.GiveItemWithSkin(victim, attackerItemClass, attackerItemSkin);
+		//Left4Utils.GiveItemWithSkin(victim, attackerItemClass, attackerItemSkin);
 
-		Left4Timers.AddTimer(null, 0.1, Left4Bots.ItemGiven, { player1 = attacker, player2 = victim, item = attackerItem });
+		Left4Timers.AddTimer(null, 0.3, Left4Bots.ItemGiven, { player1 = attacker, player2 = victim, item = attackerItem });
 
 		if (IsPlayerABot(victim))
 			Left4Bots.LastGiveItemTime = Time();
@@ -1706,12 +1705,10 @@ Left4Bots.OnThinker <- function (params)
 				attacker.DropItem(attackerItemClass);
 				victim.DropItem(victimItemClass);
 
-				//attacker.GiveItemWithSkin(victimItemClass, victimItemSkin);
-				Left4Utils.GiveItemWithSkin(attacker, victimItemClass, victimItemSkin);
-				//victim.GiveItemWithSkin(attackerItemClass, attackerItemSkin);
-				Left4Utils.GiveItemWithSkin(victim, attackerItemClass, attackerItemSkin);
+				//Left4Utils.GiveItemWithSkin(attacker, victimItemClass, victimItemSkin);
+				//Left4Utils.GiveItemWithSkin(victim, attackerItemClass, attackerItemSkin);
 
-				Left4Timers.AddTimer(null, 0.1, Left4Bots.ItemSwapped, { player1 = attacker, item1 = victimItem, player2 = victim, item2 = attackerItem });
+				Left4Timers.AddTimer(null, 0.3, Left4Bots.ItemSwapped, { player1 = attacker, item1 = victimItem, player2 = victim, item2 = attackerItem });
 			}
 		}
 	}
@@ -1945,30 +1942,44 @@ settings
 */
 ::Left4Bots.OnUserCommand <- function (player, arg1, arg2, arg3)
 {
+	local function GetFormattedCommandList(cmdArray)
+	{
+		local ret = "";
+		for (local i = 0; i < cmdArray.len(); i++)
+		{
+			if (i == 0)
+				ret += PRINTCOLOR_CYAN + cmdArray[i] + PRINTCOLOR_NORMAL;
+			else
+				ret += ", " + PRINTCOLOR_CYAN + cmdArray[i] + PRINTCOLOR_NORMAL;
+		}
+		return ret;
+	}
+	
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnUserCommand - player: " + player.GetPlayerName() + " - arg1: " + arg1 + " - arg2: " + arg2 + " - arg3: " + arg3);
 
 	if (arg1 == "settings")
 	{
 		if (Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) < L4U_LEVEL.Admin)
-			return false; // Only admins can change settings
+			return false; // Only admins can change the settings
 
 		if (arg2 in Left4Bots.Settings)
 		{
 			if (!arg3)
-				ClientPrint(player, 3, "\x01 Current value for " + arg2 + ": " + Left4Bots.Settings[arg2]);
+				ClientPrint(player, 3, PRINTCOLOR_NORMAL + "Current value for " + arg2 + ": " + Left4Bots.Settings[arg2]);
 			else
 			{
 				try
 				{
-					//local value = arg3.tointeger();
-					//::Left4Bots.Settings[arg2] <- value;
-
+					/*
 					local script = "::Left4Bots.Settings." + arg2 + " <- " + arg3;
 
 					Left4Bots.Log(LOG_LEVEL_DEBUG, "OnUserCommand - script: " + script);
 
 					local compiledscript = compilestring(script);
 					compiledscript();
+					*/
+					
+					Left4Bots.Settings[arg2] <- arg3;
 
 					if (arg2 in ::Left4Bots.OnTankSettingsBak)
 						::Left4Bots.OnTankSettingsBak[arg2] <- Left4Bots.Settings[arg2];
@@ -2000,17 +2011,17 @@ settings
 						}
 					}
 
-					ClientPrint(player, 3, "\x05 Value of setting " + arg2 + " changed to: " + Left4Bots.Settings[arg2]);
+					ClientPrint(player, 3, PRINTCOLOR_GREEN + "Value of setting " + arg2 + " changed to: " + Left4Bots.Settings[arg2]);
 				}
 				catch(exception)
 				{
 					Left4Bots.Log(LOG_LEVEL_ERROR, "Error changing value of setting: " + arg2 + " - new value: " + arg3 + " - error: " + exception);
-					ClientPrint(player, 3, "\x04 Error changing value of setting " + arg2);
+					ClientPrint(player, 3, PRINTCOLOR_ORANGE + "Error changing value of setting " + arg2);
 				}
 			}
 		}
 		else
-			ClientPrint(player, 3, "\x04 Invalid setting: " + arg2);
+			ClientPrint(player, 3, PRINTCOLOR_ORANGE + "Invalid setting: " + arg2);
 	}
 	else if (arg1 == "botselect")
 	{
@@ -2029,8 +2040,38 @@ settings
 		DoEntFire("!self", "SpeakResponseConcept", "PlayerLook", 0, null, player);
 		//DoEntFire("!self", "ClearContext", "", 0, null, player);
 	}
-	else
+	else if (arg1 == "help")
 	{
+		if (arg2)
+		{
+			local adminCommand = ::Left4Bots.AdminCommands.find(arg2) != null;
+			if (adminCommand || ::Left4Bots.UserCommands.find(arg2) != null)
+			{
+				if (adminCommand && Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) < L4U_LEVEL.Admin)
+				{
+					ClientPrint(player, 3, PRINTCOLOR_ORANGE + "You don't have access to that command");
+					return true; // Not an admin
+				}
+				
+				local helpTxt = Left4Bots["CmdHelp_" + arg2]();
+				local helpLines = split(helpTxt, "\n");
+				for (local i = 0; i < helpLines.len(); i++)
+					ClientPrint(player, 3, helpLines[i]);
+
+				return true;
+			}
+			
+			ClientPrint(player, 3, PRINTCOLOR_ORANGE + "Command not found: " + arg2);
+			return true;
+		}
+		
+		if (Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) >= L4U_LEVEL.Admin)
+			ClientPrint(player, 3, PRINTCOLOR_GREEN + "Admin Commands" + PRINTCOLOR_NORMAL + ": " + GetFormattedCommandList(::Left4Bots.AdminCommands));
+		ClientPrint(player, 3, PRINTCOLOR_GREEN + "User Commands" + PRINTCOLOR_NORMAL + ": " + GetFormattedCommandList(::Left4Bots.UserCommands));
+		ClientPrint(player, 3, PRINTCOLOR_NORMAL + "Type: '" + PRINTCOLOR_GREEN + "!l4b help " + PRINTCOLOR_CYAN + "command" + PRINTCOLOR_NORMAL + "' for more info on a specific command");
+	}
+	else
+{
 		// normal bot commands
 
 		local allBots = false;	// true = "bots" keyword was used, tgtBot is ignored (will be null)
@@ -2045,966 +2086,16 @@ settings
 				return false; // Invalid target
 		}
 
-		switch (arg2)
+		local adminCommand = ::Left4Bots.AdminCommands.find(arg2) != null;
+		if (adminCommand || ::Left4Bots.UserCommands.find(arg2) != null)
 		{
-			case "lead":
-			{
-				if (allBots)
-				{
-					foreach (bot in Left4Bots.Bots)
-						Left4Bots.BotOrderAdd(bot, arg2, player);
-				}
-				else
-				{
-					if (!tgtBot)
-						tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2);
-
-					if (tgtBot)
-						Left4Bots.BotOrderAdd(tgtBot, arg2, player);
-					else
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-				}
-
-				return true;
-			}
-			case "follow":
-			{
-				local followEnt = null;
-				if (arg3)
-				{
-					if (arg3.tolower() == "me")
-						followEnt = player;
-					else
-						followEnt = Left4Bots.GetBotByName(arg3);
-				}
-				else
-					followEnt = player;
-
-				if (!followEnt)
-				{
-					Left4Bots.Log(LOG_LEVEL_WARN, "Invalid follow target: " + arg3);
-					return true;
-				}
-
-				if (allBots)
-				{
-					foreach (id, bot in Left4Bots.Bots)
-					{
-						if (id != followEnt.GetPlayerUserId())
-							Left4Bots.BotOrderAdd(bot, arg2, player, followEnt);
-					}
-				}
-				else
-				{
-					if (!tgtBot)
-						tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2, followEnt.GetPlayerUserId(), followEnt.GetOrigin());
-
-					if (tgtBot && tgtBot.GetPlayerUserId() != followEnt.GetPlayerUserId())
-						Left4Bots.BotOrderAdd(tgtBot, arg2, player, followEnt);
-					else
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-				}
-
-				return true;
-			}
-			case "witch":
-			{
-				local witch = Left4Bots.GetPickerWitch(player); // TODO: Shouldn't just pick the one with the best dot, distance should also be taken into account
-				if (!witch)
-				{
-					Left4Bots.Log(LOG_LEVEL_WARN, "No target witch found for order of type: " + arg2);
-					return true;
-				}
-
-				if (allBots)
-				{
-					foreach (bot in Left4Bots.Bots)
-						Left4Bots.BotOrderAdd(bot, arg2, player, witch, null, null, 0, false);
-				}
-				else
-				{
-					if (!tgtBot)
-						tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2, null, witch.GetOrigin());
-
-					if (tgtBot)
-						Left4Bots.BotOrderAdd(tgtBot, arg2, player, witch, null, null, 0, false);
-					else
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-				}
-
-				return true;
-			}
-			case "heal":
-			{
-				local healTgt = null;
-				if (arg3)
-				{
-					if (arg3.tolower() == "me")
-						healTgt = player;
-					else
-						healTgt = Left4Bots.GetBotByName(arg3);
-
-					if (!healTgt)
-					{
-						Left4Bots.Log(LOG_LEVEL_WARN, "Invalid heal target: " + arg3);
-						return true;
-					}
-				}
-
-				if (allBots)
-				{
-					foreach (bot in Left4Bots.Bots)
-						Left4Bots.BotOrderAdd(bot, arg2, player, healTgt != null ? healTgt : bot, null, null, Left4Bots.Settings.button_holdtime_heal, false);
-				}
-				else
-				{
-					if (!tgtBot)
-					{
-						if (healTgt)
-							tgtBot = Left4Bots.GetNearestBotWithMedkit(healTgt.GetOrigin());
-						else
-							tgtBot = Left4Bots.GetLowestHPBotWithMedkit()
-					}
-
-					if (tgtBot)
-						Left4Bots.BotOrderAdd(tgtBot, arg2, player, healTgt != null ? healTgt : tgtBot, null, null, Left4Bots.Settings.button_holdtime_heal, false);
-					else
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-				}
-
-				return true;
-			}
-			case "use":
-			{
-				local tTable = Left4Utils.GetLookingTargetEx(player, TRACE_MASK_NPC_SOLID);
-				if (!tTable)
-					return true;
-
-				local holdTime = Left4Bots.Settings.button_holdtime_tap;
-				local target = null;
-
-				if (tTable["ent"])
-				{
-					local tClass = tTable["ent"].GetClassname();
-					if (tClass.find("weapon_") != null || tClass.find("prop_physics") != null || tClass.find("prop_minigun") != null || tClass.find("func_button") != null || tClass.find("trigger_finale") != null || tClass.find("prop_door_rotating") != null)
-						target = tTable["ent"];
-					else
-						target = Left4Bots.FindNearestUsable(tTable["pos"], 130);
-				}
-				else
-					target = Left4Bots.FindNearestUsable(tTable["pos"], 130);
-
-				if (!target)
-					return true;
-
-				local targetClass = target.GetClassname();
-				local wId = Left4Utils.GetWeaponId(target);
-				local wSlot = Left4Utils.GetWeaponSlotById(wId);
-				if (Left4Bots.Settings.smart_use_scavenge && Left4Bots.ScavengeUseTarget && ((Left4Bots.ScavengeUseType == SCAV_TYPE_GASCAN && wId == Left4Utils.WeaponId.weapon_gascan) || (Left4Bots.ScavengeUseType == SCAV_TYPE_COLA && wId == Left4Utils.WeaponId.weapon_cola_bottles)))
-				{
-					// scavenge
-					Left4Bots.Log(LOG_LEVEL_DEBUG, "'use' -> 'scavenge': " + targetClass);
-
-					if (!tgtBot || allBots)
-						tgtBot = Left4Bots.GetFirstAvailableBotForOrder("scavenge", null, target.GetCenter());
-
-					if (tgtBot)
-						Left4Bots.BotOrderAdd(tgtBot, "scavenge", player, target, null, null, Left4Bots.Settings.button_holdtime_tap);
-					else
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: scavenge");
-
-					return true;
-				}
-				else if (Left4Bots.Settings.smart_use_carry && wSlot == 5)
-				{
-					// carry
-					Left4Bots.Log(LOG_LEVEL_DEBUG, "'use' -> 'carry': " + targetClass);
-
-					if (!tgtBot || allBots)
-						tgtBot = Left4Bots.GetFirstAvailableBotForOrder("carry", null, target.GetCenter());
-
-					if (tgtBot)
-						Left4Bots.BotOrderAdd(tgtBot, "carry", player, target, null, null, Left4Bots.Settings.button_holdtime_tap);
-					else
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: carry");
-
-					return true;
-				}
-				else if (Left4Bots.Settings.smart_use_deploy && (wId == Left4Utils.WeaponId.weapon_upgradepack_incendiary || wId == Left4Utils.WeaponId.weapon_upgradepack_explosive))
-				{
-					// deploy
-					Left4Bots.Log(LOG_LEVEL_DEBUG, "'use' -> 'deploy': " + targetClass);
-
-					if (!tgtBot || allBots)
-						tgtBot = Left4Bots.GetFirstAvailableBotForOrder("deploy", null, target.GetCenter());
-
-					if (tgtBot)
-						Left4Bots.BotOrderAdd(tgtBot, "deploy", player, target, null, null, Left4Bots.Settings.button_holdtime_tap);
-					else
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: deploy");
-
-					return true;
-				}
-
-				local targetPos = null;
-
-				if (targetClass.find("weapon_") != null || targetClass.find("prop_physics") != null)
-				{
-					//targetPos = null;
-				}
-				else if (targetClass.find("prop_minigun") != null)
-					targetPos = target.GetOrigin() - (target.GetAngles().Forward() * 50);
-				else if (targetClass.find("func_button") != null || targetClass.find("trigger_finale") != null || targetClass.find("prop_door_rotating") != null)
-				{
-					if (targetClass == "func_button_timed")
-						holdTime = NetProps.GetPropInt(target, "m_nUseTime") + 0.1;
-
-					local p = tTable["pos"];
-					local a = Left4Utils.VectorAngles(player.GetCenter() - tTable["pos"]);
-
-					if (targetClass.find("trigger_finale") != null)
-						targetPos = Left4Bots.FindBestUseTargetPos(target, p, a, true, Left4Bots.Settings.scavenge_usetarget_debug);
-					else
-						targetPos = Left4Bots.FindBestUseTargetPos(target, p, a, false, Left4Bots.Settings.scavenge_usetarget_debug);
-					if (!targetPos)
-						targetPos = target.GetCenter();
-
-					if (targetClass.find("func_button") != null)
-					{
-						local glowEntName = NetProps.GetPropString(target, "m_sGlowEntity");
-						if (glowEntName && glowEntName != "")
-						{
-							local glowEnt = Entities.FindByName(null, glowEntName);
-							if (glowEnt)
-								target = glowEnt;
-						}
-					}
-				}
-				else
-					target = null;
-
-				if (!target)
-					return true;
-
-				if (allBots)
-				{
-					foreach (bot in Left4Bots.Bots)
-					{
-						Left4Bots.BotOrderAdd(bot, arg2, player, target, targetPos, null, holdTime);
-						
-						if (wSlot >= 0 && wSlot <= 4)
-							bot.GetScriptScope().UseWeapons[wSlot] <- wId;
-					}
-				}
-				else
-				{
-					if (!tgtBot)
-						tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2, null, target.GetCenter());
-
-					if (tgtBot)
-					{
-						Left4Bots.BotOrderAdd(tgtBot, arg2, player, target, targetPos, null, holdTime);
-						
-						if (wSlot >= 0 && wSlot <= 4)
-							tgtBot.GetScriptScope().UseWeapons[wSlot] <- wId;
-					}
-					else
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-				}
-
-				return true;
-			}
-			case "usereset":
-			{
-				if (allBots)
-				{
-					foreach (bot in Left4Bots.Bots)
-						bot.GetScriptScope().UseWeapons.clear();
-				}
-				else
-				{
-					if (!tgtBot)
-						tgtBot = Left4Bots.GetPickerBot(player); // player, radius = 999999, threshold = 0.95, visibleOnly = false
-
-					if (tgtBot)
-						tgtBot.GetScriptScope().UseWeapons.clear();
-					else
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-				}
-
-				return true;
-			}
-			case "carry":
-			{
-				local tTable = Left4Utils.GetLookingTargetEx(player, TRACE_MASK_NPC_SOLID);
-				if (!tTable)
-					return true;
-
-				local target = null;
-
-				if (tTable["ent"])
-				{
-					//local tClass = tTable["ent"].GetClassname();
-					if (/* tClass.find("weapon_") != null || tClass.find("prop_physics") != null &&*/ Left4Utils.GetWeaponSlotById(Left4Utils.GetWeaponId(tTable["ent"])))
-						target = tTable["ent"];
-					else
-						target = Left4Bots.FindNearestCarriable(tTable["pos"], 130);
-				}
-				else
-					target = Left4Bots.FindNearestCarriable(tTable["pos"], 130);
-
-				if (!target)
-					return true;
-
-				if (!tgtBot || allBots)
-					tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2, null, target.GetCenter());
-
-				if (tgtBot)
-					Left4Bots.BotOrderAdd(tgtBot, arg2, player, target, null, null, Left4Bots.Settings.button_holdtime_tap);
-				else
-					Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-
-				return true;
-			}
-			case "deploy":
-			{
-				local tTable = Left4Utils.GetLookingTargetEx(player, TRACE_MASK_NPC_SOLID);
-				if (!tTable)
-					return true;
-
-				local target = null;
-
-				if (tTable["ent"])
-				{
-					local tClass = tTable["ent"].GetClassname();
-					if (tClass.find("weapon_upgradepack_explosive") != null || tClass.find("weapon_upgradepack_incendiary") != null)
-						target = tTable["ent"];
-					else
-						target = Left4Bots.FindNearestDeployable(tTable["pos"], 130);
-				}
-				else
-					target = Left4Bots.FindNearestDeployable(tTable["pos"], 130);
-
-				if (target)
-				{
-					// Must go pick up the aimed upgradepack and deploy it
-					if (!tgtBot || allBots)
-						tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2, null, target.GetCenter());
-
-					if (tgtBot)
-						Left4Bots.BotOrderAdd(tgtBot, arg2, player, target, null, null, Left4Bots.Settings.button_holdtime_tap);
-					else
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-				}
-				else
-				{
-					// Must deploy the upgradepacks in their inventory
-					if (allBots)
-					{
-						foreach (bot in Left4Bots.Bots)
-						{
-							local item = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_MEDKIT);
-							if (item && item.IsValid())
-							{
-								local itemClass = item.GetClassname();
-								if (itemClass.find("weapon_upgradepack_explosive") != null || itemClass.find("weapon_upgradepack_incendiary") != null)
-								{
-									Left4Bots.Log(LOG_LEVEL_DEBUG, "Bot " + bot.GetPlayerName() + " switching to upgrade " + itemClass);
-
-									bot.SwitchToItem(itemClass);
-
-									Left4Timers.AddTimer(null, 1, @(params) Left4Bots.DoDeployUpgrade(params.player), { player = bot });
-								}
-							}
-						}
-					}
-					else
-					{
-						if (!tgtBot)
-							tgtBot = Left4Bots.GetFirstAvailableBotForDeploy(player);
-
-						if (tgtBot)
-						{
-							local itemClass = Left4Utils.GetInventoryItemInSlot(tgtBot, INV_SLOT_MEDKIT).GetClassname();
-
-							Left4Bots.Log(LOG_LEVEL_DEBUG, "Bot " + tgtBot.GetPlayerName() + " switching to upgrade " + itemClass);
-
-							tgtBot.SwitchToItem(itemClass);
-
-							Left4Timers.AddTimer(null, 1, @(params) Left4Bots.DoDeployUpgrade(params.player), { player = tgtBot });
-						}
-						else
-							Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-					}
-				}
-
-				return true;
-			}
-			case "goto":
-			{
-				local gotoPos = null;
-				if (arg3)
-				{
-					if (arg3.tolower() == "me")
-						gotoPos = player;
-					else
-						gotoPos = Left4Bots.GetBotByName(arg3);
-					if (!gotoPos)
-					{
-						Left4Bots.Log(LOG_LEVEL_WARN, "Invalid goto target: " + arg3);
-						return true;
-					}
-					gotoPos = gotoPos.GetOrigin();
-				}
-				else
-				{
-					gotoPos = Left4Utils.GetLookingPosition(player, Left4Bots.Settings.tracemask_others);
-					if (!gotoPos)
-					{
-						Left4Bots.Log(LOG_LEVEL_WARN, "Invalid goto position");
-						return true;
-					}
-				}
-
-				if (allBots)
-				{
-					foreach (bot in Left4Bots.Bots)
-						Left4Bots.BotOrderAdd(bot, arg2, player, null, gotoPos);
-				}
-				else
-				{
-					if (!tgtBot)
-						tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2);
-
-					if (tgtBot)
-						Left4Bots.BotOrderAdd(tgtBot, arg2, player, null, gotoPos);
-					else
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-				}
-
-				return true;
-			}
-			case "come":
-			{
-				if (allBots)
-				{
-					foreach (bot in Left4Bots.Bots)
-						Left4Bots.BotOrderAdd(bot, "goto", player, null, player.GetOrigin());
-				}
-				else
-				{
-					if (!tgtBot)
-						tgtBot = Left4Bots.GetFirstAvailableBotForOrder("goto");
-
-					if (tgtBot)
-						Left4Bots.BotOrderAdd(tgtBot, "goto", player, null, player.GetOrigin());
-					else
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-				}
-
-				return true;
-			}
-			case "wait":
-			{
-				local waitPos = null;
-				if (arg3)
-				{
-					if (arg3.tolower() == "here")
-						waitPos = player.GetOrigin();
-					else if (arg3.tolower() == "there")
-						waitPos = Left4Utils.GetLookingPosition(player, Left4Bots.Settings.tracemask_others);
-
-					if (!waitPos)
-					{
-						Left4Bots.Log(LOG_LEVEL_WARN, "Invalid wait position: " + arg3);
-						return true;
-					}
-				}
-
-				if (allBots)
-				{
-					foreach (bot in Left4Bots.Bots)
-						Left4Bots.BotOrderAdd(bot, arg2, player, null, waitPos != null ? waitPos : bot.GetOrigin(), null, 0, !Left4Bots.Settings.wait_nopause);
-				}
-				else
-				{
-					if (!tgtBot)
-						tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2);
-
-					if (tgtBot)
-						Left4Bots.BotOrderAdd(tgtBot, arg2, player, null, waitPos != null ? waitPos : tgtBot.GetOrigin(), null, 0, !Left4Bots.Settings.wait_nopause);
-					else
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-				}
-
-				return true;
-			}
-			case "warp":
-			{
-				local warpPos = null;
-				if (arg3)
-				{
-					if (arg3.tolower() == "here")
-						warpPos = player.GetOrigin();
-					else if (arg3.tolower() == "there")
-						warpPos = Left4Utils.GetLookingPosition(player, Left4Bots.Settings.tracemask_others);
-					else if (arg3.tolower() == "move")
-						warpPos = "move";
-
-					if (!warpPos)
-					{
-						Left4Bots.Log(LOG_LEVEL_WARN, "Invalid wait position: " + arg3);
-						return true;
-					}
-				}
-				else
-					warpPos = player.GetOrigin();
-
-				if (allBots)
-				{
-					foreach (bot in Left4Bots.Bots)
-					{
-						if (warpPos == "move")
-						{
-							local movepos = bot.GetScriptScope().MovePos;
-							if (movepos)
-								bot.SetOrigin(movepos);
-						}
-						else
-							bot.SetOrigin(warpPos);
-					}
-				}
-				else
-				{
-					if (!tgtBot)
-						tgtBot = Left4Bots.GetPickerBot(player); // player, radius = 999999, threshold = 0.95, visibleOnly = false
-
-					if (tgtBot)
-					{
-						if (warpPos == "move")
-						{
-							local movepos = tgtBot.GetScriptScope().MovePos;
-							if (movepos)
-								tgtBot.SetOrigin(movepos);
-						}
-						else
-							tgtBot.SetOrigin(warpPos);
-					}
-					else
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-				}
-
-				return true;
-			}
-			case "give":
-			{
-				local lvl = Left4Users.GetOnlineUserLevel(player.GetPlayerUserId());
-				if (lvl < Left4Bots.Settings.userlevel_give_others)
-					return true; // Player's user level is too low for any item, no point continuing
-
-				local searchSlots = [INV_SLOT_PILLS, INV_SLOT_THROW, INV_SLOT_MEDKIT];
-				for (local i = 0; i < searchSlots.len(); i++)
-				{
-					local slot = searchSlots[i];
-					local bot = null;
-					local item = Left4Utils.GetInventoryItemInSlot(player, slot);
-					if (!item)
-					{
-						if (allBots || !tgtBot)
-						{
-							// "bot give" and "bots give" will work the same way. The first bot with any item in that inventory slot is automatically selected
-							bot = Left4Bots.GetFirstAvailableBotForGive(slot, lvl);
-						}
-						else
-						{
-							local botItem = Left4Utils.GetInventoryItemInSlot(tgtBot, slot);
-							if (botItem && botItem.IsValid())
-								bot = tgtBot;
-						}
-
-						if (bot)
-						{
-							Left4Bots.GiveInventoryItem(bot, player, slot);
-							return true;
-						}
-					}
-				}
-
-				Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-
-				return true;
-			}
-			case "swap":
-			{
-				local lvl = Left4Users.GetOnlineUserLevel(player.GetPlayerUserId());
-				if (lvl < Left4Bots.Settings.userlevel_give_others)
-					return true; // Player's user level is too low for any item, no point continuing
-
-				if (allBots || !tgtBot)
-					tgtBot = Left4Bots.GetPickerBot(player); // player, radius = 999999, threshold = 0.95, visibleOnly = false
-
-				if (tgtBot)
-				{
-					local held = player.GetActiveWeapon();
-					if (held && held.IsValid())
-					{
-						local heldClass = held.GetClassname();
-						local heldSkin = NetProps.GetPropInt(held, "m_nSkin");
-						local slot = Left4Utils.FindSlotForItemClass(player, heldClass);
-						if (slot == INV_SLOT_PILLS || slot == INV_SLOT_THROW || slot == INV_SLOT_MEDKIT)
-						{
-							local botItem = Left4Utils.GetInventoryItemInSlot(tgtBot, slot);
-							if (botItem && botItem.IsValid())
-							{
-								local botItemClass = botItem.GetClassname();
-								local botItemSkin = NetProps.GetPropInt(botItem, "m_nSkin");
-								if (botItemClass != heldClass || heldSkin != botItemSkin)
-								{
-									// tgtBot has a valid swappable item
-									if (slot != INV_SLOT_MEDKIT || (botItemClass != "weapon_first_aid_kit" && botItemClass != "weapon_defibrillator") || lvl >= Left4Bots.Settings.userlevel_give_medkit)
-									{
-										// Player is allowed to receive that item
-
-										// Swap
-										DoEntFire("!self", "SpeakResponseConcept", "PlayerAlertGiveItem", 0, null, player);
-										DoEntFire("!self", "SpeakResponseConcept", "PlayerAlertGiveItem", 0, null, tgtBot);
-
-										Left4Bots.GiveItemIndex1 = held.GetEntityIndex();
-										Left4Bots.GiveItemIndex2 = botItem.GetEntityIndex();
-
-										player.DropItem(heldClass);
-										tgtBot.DropItem(botItemClass);
-
-										Left4Utils.GiveItemWithSkin(player, botItemClass, botItemSkin);
-										Left4Utils.GiveItemWithSkin(tgtBot, heldClass, heldSkin);
-
-										Left4Timers.AddTimer(null, 0.1, Left4Bots.ItemSwapped, { player1 = player, item1 = botItem, player2 = tgtBot, item2 = held });
-									}
-								}
-							}
-						}
-					}
-				}
-				else
-					Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-
-				return true;
-			}
-			case "tempheal":
-			{
-				if (allBots)
-				{
-					foreach (bot in Left4Bots.Bots)
-					{
-						local item = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_PILLS);
-						if (item && item.IsValid())
-						{
-							bot.SwitchToItem(item.GetClassname());
-							Left4Timers.AddTimer(null, 1.2, @(params) Left4Utils.PlayerPressButton(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = bot, button = BUTTON_ATTACK, holdTime = 1, destination = null, deltaPitch = 0, deltaYaw = 0, lockLook = true });
-						}
-					}
-				}
-				else
-				{
-					if (!tgtBot)
-						tgtBot = Left4Bots.GetPickerBot(player); // player, radius = 999999, threshold = 0.95, visibleOnly = false
-
-					if (tgtBot)
-					{
-						local item = Left4Utils.GetInventoryItemInSlot(tgtBot, INV_SLOT_PILLS);
-						if (item && item.IsValid())
-						{
-							tgtBot.SwitchToItem(item.GetClassname());
-							Left4Timers.AddTimer(null, 1.2, @(params) Left4Utils.PlayerPressButton(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = tgtBot, button = BUTTON_ATTACK, holdTime = 1, destination = null, deltaPitch = 0, deltaYaw = 0, lockLook = true });
-						}
-					}
-					else
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-				}
-
-				return true;
-			}
-			case "throw":
-			{
-				local destination = Left4Utils.GetLookingTarget(player, Left4Bots.Settings.tracemask_others);
-				if (!destination)
-					return true; // Invalid destination
-
-				local destPos = destination;
-				if ((typeof destPos) == "instance")
-					destPos = destPos.GetOrigin();
-
-				local item = null;
-				if (arg3)
-				{
-					item = arg3.tolower();
-					if (item.find("molotov") != null)
-						item = "weapon_molotov";
-					else if (item.find("pipe") != null)
-						item = "weapon_pipe_bomb";
-					else if (item.find("bile") != null)
-						item = "weapon_vomitjar";
-					else
-						return true; // bad item name
-				}
-
-				if (allBots)
-				{
-					// bots throw [item]
-					foreach (bot in Left4Bots.Bots)
-					{
-						if (Left4Bots.BotCanThrow(bot, item))
-							Left4Bots.BotThrow(bot, destPos);
-					}
-				}
-				else
-				{
-					// bot/botname throw [item]
-					if (!tgtBot)
-						tgtBot = Left4Bots.GetFirstAvailableBotForThrow(destPos, item);
-
-					if (!tgtBot || !Left4Bots.BotCanThrow(tgtBot, item))
-					{
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-						return true;
-					}
-
-					Left4Bots.BotThrow(tgtBot, destPos);
-				}
-
-				return true;
-			}
-			case "hurry":
-			{
-				if (allBots)
-				{
-					local hurryUntil = Time() + Left4Bots.Settings.hurry_time;
-					foreach (bot in Left4Bots.Bots)
-					{
-						local scope = bot.GetScriptScope();
-						scope.BotCancelAll();
-						scope.HurryUntil = hurryUntil;
-
-						Left4Bots.SpeakRandomVocalize(bot, Left4Bots.VocalizerYes, RandomFloat(0.5, 1.0));
-					}
-				}
-				else
-				{
-					if (!tgtBot)
-						tgtBot = Left4Bots.GetNearestMovingBot(player.GetOrigin());
-
-					if (tgtBot)
-					{
-						local scope = bot.GetScriptScope();
-						scope.BotCancelAll();
-						scope.HurryUntil = Time() + Left4Bots.Settings.hurry_time;
-
-						Left4Bots.SpeakRandomVocalize(bot, Left4Bots.VocalizerYes, RandomFloat(0.5, 1.0));
-					}
-					else
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-				}
-			}
-			case "scavenge":
-			{
-				// TODO
-				if (arg3)
-				{
-					if (arg3.tolower() == "start")
-						Left4Bots.ScavengeStart();
-					else if (arg3.tolower() == "stop")
-						Left4Bots.ScavengeStop();
-				}
-				else
-				{
-					local tTable = Left4Utils.GetLookingTargetEx(player, TRACE_MASK_NPC_SOLID);
-					if (!tTable)
-						return true;
-
-					local target = null;
-
-					if (tTable["ent"])
-					{
-						local tClass = tTable["ent"].GetClassname();
-						local wId = Left4Utils.GetWeaponId(tTable["ent"]);
-						if (tClass != "weapon_scavenge_item_spawn" && tClass != "weapon_gascan_spawn" && ((Left4Bots.ScavengeUseType == SCAV_TYPE_GASCAN && wId == Left4Utils.WeaponId.weapon_gascan) || (Left4Bots.ScavengeUseType == SCAV_TYPE_COLA && wId == Left4Utils.WeaponId.weapon_cola_bottles)))
-							target = tTable["ent"];
-						else
-							target = Left4Bots.FindNearestScavengeItem(tTable["pos"], 130);
-					}
-					else
-						target = Left4Bots.FindNearestScavengeItem(tTable["pos"], 130);
-
-					if (target /*&& !Left4Bots.BotsHaveOrderDestEnt(target)*/)
-					{
-						//if (!Left4Bots.BotHasOrderOfType(bot, "scavenge"))
-						if (!tgtBot || allBots)
-							tgtBot = Left4Bots.GetFirstAvailableBotForOrder(arg2, null, target.GetCenter());
-
-						if (tgtBot)
-							Left4Bots.BotOrderAdd(tgtBot, arg2, player, target, null, null, Left4Bots.Settings.button_holdtime_tap);
-						else
-							Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-					}
-				}
-
-				return true;
-			}
-			case "cancel":
-			{
-				if (!allBots && !tgtBot)
-				{
-					Left4Bots.Log(LOG_LEVEL_WARN, "Can't use the 'bot' keyword with the 'cancel' arg2");
-					return true;
-				}
-
-				// arg3 can be:
-				// - "current" to cancel the current order only
-				// - "orders" to cancel all the orders (including the current one)
-				// - "ordertype" to cancel all the orders of given type
-				// - "defib" to cancel any pending defib task
-				// - "all" (or null) to cancel everything (orders, current pick-up, anything)
-				if (arg3)
-					arg3 = arg3.tolower();
-
-				if (allBots)
-				{
-					// With 'bots cancel defib' we also "abandon" any dead survivor
-					if (arg3 == "defib")
-						Left4Bots.Deads = {}; // Clear the deads list
-
-					foreach (bot in ::Left4Bots.Bots)
-					{
-						if (!arg3 || arg3 == "all")
-							bot.GetScriptScope().BotCancelAll();
-						else if (arg3 == "current")
-							bot.GetScriptScope().BotCancelCurrentOrder();
-						else if (arg3 == "orders")
-							bot.GetScriptScope().BotCancelOrders();
-						else if (arg3 == "defib")
-							bot.GetScriptScope().BotCancelDefib();
-						else
-							bot.GetScriptScope().BotCancelOrders(arg3);
-					}
-
-					// With 'bots cancel all' we also stop the scavenge
-					if (!arg3 || arg3 == "all")
-						Left4Bots.ScavengeStop();
-				}
-				else
-				{
-					if (!arg3 || arg3 == "all")
-						tgtBot.GetScriptScope().BotCancelAll();
-					else if (arg3 == "current")
-						tgtBot.GetScriptScope().BotCancelCurrentOrder();
-					else if (arg3 == "orders")
-						tgtBot.GetScriptScope().BotCancelOrders();
-					else if (arg3 == "defib")
-						tgtBot.GetScriptScope().BotCancelDefib();
-					else
-						tgtBot.GetScriptScope().BotCancelOrders(arg3);
-				}
-
-				return true;
-			}
-			case "move":
-			{
-				// Alias of "cancel all"
-				if (!allBots && !tgtBot)
-				{
-					Left4Bots.Log(LOG_LEVEL_WARN, "Can't use the 'bot' keyword with the 'move' arg2");
-					return true;
-				}
-
-				if (allBots)
-				{
-					foreach (bot in ::Left4Bots.Bots)
-						bot.GetScriptScope().BotCancelAll();
-
-					// With 'bots cancel all' we also stop the scavenge
-					if (!arg3 || arg3 == "all")
-						Left4Bots.ScavengeStop();
-				}
-				else
-					tgtBot.GetScriptScope().BotCancelAll();
-
-				return true;
-			}
-			case "die":
-			{
-				local lvl = Left4Users.GetOnlineUserLevel(player.GetPlayerUserId());
-				if (lvl < L4U_LEVEL.Admin)
-					return true; // Only admins can use this command
-
-				if (!Left4Bots.Settings.die_humans_alive && Left4Bots.Survivors.len() > Left4Bots.Bots.len())
-					return true; // Can't use this command with human survivors alive if "die_humans_alive" setting is 0
-
-				if (allBots)
-				{
-					foreach (bot in Left4Bots.Bots)
-						Left4Utils.KillPlayer(bot);
-				}
-				else
-				{
-					if (!tgtBot)
-						tgtBot = Left4Bots.GetPickerBot(player); // player, radius = 999999, threshold = 0.95, visibleOnly = false
-
-					if (tgtBot)
-						Left4Utils.KillPlayer(tgtBot);
-					else
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-				}
-
-				return true;
-			}
-			case "pause":
-			{
-				local lvl = Left4Users.GetOnlineUserLevel(player.GetPlayerUserId());
-				if (lvl < L4U_LEVEL.Admin)
-					return true; // Only admins can use this command
-
-				if (allBots)
-				{
-					foreach (bot in Left4Bots.Bots)
-						bot.GetScriptScope().BotPause();
-				}
-				else
-				{
-					if (!tgtBot)
-						tgtBot = Left4Bots.GetPickerBot(player); // player, radius = 999999, threshold = 0.95, visibleOnly = false
-
-					if (tgtBot)
-						tgtBot.GetScriptScope().BotPause();
-					else
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-				}
-
-				return true;
-			}
-			case "dump":
-			{
-				local lvl = Left4Users.GetOnlineUserLevel(player.GetPlayerUserId());
-				if (lvl < L4U_LEVEL.Admin)
-					return true; // Only admins can use this command
-
-				if (allBots)
-				{
-					foreach (bot in Left4Bots.Bots)
-						printl(Left4Bots.BotAIToString(bot));
-				}
-				else
-				{
-					if (!tgtBot)
-						tgtBot = Left4Bots.GetPickerBot(player); // player, radius = 999999, threshold = 0.95, visibleOnly = false
-
-					if (tgtBot)
-						printl(Left4Bots.BotAIToString(tgtBot));
-					else
-						Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: " + arg2);
-				}
-
-				return true;
-			}
+			if (adminCommand && Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) < L4U_LEVEL.Admin)
+				return false; // Not an admin
+			
+			// Call the cmd function (Left4Bots.Cmd_command)
+			Left4Bots["Cmd_" + arg2](player, allBots, tgtBot, arg3);
+			
+			return true;
 		}
 	}
 
@@ -3067,7 +2158,7 @@ settings
 	if (!player || !player.IsValid() || IsPlayerABot(player) || Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) < Left4Bots.Settings.userlevel_orders)
 		return;
 
-	if (cmd != "settings" && cmd != "botselect" && args.len() < 3) // Normal bot commands have at least 2 arguments (excluding 'l4b')
+	if (cmd != "settings" && cmd != "botselect" && cmd != "help" && args.len() < 3) // Normal bot commands have at least 2 arguments (excluding 'l4b')
 		return;
 
 	local arg2 = null;

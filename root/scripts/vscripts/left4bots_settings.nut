@@ -148,6 +148,9 @@
 
 	// [1/0] Should the bots give their upgrade packs to human players?
 	give_bots_upgrades = 1
+	
+	// [1/0] Should the bots give their weapons to human players?
+	give_bots_weapons = 1
 
 	// [1/0] Can the human survivors give their pills/adrenaline to other survivors (and swap with bots)?
 	give_humans_meds = 1
@@ -528,6 +531,9 @@
 
 	// Minimum L4U level for receiving any other items from the bots (2 = Admin, 1 = Friend, 0 = Random player, -1 = Griefer)
 	userlevel_give_others = 0
+
+	// Minimum L4U level for receiving weapons from the bots (2 = Admin, 1 = Friend, 0 = Random player, -1 = Griefer)
+	userlevel_give_weapons = 1
 
 	// Minimum L4U level for sending orders to the bots (2 = Admin, 1 = Friend, 0 = Random player, -1 = Griefer)
 	userlevel_orders = 1
