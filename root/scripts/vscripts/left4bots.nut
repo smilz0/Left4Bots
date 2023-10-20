@@ -3128,6 +3128,64 @@ Left4Bots.GetOtherMedkitSpawn <- function (srcSpawn, radius = 100.0)
 	}
 }
 
+// Check whether the given bot needs that item (pills/adrenaline) and forces switch to another weapon if not needed
+::Left4Bots.CheckBotPickup <- function (bot, item)
+{
+	if (!bot || !bot.IsValid() || (bot.GetHealth() + bot.GetHealthBuffer()) < 50)
+		return;
+		
+	local activeWeapon = bot.GetActiveWeapon();
+	if (activeWeapon && activeWeapon.GetClassname() == item)
+		Left4Bots.BotSwitchToAnotherWeapon(bot);
+}
+
+// Helps update the COMMANDS.md file on the github repo
+::Left4Bots.PrintCommandsMarkdown <- function ()
+{
+	local function CommandToMarkdown(cmdHelpText)
+	{
+		local field1 = "";
+		local field2 = "";
+		
+		local txt = "";
+		for (local i = 0; i < cmdHelpText.len(); i++)
+		{
+			if (cmdHelpText[i] > 5)
+				txt += cmdHelpText[i].tochar();
+		}
+		
+		txt = Left4Utils.StringReplace(txt, "<", "\\<");
+		txt = Left4Utils.StringReplace(txt, ">", "\\>");
+		txt = split(txt, "\n");
+		for (local j = 0; j < txt.len(); j++)
+		{
+			if (j == 0)
+			{
+				local cmd = split(txt[0], " ");
+				field1 = Left4Utils.StringReplace(cmd[0], "botsource", "_botsource_") + " **" + cmd[1] + "**";
+				for (local k = 2; k < cmd.len(); k++)
+					field1 += " " + Left4Utils.StringReplace(Left4Utils.StringReplace(cmd[k], "\\[", "[_"), "\\]", "_]");
+			}
+			else if (j == 1)
+				field2 = txt[1];
+			else
+				field2 += "<br />" + txt[j];
+		}
+		
+		return "| " + field1 + " | " + field2 + " |";
+	}
+	
+	printl("--- ADMIN COMMANDS -------------------------");
+	for (local i = 0; i < Left4Bots.AdminCommands.len(); i++)
+		printl(CommandToMarkdown(Left4Bots["CmdHelp_" + Left4Bots.AdminCommands[i]]()));
+	
+	printl("--- USER COMMANDS --------------------------");
+	for (local i = 0; i < Left4Bots.UserCommands.len(); i++)
+		printl(CommandToMarkdown(Left4Bots["CmdHelp_" + Left4Bots.UserCommands[i]]()));
+	
+	printl("--------------------------------------------");
+}
+
 //
 
 IncludeScript("left4bots_ai");

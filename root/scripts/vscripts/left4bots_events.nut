@@ -394,6 +394,10 @@ Msg("Including left4bots_events...\n");
 
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnGameEvent_item_pickup - player: " + player.GetPlayerName() + " picked up: " + item);
 
+	// This is meant to prevent the bot from accidentally using the pills/adrenaline you give them while they are shooting the infected
+	if (item == "pain_pills" || item == "adrenaline")
+		Left4Timers.AddTimer(null, 1, @(params) Left4Bots.CheckBotPickup(params.bot, params.item), { bot = player, item = "weapon_" + item });
+
 	// Update the inventory items
 	Left4Bots.OnInventoryManager(params);
 	//Left4Timers.AddTimer(null, 0.1, Left4Bots.OnInventoryManager, { });
