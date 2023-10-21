@@ -376,7 +376,9 @@ Msg("Including left4bots_events...\n");
 
 	Left4Bots.RemoveBotThink(bot);
 
-	//
+	// This should fix https://github.com/smilz0/Left4Bots/issues/47
+	Left4Bots.PlayerResetAll(player);
+	Left4Bots.PlayerResetAll(bot);
 
 	if (Left4Bots.IsValidSurvivor(player))
 		::Left4Bots.Survivors[player.GetPlayerUserId()] <- player;

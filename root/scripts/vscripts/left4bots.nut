@@ -3139,6 +3139,22 @@ Left4Bots.GetOtherMedkitSpawn <- function (srcSpawn, radius = 100.0)
 		Left4Bots.BotSwitchToAnotherWeapon(bot);
 }
 
+// Resets all the movement/flags
+::Left4Bots.PlayerResetAll <- function (player)
+{
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "PlayerResetAll - " + player.GetPlayerName());
+
+	if (NetProps.GetPropInt(player, "movetype") == 0)
+		NetProps.SetPropInt(player, "movetype", 2);
+	
+	Left4Bots.CarryItemStop(player);
+
+	NetProps.SetPropInt(player, "m_fFlags", NetProps.GetPropInt(player, "m_fFlags") & ~(1 << 5)); // unset FL_FROZEN
+	NetProps.SetPropInt(player, "m_afButtonDisabled", NetProps.GetPropInt(player, "m_afButtonDisabled") & (~BUTTON_ATTACK)); // enable FIRE button
+	NetProps.SetPropInt(player, "m_afButtonForced", 0); // clear forced buttons
+	//NetProps.SetPropInt(player, "m_afButtonForced", NetProps.GetPropInt(player, "m_afButtonForced") & (~BUTTON_DUCK));
+}
+
 // Helps update the COMMANDS.md file on the github repo
 ::Left4Bots.PrintCommandsMarkdown <- function ()
 {
