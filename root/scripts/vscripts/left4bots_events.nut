@@ -1232,13 +1232,12 @@ Msg("Including left4bots_events...\n");
 				}
 				else if (concept in Left4Bots.VocalizerCommands)
 				{
-					local cmd = Left4Bots.VocalizerCommands[concept];
+					local cmd = Left4Bots.VocalizerCommands[concept].all;
 					local userid = who.GetPlayerUserId();
 					if ((userid in Left4Bots.VocalizerBotSelection) && (Time() - Left4Bots.VocalizerBotSelection[userid].time) <= Left4Bots.Settings.vocalize_botselect_timeout && Left4Bots.VocalizerBotSelection[userid].bot && Left4Bots.VocalizerBotSelection[userid].bot.IsValid())
 					{
 						local botname = Left4Bots.VocalizerBotSelection[userid].bot.GetPlayerName().tolower();
-						cmd = Left4Utils.StringReplace(cmd, "bot ", botname + " ");
-						cmd = Left4Utils.StringReplace(cmd, "bots ", botname + " ");
+						cmd = Left4Utils.StringReplace(Left4Bots.VocalizerCommands[concept].one, "botname ", botname + " ");
 					}
 					cmd = "!l4b " + cmd;
 					local args = split(cmd, " ");

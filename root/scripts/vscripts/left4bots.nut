@@ -198,7 +198,9 @@ IncludeScript("left4bots_settings");
 	{
 		Left4Bots.Log(LOG_LEVEL_INFO, "Loading vocalizer command mapping from file: " + Left4Bots.Settings.file_vocalizer);
 		::Left4Bots.VocalizerCommands = Left4Bots.LoadVocalizerCommandsFromFile(Left4Bots.Settings.file_vocalizer);
-		Left4Bots.Log(LOG_LEVEL_INFO, "Loaded " + Left4Bots.VocalizerCommands.len() + " orders");
+		Left4Bots.Log(LOG_LEVEL_INFO, "Loaded " + Left4Bots.VocalizerCommands.len() + " mappings");
+		
+		Left4Utils.PrintTable(::Left4Bots.VocalizerCommands); // TODO: remove
 	}
 	else
 		Left4Bots.Log(LOG_LEVEL_INFO, "Vocalizer file was not loaded (settings.file_vocalizer is empty)");
@@ -344,25 +346,23 @@ witch_autocrown = 0";
 		// using array instead of table to keep the order
 		local defaultValues =
 		[
-			"PlayerLeadOn = bots lead",
-			"PlayerWaitHere = bots wait",
-			"PlayerEmphaticGo = bots goto",
-			"PlayerWarnWitch = bot witch",
-			//"PlayerMoveOn = bots cancel current",
-			"PlayerMoveOn = bot use",
-			"PlayerStayTogether = bots cancel",
-			"PlayerFollowMe = bot follow me",
-			"iMT_PlayerSuggestHealth = bots heal",
-			//"PlayerHurryUp = bots cancel defib",
-			"PlayerHurryUp = bots hurry",
-			"AskForHealth2 = bot heal me"
-			"PlayerAnswerLostCall = bot give",
-			"iMT_PlayerHello = bot swap",
-			//"TODO = bots warp",
-			//"TODO = bot tempheal",
-			//"TODO = bot deploy",
-			//"TODO = bot throw",
-			//"TODO = bots die",
+			"PlayerLeadOn = bots lead,botname lead",
+			"PlayerWaitHere = bots wait,botname wait",
+			"PlayerEmphaticGo = bots goto,botname goto",
+			"PlayerWarnWitch = bot witch,botname witch",
+			"PlayerMoveOn = bot use,botname use",
+			"PlayerStayTogether = bots cancel,botname cancel",
+			"PlayerFollowMe = bot follow me,botname follow me",
+			"iMT_PlayerSuggestHealth = bots heal,botname heal",
+			"PlayerHurryUp = bots hurry,botname hurry",
+			"AskForHealth2 = bot heal me,botname heal me"
+			"PlayerAnswerLostCall = bot give,botname give",
+			"iMT_PlayerHello = bot swap,botname swap",
+			//"TODO = bots warp,botname warp",
+			//"TODO = bot tempheal,botname tempheal",
+			//"TODO = bot deploy,botname deploy",
+			//"TODO = bot throw,botname throw",
+			//"TODO = bots die,botname die",
 			//"PlayerYellRun = ?",
 			//"PlayerImWithYou = next thing to do" // TODO:
 		];
@@ -2207,13 +2207,26 @@ witch_autocrown = 0";
 					command = strip(command);
 					//Left4Bots.Log(LOG_LEVEL_DEBUG, command);
 
-					local value = mapping.slice(idx + 1);
-					value = Left4Utils.StringReplace(value, "\"", "");
-					value = strip(value);
+					local value1 = mapping.slice(idx + 1);
+					local value2 = "";
 
-					//Left4Bots.Log(LOG_LEVEL_DEBUG, "MAPPING: " + command + " = " + value);
+					value1 = Left4Utils.StringReplace(value1, "\"", "");
+					value1 = strip(value1);
 
-					ret[command] <- value;
+					//Left4Bots.Log(LOG_LEVEL_DEBUG, "MAPPING: " + command + " = " + value1);
+
+					local values = split(value1, ",");
+					value1 = values[0];
+					if (values.len() > 1)
+						value2 = values[1];
+					else
+					{
+						value2 = Left4Utils.StringReplace(value1, "bot ", "botname ");
+						value2 = Left4Utils.StringReplace(value2, "bots ", "botname ");
+					}
+
+					ret[command] <- { all = value1, one = value2 };
+
 					/*
 					if (!(command in ret))
 						ret[command] <- [];

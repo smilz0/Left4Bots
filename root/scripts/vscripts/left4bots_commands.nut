@@ -574,11 +574,11 @@ Msg("Including left4bots_commands...\n");
 
 		if (tgtBot)
 		{
-			local scope = bot.GetScriptScope();
+			local scope = tgtBot.GetScriptScope();
 			scope.BotCancelAll();
 			scope.HurryUntil = Time() + Left4Bots.Settings.hurry_time;
 
-			Left4Bots.SpeakRandomVocalize(bot, Left4Bots.VocalizerYes, RandomFloat(0.5, 1.0));
+			Left4Bots.SpeakRandomVocalize(tgtBot, Left4Bots.VocalizerYes, RandomFloat(0.5, 1.0));
 		}
 		else
 			Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: hurry");
