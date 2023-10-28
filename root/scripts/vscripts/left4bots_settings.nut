@@ -5,7 +5,8 @@
 
 	// Interval of the main bot Think function (default is 0.1 which means 10 ticks per second)
 	// Set the max i can get even though the think functions can go up to 30 ticks per second (interval 0.0333) and the CTerrorPlayer entities limit their think functions to max 15 ticks per second (0.06666)
-	bot_think_interval = 0.01
+	// -1 automatically sets the fastest interval possible
+	bot_think_interval = -1
 
 	// How long do the bots hold down the button to defib a dead survivor
 	button_holdtime_defib = 3.2
@@ -58,6 +59,12 @@
 	// [1/0] 1 = The close door AI code runs every think tick (15 times per second with default interval). 0 = Run rate is 1/5 (3 times per second)
 	// Basically with 1 the bots will quickly close the door as soon as they are inside. 0 adds more variation with some chance that the bot will step inside further and then go back to the door after a moment
 	close_saferoom_door_highres = 0
+
+	// [1/0] Enable/Disable bots being able to set the barricade gascans on fire (NOTE: if this is 0, 'destroy' and 'use' orders on the barricade gascans will not work)
+	damage_barricade = 1
+	
+	// [1/0] Enable/Disable bots being able to ignite gascans and other items
+	damage_other = 0
 
 	// Dead survivors to defib must be within this radius
 	deads_scan_radius = 1200
@@ -278,6 +285,9 @@
 
 	// >0 = BotMoveTo area and move pos are drawn on screen for this amount of time (only the host can see it). 0 = Disable
 	moveto_debug_duration = 0
+	
+	// [1/0] Enable/Disable using the nearest nav area to the destination item as the MOVE destination instead of the item itself. Solves some issues on some maps (like ) but
+	moveto_nav = 1
 
 	// [1/0] Enable/Disable orders debug text overlays (only visible to the host)
 	orders_debug = 0
@@ -405,6 +415,9 @@
 	// [1/0] Enable/Disable the smart use command for deployable items. "use" order on a deployable item (upgrade ammo packs) will automatically convert to the "deploy" order
 	smart_use_deploy = 1
 
+	// [1/0] Enable/Disable the smart use command for destroyable barricades. "use" order on the barricade gascans will automatically convert to the "destroy" order
+	smart_use_destroy = 1
+
 	// [1/0] Enable/Disable the smart use command for scavenge items. "use" order on a scavenge item (gascans, cola while a pouring target is active) will automatically convert to the "scavenge" order
 	smart_use_scavenge = 1
 
@@ -489,6 +502,10 @@
 
 	// Minimum vomit jars in the team
 	team_min_vomitjars = 0
+
+	// Interval of the think functions of the various thinkers
+	// -1 automatically sets the fastest interval possible
+	thinkers_think_interval = -1
 
 	// [1/0] Enable/Disable throwing molotovs
 	throw_molotov = 1
