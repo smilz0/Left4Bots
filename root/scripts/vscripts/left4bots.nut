@@ -1,5 +1,6 @@
 /* TODO:
 
+- Delay the bot's AI while in the saferoom if the controlling human player is still transitioning?
 - Some orders must be unique (like 'carry', 'scavenge'...). Only one order of this type can be added at a time. Maybe replace the previous one (if already present) when a new one is added. Also make sure that only one order with a certain DestEnt is added
 - Must find a good algorithm to cancel the carry/scavenge orders when the item is dropped in an unreachable area to avoid the bots jump to death
 - auto pause the lead order if behind humans
@@ -21,6 +22,30 @@
 - [L4D][INFO]   254 |                              func_button |                                                bridge_button | 000123.5000,005638.0000,000305.0600 | *21
 - [L4D][INFO]   255 |                           func_breakable |                                                 bridge_dummy | 000123.5000,005637.0000,000305.0600 | *22
 - [L4D][INFO]   331 |                             prop_dynamic |                                               bridge_barrels | 000124.3540,005650.7798,000280.0000 | models/props/de_train/pallet_barrels.mdl
+
+[L4D][INFO] -- ENTITIES -----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+[L4D][INFO]   ID  |               CLASS                      |                             NAME                             |                 ORIGIN              |   MODEL
+[L4D][INFO] -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+[L4D][INFO]   645 |                             prop_dynamic |                                               fuel_barricade | -05322.0000,-00978.0000,000016.0000 | models/props_unique/wooden_barricade.mdl
+[L4D][INFO]   646 |                    info_game_event_proxy |                                         generator_game_event | -05361.0000,-00969.0000,000065.0000 | 
+[L4D][INFO]   647 |                                move_rope |                                                              | -05455.5698,-01091.0000,000072.9748 | 
+[L4D][INFO]   648 |                            keyframe_rope |                                                  cable_fuel1 | -05394.5200,-01155.6700,000233.0120 | 
+[L4D][INFO]   815 |                         func_nav_blocker |                                         barricade_navblocker | 000000.0000,000000.0000,000000.0000 | *62
+[L4D][INFO]   884 |                             prop_dynamic |                                        fuel_barricade_break1 | -05322.0000,-00978.0000,000016.0000 | models/props_unique/wooden_barricade_break1.mdl
+[L4D][INFO]   885 |                             prop_dynamic |                                        fuel_barricade_break2 | -05322.0000,-00978.0000,000016.0000 | models/props_unique/wooden_barricade_break2.mdl
+[L4D][INFO]   886 |                             prop_dynamic |                                        fuel_barricade_break3 | -05322.0000,-00978.0000,000016.0000 | models/props_unique/wooden_barricade_break3.mdl
+[L4D][INFO]   887 |                            env_explosion |                                               fuel_explosion | -05282.0000,-00970.0000,000043.4173 | 
+[L4D][INFO]   888 |                             trigger_hurt |                                               barricade_hurt | -05308.0000,-00976.0000,000080.3800 | *81
+[L4D][INFO]   889 |                     info_particle_system |                                               barricade_fire | -05336.0000,-00976.0000,000017.5649 | 
+[L4D][INFO]   892 |                          ambient_generic |                                                   fire_sound | -05325.0000,-00975.0000,000043.4173 | 
+[L4D][INFO]     0 |                    filter_activator_team |                                             filter_survivors | -05411.3198,-00945.6130,000025.5649 | 
+[L4D][INFO]     0 |                       filter_damage_type |                                                  filter_fire | -05411.0000,-00926.0000,000025.5649 | 
+[L4D][INFO]     0 |                             filter_multi |                                                filter_gascan | -05412.0000,-00964.0000,000025.5649 | 
+[L4D][INFO]   899 |                             prop_physics |                                            barricade_gas_can | -05355.0000,-00964.0000,000016.0000 | models/props_unique/wooden_barricade_gascans.mdl
+[L4D][INFO]   922 |                          info_remarkable |                                            airport03_barrier | -05396.2402,-00982.1200,000068.4200 | 
+
+
+[L4D][INFO] Concept: PropExplosion - who: NamVet - subject: NamVet
 
 */
 
@@ -67,6 +92,7 @@ const LOG_LEVEL_DEBUG = 4;
 		deploy = 2
 		heal = 2
 		use = 2
+		destroy = 2
 		witch = 3
 	}
 
@@ -1039,13 +1065,13 @@ witch_autocrown = 0";
 		DoEntFire("!self", "SpeakResponseConcept", commands[RandomInt(0, commands.len() - 1)], delay, null, bot);
 }
 
-// Force the given bot to fire a single bullet with the active weapon at the position of the witch's attachment with the given id
-::Left4Bots.BotShootAtEntityAttachment <- function (bot, witch, attachmentid, lockLook = false, unlockLookDelay = 0)
+// Force the given bot to fire a single bullet with the active weapon at the position of the entity's center
+::Left4Bots.BotShootAtEntity <- function (bot, entity, lockLook = false, unlockLookDelay = 0)
 {
 	if (!bot || !bot.IsValid())
 		return;
 
-	if (!witch || !witch.IsValid())
+	if (!entity || !entity.IsValid())
 	{
 		if (lockLook) // Make sure to unfreeze the bot anyway
 			NetProps.SetPropInt(bot, "m_fFlags", NetProps.GetPropInt(bot, "m_fFlags") & ~(1 << 5)); // unset FL_FROZEN
@@ -1053,9 +1079,28 @@ witch_autocrown = 0";
 		return;
 	}
 
-	Left4Bots.Log(LOG_LEVEL_DEBUG, "BotShootAtEntityAttachment - bot: " + bot.GetPlayerName() + " - witch: " + witch + " - attachmentid: " + attachmentid);
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "BotShootAtEntity - bot: " + bot.GetPlayerName() + " - entity: " + entity);
 
-	Left4Utils.PlayerPressButton(bot, BUTTON_ATTACK, Left4Bots.Settings.button_holdtime_tap, witch.GetAttachmentOrigin(attachmentid), 0, 0, lockLook, unlockLookDelay);
+	Left4Utils.PlayerPressButton(bot, BUTTON_ATTACK, Left4Bots.Settings.button_holdtime_tap, entity.GetCenter(), 0, 0, lockLook, unlockLookDelay);
+}
+
+// Force the given bot to fire a single bullet with the active weapon at the position of the entity's attachment with the given id
+::Left4Bots.BotShootAtEntityAttachment <- function (bot, entity, attachmentid, lockLook = false, unlockLookDelay = 0)
+{
+	if (!bot || !bot.IsValid())
+		return;
+
+	if (!entity || !entity.IsValid())
+	{
+		if (lockLook) // Make sure to unfreeze the bot anyway
+			NetProps.SetPropInt(bot, "m_fFlags", NetProps.GetPropInt(bot, "m_fFlags") & ~(1 << 5)); // unset FL_FROZEN
+
+		return;
+	}
+
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "BotShootAtEntityAttachment - bot: " + bot.GetPlayerName() + " - entity: " + entity + " - attachmentid: " + attachmentid);
+
+	Left4Utils.PlayerPressButton(bot, BUTTON_ATTACK, Left4Bots.Settings.button_holdtime_tap, entity.GetAttachmentOrigin(attachmentid), 0, 0, lockLook, unlockLookDelay);
 }
 
 // Returns the closest valid enemy for the given bot within the given radius and minimum dot
@@ -1353,6 +1398,64 @@ witch_autocrown = 0";
 			}
 		}
 	}
+}
+
+// Returns whether the given bot is available for a new order of type 'orderType'
+::Left4Bots.IsBotAvailableForOrder <- function (bot, botScope, orderType)
+{
+	// If orderType = "lead" or "follow", then the bots can't have another order of that type in the queue
+	switch (orderType)
+	{
+		case "lead":
+		case "follow": // bot can't have another order of the same type in the queue
+			return !Left4Bots.BotHasOrderOfType(bot, orderType);
+		
+		case "witch": // bot must be holding a shotgun
+			return (botScope.ActiveWeapon && botScope.ActiveWeapon.GetClassname().find("shotgun") != null);
+		
+		case "scavenge": // bot can't be an automatic scavenge bot
+			return !(bot.GetPlayerUserId() in Left4Bots.ScavengeBots);
+		
+		case "destroy":
+			return (botScope.ActiveWeapon && Left4Bots.IsRangedWeapon(botScope.ActiveWeaponId, botScope.ActiveWeaponSlot) && Left4Utils.GetAmmoPercent(botScope.ActiveWeapon) >= 2);
+	}
+	
+	return true;
+}
+
+// Returns the first available bot to add an order of type 'orderType' to his queue (null = no bot available)
+// if 'ignoreUserid' is not null, the bot with that userid will be ignored
+::Left4Bots.GetFirstAvailableBotForOrder <- function (orderType, ignoreUserid = null, closestTo = null)
+{
+	local bestBot = null;
+	local bestDistance = 1000000;
+	local bestQueue = 1000;
+	foreach (id, bot in ::Left4Bots.Bots)
+	{
+		if (bot.IsValid() && (!ignoreUserid || id != ignoreUserid) && !bot.IsDead() && !bot.IsDying() /*&& !bot.IsIncapacitated()*/)
+		{
+			local scope = bot.GetScriptScope();
+			if (!Left4Bots.SurvivorCantMove(bot, scope.Waiting) && Left4Bots.IsBotAvailableForOrder(bot, scope, orderType))
+			{
+				local q = scope.Orders.len();
+				if (q == 0 && !scope.CurrentOrder)
+					q = -1;
+
+				local d = 0;
+				if (closestTo)
+					d = (bot.GetOrigin() - closestTo).Length();
+
+				// Get the bot with the shortest queue (and closer to closestTo if closestTo is not null)
+				if (q < bestQueue || (q == bestQueue && d < bestDistance))
+				{
+					bestBot = bot;
+					bestQueue = q;
+					bestDistance = d;
+				}
+			}
+		}
+	}
+	return bestBot;
 }
 
 // Returns the first available bot with any item in the given intentory slot or null if not bot available
@@ -2369,8 +2472,27 @@ witch_autocrown = 0";
 	return ret;
 }
 
-// Finds the best position for the bot to stand while using the given use target
-::Left4Bots.FindBestUseTargetPos <- function (useTarget, orig = null, angl = null, fwdFailsafe = true, debugShow = false, debugShowTime = 15)
+// Returns the nearest barricade gascans within the given radius from origin
+::Left4Bots.FindNearestBarricadeGascans <- function (orig, radius)
+{
+	local ret = null;
+	local minDist = 1000000;
+	local ent = null;
+	while (ent = Entities.FindByModel(ent, "models/props_unique/wooden_barricade_gascans.mdl"))
+	{
+		local dist = (ent.GetCenter() - orig).Length();
+		//local entClass = ent.GetClassname();
+		if (dist < minDist && dist < radius /*&& entClass.find("prop_physics") != null */)
+		{
+			ret = ent;
+			minDist = dist;
+		}
+	}
+	return ret;
+}
+
+// Finds the best position for the bot to stand while using the given use target (or while shooting the given barricade gascans)
+::Left4Bots.FindBestUseTargetPos <- function (useTarget, orig = null, angl = null, fwdFailsafe = true, debugShow = false, debugShowTime = 15, posDist = 35, ignoreEnt = null)
 {
 	local ret = null;
 	if (!useTarget || !useTarget.IsValid())
@@ -2383,14 +2505,14 @@ witch_autocrown = 0";
 	angl = QAngle(0, angl.Yaw(), 0);
 	local grounds = [];
 
-	grounds.append(Left4Utils.FindGround(orig, angl, 315, debugShow, debugShowTime));
-	grounds.append(Left4Utils.FindGround(orig, angl, 0, debugShow, debugShowTime));
-	grounds.append(Left4Utils.FindGround(orig, angl, 45, debugShow, debugShowTime));
-	grounds.append(Left4Utils.FindGround(orig, angl, 90, debugShow, debugShowTime));
-	grounds.append(Left4Utils.FindGround(orig, angl, 135, debugShow, debugShowTime));
-	grounds.append(Left4Utils.FindGround(orig, angl, 180, debugShow, debugShowTime));
-	grounds.append(Left4Utils.FindGround(orig, angl, 225, debugShow, debugShowTime));
-	grounds.append(Left4Utils.FindGround(orig, angl, 270, debugShow, debugShowTime));
+	grounds.append(Left4Utils.FindGround(orig, angl, 315, debugShow, debugShowTime, posDist, ignoreEnt));
+	grounds.append(Left4Utils.FindGround(orig, angl, 0, debugShow, debugShowTime, posDist, ignoreEnt));
+	grounds.append(Left4Utils.FindGround(orig, angl, 45, debugShow, debugShowTime, posDist, ignoreEnt));
+	grounds.append(Left4Utils.FindGround(orig, angl, 90, debugShow, debugShowTime, posDist, ignoreEnt));
+	grounds.append(Left4Utils.FindGround(orig, angl, 135, debugShow, debugShowTime, posDist, ignoreEnt));
+	grounds.append(Left4Utils.FindGround(orig, angl, 180, debugShow, debugShowTime, posDist, ignoreEnt));
+	grounds.append(Left4Utils.FindGround(orig, angl, 225, debugShow, debugShowTime, posDist, ignoreEnt));
+	grounds.append(Left4Utils.FindGround(orig, angl, 270, debugShow, debugShowTime, posDist, ignoreEnt));
 	grounds.append(grounds[0]);
 	grounds.append(grounds[1]);
 
@@ -3005,6 +3127,7 @@ Left4Bots.GetOtherMedkitSpawn <- function (srcSpawn, radius = 100.0)
 	if (NetProps.GetPropInt(weapon, "m_bInReload"))
 		return false;
 
+	// TODO: replace with Left4Bots.IsRangedWeapon
 	local wclass = weapon.GetClassname();
 	local allowed = [ ".*pistol.*", ".*smg.*" ".*rifle.*", ".*shotgun.*", ".*sniper.*"/*, ".*grenade_launcher.*"*/ ];
 	foreach (str in allowed)
@@ -3029,6 +3152,12 @@ Left4Bots.GetOtherMedkitSpawn <- function (srcSpawn, radius = 100.0)
 		return true;
 
 	return false;
+}
+
+// Returns whether the weapon with the given id and inventory slot is a ranged weapon (basically any non melee/chainsaw weapon that belongs to the 1st or 2nd inventory slot)
+::Left4Bots.IsRangedWeapon <- function (weaponId, weaponSlot)
+{
+	return ((weaponId > Left4Utils.WeaponId.none && weaponId < Left4Utils.MeleeWeaponId.none && weaponId != Left4Utils.WeaponId.weapon_chainsaw) && (weaponSlot == 0 || weaponSlot == 1));
 }
 
 // Disables BUTTON_ATTACK and set the primary/secondary weapons howner to null in order to prevent the bot from dropping the carry item

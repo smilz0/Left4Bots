@@ -16,6 +16,7 @@ Msg("Including left4bots_commands...\n");
 	"carry",
 	"come",
 	"deploy",
+	"destroy",
 	"follow",
 	"give",
 	"goto",
@@ -351,6 +352,60 @@ Msg("Including left4bots_commands...\n");
 		 + PRINTCOLOR_NORMAL + "The order is added to the given bot(s) orders queue or executed immediately.\n"
 		 + PRINTCOLOR_NORMAL + "The bot(s) will go pick the deployable item (ammo upgrade packs) you are looking at and deploy it immediately.\n"
 		 + PRINTCOLOR_NORMAL + "If you aren't looking at any item and the bot already has a deployable item in his inventory, he will deploy that item immediately.";
+}
+
+::Left4Bots.Cmd_destroy <- function (player, allBots = false, tgtBot = null, param = null)
+{
+	Left4Bots.Log(LOG_LEVEL_DEBUG, "Cmd_destroy - player: " + player.GetPlayerName() + " - allBots: " + allBots + " - tgtBot: " + tgtBot + " - param: " + param);
+	
+	local tTable = Left4Utils.GetLookingTargetEx(player, TRACE_MASK_NPC_SOLID);
+	if (!tTable)
+		return;
+
+	local target = null;
+
+	if (tTable["ent"])
+	{
+		//local tClass = tTable["ent"].GetClassname();
+		//if (tClass.find("weapon_") != null || tClass.find("prop_physics") != null && Left4Utils.GetWeaponSlotById(Left4Utils.GetWeaponId(tTable["ent"])))
+		if (tTable["ent"].GetModelName() == "models/props_unique/wooden_barricade_gascans.mdl")
+			target = tTable["ent"];
+		else
+			target = Left4Bots.FindNearestBarricadeGascans(tTable["pos"], 150);
+	}
+	else
+		target = Left4Bots.FindNearestBarricadeGascans(tTable["pos"], 150);
+
+	if (!target)
+		return;
+
+	local pos = Left4Bots.FindBestUseTargetPos(target, target.GetCenter() + Vector(0, 0, 40), null, true, Left4Bots.Settings.scavenge_usetarget_debug, 15, 300, target);
+	// TODO: what if pos is null?
+	if (!pos)
+		pos = target.GetOrigin();
+
+	if (allBots)
+	{
+		foreach (bot in Left4Bots.Bots)
+			Left4Bots.BotOrderAdd(bot, "destroy", player, target, pos);
+	}
+	else
+	{
+		if (!tgtBot)
+			tgtBot = Left4Bots.GetFirstAvailableBotForOrder("destroy", null, pos);
+
+		if (tgtBot)
+			Left4Bots.BotOrderAdd(tgtBot, "destroy", player, target, pos);
+		else
+			Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: destroy");
+	}
+}
+
+::Left4Bots.CmdHelp_destroy <- function ()
+{
+	return PRINTCOLOR_NORMAL + "<" + PRINTCOLOR_CYAN + "botsource" + PRINTCOLOR_NORMAL + "> " + PRINTCOLOR_GREEN + "destroy" + PRINTCOLOR_NORMAL + "\n"
+		 + PRINTCOLOR_NORMAL + "The order is added to the given bot(s) orders queue.\n"
+		 + PRINTCOLOR_NORMAL + "The bot(s) will go shoot the gascans you are looking at to destroy the barricade.\n";
 }
 
 ::Left4Bots.Cmd_follow <- function (player, allBots = false, tgtBot = null, param = null)
@@ -947,6 +1002,34 @@ Msg("Including left4bots_commands...\n");
 			Left4Bots.BotOrderAdd(tgtBot, "deploy", player, target, null, null, Left4Bots.Settings.button_holdtime_tap);
 		else
 			Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: deploy");
+
+		return;
+	}
+	else if (target.GetModelName() == "models/props_unique/wooden_barricade_gascans.mdl")
+	{
+		// destroy
+		Left4Bots.Log(LOG_LEVEL_DEBUG, "'use' -> 'destroy': " + targetClass);
+
+		local pos = Left4Bots.FindBestUseTargetPos(target, target.GetCenter() + Vector(0, 0, 40), null, true, Left4Bots.Settings.scavenge_usetarget_debug, 15, 300, target);
+		// TODO: what if pos is null?
+		if (!pos)
+			pos = target.GetOrigin();
+
+		if (allBots)
+		{
+			foreach (bot in Left4Bots.Bots)
+				Left4Bots.BotOrderAdd(bot, "destroy", player, target, pos);
+		}
+		else
+		{
+			if (!tgtBot)
+				tgtBot = Left4Bots.GetFirstAvailableBotForOrder("destroy", null, pos);
+
+			if (tgtBot)
+				Left4Bots.BotOrderAdd(tgtBot, "destroy", player, target, pos);
+			else
+				Left4Bots.Log(LOG_LEVEL_WARN, "No available bot for order of type: destroy");
+		}
 
 		return;
 	}

@@ -623,14 +623,21 @@ enum AI_DOOR_ACTION {
 
 		MoveType = AI_MOVE_TYPE.Pickup;
 		MoveEnt = pickup;
-		BotMoveToNav(MoveEnt.GetOrigin(), true);
+		
+		if (Left4Bots.Settings.moveto_nav)
+			BotMoveToNav(MoveEnt.GetOrigin(), true);
+		else
+			BotMoveTo(MoveEnt.GetOrigin(), true);
 
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Started moving for: " + MoveEnt);
 	}
 	else
 	{
 		// Already moving for the item (MoveEnt), keep moving
-		BotMoveToNav(MoveEnt.GetOrigin());
+		if (Left4Bots.Settings.moveto_nav)
+			BotMoveToNav(MoveEnt.GetOrigin());
+		else
+			BotMoveTo(MoveEnt.GetOrigin());
 	}
 }
 
@@ -675,7 +682,11 @@ enum AI_DOOR_ACTION {
 
 		MoveType = AI_MOVE_TYPE.Defib;
 		MoveEnt = death;
-		BotMoveToNav(MoveEnt.GetOrigin(), true);
+		
+		if (Left4Bots.Settings.moveto_nav)
+			BotMoveToNav(MoveEnt.GetOrigin(), true);
+		else
+			BotMoveTo(MoveEnt.GetOrigin(), true);
 
 		Left4Bots.Log(LOG_LEVEL_DEBUG, "[AI]" + self.GetPlayerName() + " - Started moving for: " + MoveEnt);
 
@@ -742,7 +753,12 @@ enum AI_DOOR_ACTION {
 		}
 	}
 	else
-		BotMoveToNav(MoveEnt.GetOrigin()); // Not there yet, keep moving
+	{
+		if (Left4Bots.Settings.moveto_nav)
+			BotMoveToNav(MoveEnt.GetOrigin()); // Not there yet, keep moving
+		else
+			BotMoveTo(MoveEnt.GetOrigin()); // Not there yet, keep moving
+	}
 }
 
 // Handles the bot's items give and nades throw logics
@@ -957,7 +973,7 @@ enum AI_DOOR_ACTION {
 			// Not yet. Keep moving...
 			if (destPos)
 			{
-				if (CurrentOrder.OrderType == "scavenge" || CurrentOrder.OrderType == "carry")
+				if (Left4Bots.Settings.moveto_nav && (CurrentOrder.OrderType == "scavenge" || CurrentOrder.OrderType == "carry"))
 					BotMoveToNav(destPos);
 				else
 					BotMoveTo(destPos);
@@ -1948,14 +1964,14 @@ enum AI_DOOR_ACTION {
 		// If both DestPos and DestEnt are null we call the current order finalization
 		if (CurrentOrder.DestPos)
 		{
-			if (CurrentOrder.OrderType == "scavenge" || CurrentOrder.OrderType == "carry")
+			if (Left4Bots.Settings.moveto_nav && (CurrentOrder.OrderType == "scavenge" || CurrentOrder.OrderType == "carry"))
 				BotMoveToNav(CurrentOrder.DestPos, true);
 			else
 				BotMoveTo(CurrentOrder.DestPos, true);
 		}
 		else if (CurrentOrder.DestEnt)
 		{
-			if (CurrentOrder.OrderType == "scavenge" || CurrentOrder.OrderType == "carry")
+			if (Left4Bots.Settings.moveto_nav && (CurrentOrder.OrderType == "scavenge" || CurrentOrder.OrderType == "carry"))
 				BotMoveToNav(CurrentOrder.DestEnt.GetOrigin(), true);
 			else
 				BotMoveTo(CurrentOrder.DestEnt.GetOrigin(), true);
@@ -2073,9 +2089,9 @@ enum AI_DOOR_ACTION {
 
 				// Shoot 3 bullets to her head as quick as possible (if using slow weapons like pump shotguns the bullets will be 2 but usually 1 is enough)
 				NetProps.SetPropInt(self, "m_fFlags", NetProps.GetPropInt(self, "m_fFlags") | (1 << 5)); // set FL_FROZEN for the entire duration of the 3 shoots
-				Left4Timers.AddTimer(null, 0.01, @(params) Left4Bots.BotShootAtEntityAttachment(params.bot, params.witch, params.attachmentid ), { bot = self, witch = CurrentOrder.DestEnt, attachmentid = attachId });
-				Left4Timers.AddTimer(null, 0.5, @(params) Left4Bots.BotShootAtEntityAttachment(params.bot, params.witch, params.attachmentid ), { bot = self, witch = CurrentOrder.DestEnt, attachmentid = attachId });
-				Left4Timers.AddTimer(null, 0.9, @(params) Left4Bots.BotShootAtEntityAttachment(params.bot, params.witch, params.attachmentid, true ), { bot = self, witch = CurrentOrder.DestEnt, attachmentid = attachId }); // this will unset FL_FROZEN at the end
+				Left4Timers.AddTimer(null, 0.01, @(params) Left4Bots.BotShootAtEntityAttachment(params.bot, params.entity, params.attachmentid ), { bot = self, entity = CurrentOrder.DestEnt, attachmentid = attachId });
+				Left4Timers.AddTimer(null, 0.5, @(params) Left4Bots.BotShootAtEntityAttachment(params.bot, params.entity, params.attachmentid ), { bot = self, entity = CurrentOrder.DestEnt, attachmentid = attachId });
+				Left4Timers.AddTimer(null, 0.9, @(params) Left4Bots.BotShootAtEntityAttachment(params.bot, params.entity, params.attachmentid, true ), { bot = self, entity = CurrentOrder.DestEnt, attachmentid = attachId }); // this will unset FL_FROZEN at the end
 			}
 			else
 				Left4Bots.Log(LOG_LEVEL_ERROR, "[AI]" + self.GetPlayerName() + " - Witch has no LookupAttachment!");
@@ -2253,6 +2269,26 @@ enum AI_DOOR_ACTION {
 
 				orderComplete = false;
 			}
+
+			break;
+		}
+		case "destroy":
+		{
+			if (CurrentOrder.DestEnt && CurrentOrder.DestEnt.IsValid())
+			{
+				if (ActiveWeapon && Left4Bots.IsRangedWeapon(ActiveWeaponId, ActiveWeaponSlot) && ActiveWeapon.Clip1() > 0 && !NetProps.GetPropInt(ActiveWeapon, "m_bInReload"))
+				{
+					// Shoot 3 bullets to the gascans as quick as possible (if using slow weapons like pump shotguns the bullets will be 2 but usually 1 is enough)
+					NetProps.SetPropInt(self, "m_fFlags", NetProps.GetPropInt(self, "m_fFlags") | (1 << 5)); // set FL_FROZEN for the entire duration of the 3 shoots
+					Left4Timers.AddTimer(null, 0.01, @(params) Left4Bots.BotShootAtEntity(params.bot, params.entity ), { bot = self, entity = CurrentOrder.DestEnt });
+					Left4Timers.AddTimer(null, 0.5, @(params) Left4Bots.BotShootAtEntity(params.bot, params.entity ), { bot = self, entity = CurrentOrder.DestEnt });
+					Left4Timers.AddTimer(null, 0.9, @(params) Left4Bots.BotShootAtEntity(params.bot, params.entity, true ), { bot = self, entity = CurrentOrder.DestEnt }); // this will unset FL_FROZEN at the end
+				}
+			}
+			else
+				Left4Bots.Log(LOG_LEVEL_ERROR, "[AI]" + self.GetPlayerName() + " - DestEnt no longer valid!");
+
+			orderComplete = false; // Assume we failed to ignite the gascans and we need to retry. Actual ignite success will be handled by the "PropExplosion" concept (or CurrentOrder.DestEnt no longer valid)
 
 			break;
 		}
@@ -2719,6 +2755,14 @@ enum AI_DOOR_ACTION {
 			order.MaxSeparation <- 0;
 			break;
 		}
+		case "destroy":
+		{
+			Left4Bots.SpeakRandomVocalize(bot, Left4Bots.VocalizerYes, RandomFloat(0.5, 1.0));
+
+			order.DestRadius <- Left4Bots.Settings.move_end_radius;
+			order.MaxSeparation <- 0;
+			break;
+		}
 		default:
 		{
 			Left4Bots.SpeakRandomVocalize(bot, Left4Bots.VocalizerYes, RandomFloat(0.5, 1.0));
@@ -3093,40 +3137,6 @@ enum AI_DOOR_ACTION {
 	}
 
 	return false;
-}
-
-// Returns the first available bot to add an order of type 'orderType' to his queue (null = no bot available)
-// if 'ignoreUserid' is not null, the bot with that userid will be ignored
-::Left4Bots.GetFirstAvailableBotForOrder <- function (orderType, ignoreUserid = null, closestTo = null)
-{
-	local bestBot = null;
-	local bestDistance = 1000000;
-	local bestQueue = 1000;
-	foreach (id, bot in ::Left4Bots.Bots)
-	{
-		// If orderType = "witch", then the bot must also be holding a shotgun
-		// If orderType = "lead" or "follow", then the bots can't have another order of that type in the queue
-		if (bot.IsValid() && (!ignoreUserid || id != ignoreUserid) && (orderType != "scavenge" || !(bot.GetPlayerUserId() in Left4Bots.ScavengeBots)) && (orderType != "witch" || (bot.GetActiveWeapon() && bot.GetActiveWeapon().GetClassname().find("shotgun") != null)) && ((orderType != "lead" && orderType != "follow") || !Left4Bots.BotHasOrderOfType(bot, orderType)))
-		{
-			local scope = bot.GetScriptScope();
-			local q = scope.Orders.len();
-			if (q == 0 && !scope.CurrentOrder)
-				q = -1;
-
-			local d = 0;
-			if (closestTo)
-				d = (bot.GetOrigin() - closestTo).Length();
-
-			// Get the bot with the shortest queue (and closer to closestTo if closestTo is not null)
-			if (q < bestQueue || (q == bestQueue && d < bestDistance))
-			{
-				bestBot = bot;
-				bestQueue = q;
-				bestDistance = d;
-			}
-		}
-	}
-	return bestBot;
 }
 
 // Starts an high priority MOVE command (mainly used for spit/charger dodging and such)

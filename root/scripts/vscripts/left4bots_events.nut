@@ -32,7 +32,7 @@ Msg("Including left4bots_events...\n");
 	Left4Timers.AddTimer("InventoryManager", 0.5, Left4Bots.OnInventoryManager, {}, true);
 
 	// Start the thinker
-	Left4Timers.AddThinker("L4BThinker", 0.0333, Left4Bots.OnThinker, {});
+	Left4Timers.AddThinker("L4BThinker", Left4Bots.Settings.thinkers_think_interval, Left4Bots.OnThinker, {});
 
 	DirectorScript.GetDirectorOptions().cm_ShouldHurry <- Left4Bots.Settings.should_hurry;
 }
@@ -1317,6 +1317,15 @@ Msg("Including left4bots_events...\n");
 				Left4Bots.ScavengeStop();
 			}
 		}
+		else if (concept == "PropExplosion")
+		{
+			// Barricade gascans are successfully ignited, cancel any pending "destroy" order
+			foreach (bot in ::Left4Bots.Bots)
+			{
+				if (bot.IsValid())
+					bot.GetScriptScope().BotCancelOrders("destroy");
+			}
+		}
 		/// ...
 	}
 	//else
@@ -1962,149 +1971,173 @@ settings
 	
 	Left4Bots.Log(LOG_LEVEL_DEBUG, "OnUserCommand - player: " + player.GetPlayerName() + " - arg1: " + arg1 + " - arg2: " + arg2 + " - arg3: " + arg3);
 
-	if (arg1 == "settings")
+	switch (arg1)
 	{
-		if (Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) < L4U_LEVEL.Admin)
-			return false; // Only admins can change the settings
-
-		if (arg2 in Left4Bots.Settings)
-		{
-			if (!arg3)
-				ClientPrint(player, 3, PRINTCOLOR_NORMAL + "Current value for " + arg2 + ": " + Left4Bots.Settings[arg2]);
+		case "botselect":
+			local tgtBot = null;
+			if (arg2)
+				tgtBot = Left4Bots.GetBotByName(arg2);
 			else
-			{
-				try
-				{
-					/*
-					local script = "::Left4Bots.Settings." + arg2 + " <- " + arg3;
+				tgtBot = Left4Bots.GetPickerBot(player); // player, radius = 999999, threshold = 0.95, visibleOnly = false
 
-					Left4Bots.Log(LOG_LEVEL_DEBUG, "OnUserCommand - script: " + script);
-
-					local compiledscript = compilestring(script);
-					compiledscript();
-					*/
-					
-					Left4Bots.Settings[arg2] <- arg3;
-
-					if (arg2 in ::Left4Bots.OnTankSettingsBak)
-						::Left4Bots.OnTankSettingsBak[arg2] <- Left4Bots.Settings[arg2];
-
-					// Probably not the best way to do this but at least we aren't saving the settings override to the settings.txt file and we don't need to worry about the OnTankSettings
-					::Left4Bots.SettingsTmp <- {};
-					Left4Utils.LoadSettingsFromFile("left4bots2/cfg/settings.txt", "Left4Bots.SettingsTmp.", Left4Bots.Log, true);
-					::Left4Bots.SettingsTmp[arg2] <- Left4Bots.Settings[arg2];
-					Left4Utils.SaveSettingsToFile("left4bots2/cfg/settings.txt", ::Left4Bots.SettingsTmp, Left4Bots.Log);
-
-					// Maybe we can just keep this in memory and avoid to reload it every time?
-					delete ::Left4Bots.SettingsTmp;
-
-					if (arg2 == "should_hurry")
-						DirectorScript.GetDirectorOptions().cm_ShouldHurry <- Left4Bots.Settings[arg2];
-					else if (arg2 == "orders_debug")
-					{
-						for (local i = 1; i <= 4; i++)
-						{
-							local name = "l4b2debug" + i;
-							Left4Hud.HideHud(name);
-							Left4Hud.RemoveHud(name);
-							if (Left4Bots.Settings.orders_debug)
-							{
-								Left4Hud.AddHud(name, g_ModeScript["HUD_SCORE_" + i], g_ModeScript.HUD_FLAG_NOTVISIBLE | g_ModeScript.HUD_FLAG_ALIGN_LEFT);
-								Left4Hud.PlaceHud(name, 0.01, 0.15 + (0.05 * (i - 1)), 0.8, 0.05);
-								Left4Hud.ShowHud(name);
-							}
-						}
-					}
-
-					ClientPrint(player, 3, PRINTCOLOR_GREEN + "Value of setting " + arg2 + " changed to: " + Left4Bots.Settings[arg2]);
-				}
-				catch(exception)
-				{
-					Left4Bots.Log(LOG_LEVEL_ERROR, "Error changing value of setting: " + arg2 + " - new value: " + arg3 + " - error: " + exception);
-					ClientPrint(player, 3, PRINTCOLOR_ORANGE + "Error changing value of setting " + arg2);
-				}
-			}
-		}
-		else
-			ClientPrint(player, 3, PRINTCOLOR_ORANGE + "Invalid setting: " + arg2);
-	}
-	else if (arg1 == "botselect")
-	{
-		local tgtBot = null;
-		if (arg2)
-			tgtBot = Left4Bots.GetBotByName(arg2);
-		else
-			tgtBot = Left4Bots.GetPickerBot(player); // player, radius = 999999, threshold = 0.95, visibleOnly = false
-
-		if (!tgtBot)
-			return false; // Invalid target
-
-		player.SetContext("subject", Left4Utils.GetActorFromSurvivor(tgtBot), 0.1);
-		player.SetContext("subjectid", tgtBot.GetPlayerUserId().tostring(), 0.1);
-		//DoEntFire("!self", "AddContext", "subject:" + Left4Utils.GetActorFromSurvivor(tgtBot), 0, null, player);
-		DoEntFire("!self", "SpeakResponseConcept", "PlayerLook", 0, null, player);
-		//DoEntFire("!self", "ClearContext", "", 0, null, player);
-	}
-	else if (arg1 == "help")
-	{
-		if (arg2)
-		{
-			local adminCommand = ::Left4Bots.AdminCommands.find(arg2) != null;
-			if (adminCommand || ::Left4Bots.UserCommands.find(arg2) != null)
-			{
-				if (adminCommand && Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) < L4U_LEVEL.Admin)
-				{
-					ClientPrint(player, 3, PRINTCOLOR_ORANGE + "You don't have access to that command");
-					return true; // Not an admin
-				}
-				
-				local helpTxt = Left4Bots["CmdHelp_" + arg2]();
-				local helpLines = split(helpTxt, "\n");
-				for (local i = 0; i < helpLines.len(); i++)
-					ClientPrint(player, 3, helpLines[i]);
-
-				return true;
-			}
-			
-			ClientPrint(player, 3, PRINTCOLOR_ORANGE + "Command not found: " + arg2);
-			return true;
-		}
-		
-		if (Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) >= L4U_LEVEL.Admin)
-			ClientPrint(player, 3, PRINTCOLOR_GREEN + "Admin Commands" + PRINTCOLOR_NORMAL + ": " + GetFormattedCommandList(::Left4Bots.AdminCommands));
-		ClientPrint(player, 3, PRINTCOLOR_GREEN + "User Commands" + PRINTCOLOR_NORMAL + ": " + GetFormattedCommandList(::Left4Bots.UserCommands));
-		ClientPrint(player, 3, PRINTCOLOR_NORMAL + "Type: '" + PRINTCOLOR_GREEN + "!l4b help " + PRINTCOLOR_CYAN + "command" + PRINTCOLOR_NORMAL + "' for more info on a specific command");
-	}
-	else
-{
-		// normal bot commands
-
-		local allBots = false;	// true = "bots" keyword was used, tgtBot is ignored (will be null)
-		local tgtBot = null;	// (allBots = false) null = "bot" keyword was used, tgtBot will be automatically selected - not null = "[botname]" was used, tgtBot is the selected bot
-
-		if (arg1 == "bots")
-			allBots = true;
-		else if (arg1 != "bot")
-		{
-			tgtBot = Left4Bots.GetBotByName(arg1);
 			if (!tgtBot)
 				return false; // Invalid target
-		}
 
-		local adminCommand = ::Left4Bots.AdminCommands.find(arg2) != null;
-		if (adminCommand || ::Left4Bots.UserCommands.find(arg2) != null)
-		{
+			player.SetContext("subject", Left4Utils.GetActorFromSurvivor(tgtBot), 0.1);
+			player.SetContext("subjectid", tgtBot.GetPlayerUserId().tostring(), 0.1);
+			//DoEntFire("!self", "AddContext", "subject:" + Left4Utils.GetActorFromSurvivor(tgtBot), 0, null, player);
+			DoEntFire("!self", "SpeakResponseConcept", "PlayerLook", 0, null, player);
+			//DoEntFire("!self", "ClearContext", "", 0, null, player);
+			
+			break;
+		
+		case "settings":
+			if (Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) < L4U_LEVEL.Admin)
+				return false; // Only admins can change the settings
+
+			if (arg2 in Left4Bots.Settings)
+			{
+				if (!arg3)
+					ClientPrint(player, 3, PRINTCOLOR_NORMAL + "Current value for " + arg2 + ": " + Left4Bots.Settings[arg2]);
+				else
+				{
+					try
+					{
+						//Left4Bots.Settings[arg2] <- arg3;  // <- this converts any value to string
+						local compiledscript = compilestring("::Left4Bots.Settings." + arg2 + " <- " + arg3);
+						compiledscript();
+
+						if (arg2 in ::Left4Bots.OnTankSettingsBak)
+							::Left4Bots.OnTankSettingsBak[arg2] <- Left4Bots.Settings[arg2];
+
+						// Probably not the best way to do this but at least we aren't saving the settings override to the settings.txt file and we don't need to worry about the OnTankSettings
+						::Left4Bots.SettingsTmp <- {};
+						Left4Utils.LoadSettingsFromFile("left4bots2/cfg/settings.txt", "Left4Bots.SettingsTmp.", Left4Bots.Log, true);
+						::Left4Bots.SettingsTmp[arg2] <- Left4Bots.Settings[arg2];
+						Left4Utils.SaveSettingsToFile("left4bots2/cfg/settings.txt", ::Left4Bots.SettingsTmp, Left4Bots.Log);
+
+						// Maybe we can just keep this in memory and avoid to reload it every time?
+						delete ::Left4Bots.SettingsTmp;
+
+						if (arg2 == "should_hurry")
+							DirectorScript.GetDirectorOptions().cm_ShouldHurry <- Left4Bots.Settings[arg2];
+						else if (arg2 == "orders_debug")
+						{
+							for (local i = 1; i <= 4; i++)
+							{
+								local name = "l4b2debug" + i;
+								Left4Hud.HideHud(name);
+								Left4Hud.RemoveHud(name);
+								if (Left4Bots.Settings.orders_debug)
+								{
+									Left4Hud.AddHud(name, g_ModeScript["HUD_SCORE_" + i], g_ModeScript.HUD_FLAG_NOTVISIBLE | g_ModeScript.HUD_FLAG_ALIGN_LEFT);
+									Left4Hud.PlaceHud(name, 0.01, 0.15 + (0.05 * (i - 1)), 0.8, 0.05);
+									Left4Hud.ShowHud(name);
+								}
+							}
+						}
+
+						ClientPrint(player, 3, PRINTCOLOR_GREEN + "Value of setting " + arg2 + " changed to: " + Left4Bots.Settings[arg2]);
+					}
+					catch(exception)
+					{
+						Left4Bots.Log(LOG_LEVEL_ERROR, "Error changing value of setting: " + arg2 + " - new value: " + arg3 + " - error: " + exception);
+						ClientPrint(player, 3, PRINTCOLOR_ORANGE + "Error changing value of setting " + arg2);
+					}
+				}
+			}
+			else
+				ClientPrint(player, 3, PRINTCOLOR_ORANGE + "Invalid setting: " + arg2);
+			
+			break;
+		
+		case "findsettings":
+			if (Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) < L4U_LEVEL.Admin)
+				return false; // Only admins can change the settings
+
+			if (!arg2 || arg2 == "")
+				ClientPrint(player, 3, PRINTCOLOR_ORANGE + "Invalid search term");
+			else
+			{
+				local found = "";
+				foreach (k, v in ::Left4Bots.Settings)
+				{
+					if (k.find(arg2) != null)
+					{
+						if (found == "")
+							found = k;
+						else
+							found += ", " + k;
+					}
+				}
+				
+				if (found == "")
+					ClientPrint(player, 3, PRINTCOLOR_ORANGE + "No settings found");
+				else
+					ClientPrint(player, 3, PRINTCOLOR_GREEN + "Settings: " + found); // TODO: should split the text if too long
+			}
+			
+			break;
+		
+		case "help":
+			if (arg2)
+			{
+				local adminCommand = ::Left4Bots.AdminCommands.find(arg2) != null;
+				if (adminCommand || ::Left4Bots.UserCommands.find(arg2) != null)
+				{
+					if (adminCommand && Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) < L4U_LEVEL.Admin)
+					{
+						ClientPrint(player, 3, PRINTCOLOR_ORANGE + "You don't have access to that command");
+						return false; // Not an admin
+					}
+					
+					local helpTxt = Left4Bots["CmdHelp_" + arg2]();
+					local helpLines = split(helpTxt, "\n");
+					for (local i = 0; i < helpLines.len(); i++)
+						ClientPrint(player, 3, helpLines[i]);
+				}
+				else
+					ClientPrint(player, 3, PRINTCOLOR_ORANGE + "Command not found: " + arg2);
+			}
+			else
+			{
+				if (Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) >= L4U_LEVEL.Admin)
+					ClientPrint(player, 3, PRINTCOLOR_GREEN + "Admin Commands" + PRINTCOLOR_NORMAL + ": " + GetFormattedCommandList(::Left4Bots.AdminCommands));
+				ClientPrint(player, 3, PRINTCOLOR_GREEN + "User Commands" + PRINTCOLOR_NORMAL + ": " + GetFormattedCommandList(::Left4Bots.UserCommands));
+				ClientPrint(player, 3, PRINTCOLOR_NORMAL + "Type: '" + PRINTCOLOR_GREEN + "!l4b help " + PRINTCOLOR_CYAN + "command" + PRINTCOLOR_NORMAL + "' for more info on a specific command");
+			}
+			
+			break;
+		
+		default:
+			// normal bot commands
+
+			local allBots = false;	// true = "bots" keyword was used, tgtBot is ignored (will be null)
+			local tgtBot = null;	// (allBots = false) null = "bot" keyword was used, tgtBot will be automatically selected - not null = "[botname]" was used, tgtBot is the selected bot
+
+			if (arg1 == "bots")
+				allBots = true;
+			else if (arg1 != "bot")
+			{
+				tgtBot = Left4Bots.GetBotByName(arg1);
+				if (!tgtBot)
+					return false; // Invalid target
+			}
+
+			local adminCommand = ::Left4Bots.AdminCommands.find(arg2) != null;
+			if (!adminCommand && ::Left4Bots.UserCommands.find(arg2) == null)
+				return false; // Not a bot command
+				
 			if (adminCommand && Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) < L4U_LEVEL.Admin)
 				return false; // Not an admin
-			
+				
 			// Call the cmd function (Left4Bots.Cmd_command)
 			Left4Bots["Cmd_" + arg2](player, allBots, tgtBot, arg3);
 			
-			return true;
-		}
+			break;
 	}
 
-	return false;
+	return true;
 }
 
 //
@@ -2118,7 +2151,6 @@ settings
 		return null;
 
 	local attackerTeam = NetProps.GetPropInt(attacker, "m_iTeamNum");
-
 	if (attackerTeam != TEAM_SURVIVORS && attackerTeam != TEAM_L4D1_SURVIVORS)
 	{
 		if (victim.IsPlayer() && NetProps.GetPropInt(victim, "m_iTeamNum") == TEAM_SURVIVORS && IsPlayerABot(victim) && "Inflictor" in damageTable && damageTable.Inflictor && damageTable.Inflictor.GetClassname() == "insect_swarm")
@@ -2132,11 +2164,22 @@ settings
 	if (!attacker.IsPlayer() || !IsPlayerABot(attacker))
 		return null;
 
-	//if (Left4Bots.Settings.trigger_caralarm && victim.GetClassname() == "prop_car_alarm" && (victim.GetOrigin() - attacker.GetOrigin()).Length() <= 730 && damageTable.DamageType != DMG_BURN && damageTable.DamageType != (DMG_BURN + DMG_PREVENT_PHYSICS_FORCE))
-	if (Left4Bots.Settings.trigger_caralarm && victim.GetClassname() == "prop_car_alarm" && (victim.GetOrigin() - attacker.GetOrigin()).Length() <= 730 && (!("Inflictor" in damageTable) || !damageTable.Inflictor || damageTable.Inflictor.GetClassname() != "inferno"))
+	
+	local victimClass = victim.GetClassname();
+	if (Left4Bots.Settings.trigger_caralarm && victimClass == "prop_car_alarm" && (victim.GetOrigin() - attacker.GetOrigin()).Length() <= 730 && (!("Inflictor" in damageTable) || !damageTable.Inflictor || damageTable.Inflictor.GetClassname() != "inferno"))
 	{
 		Left4Bots.TriggerCarAlarm(attacker, victim);
 		return null;
+	}
+	
+	if (victimClass == "prop_physics" || victimClass.find("weapon_") != null)
+	{
+		local isBarricadeGascans = victim.GetModelName() == "models/props_unique/wooden_barricade_gascans.mdl";
+		if ((Left4Bots.Settings.damage_barricade && isBarricadeGascans) || (Left4Bots.Settings.damage_other && !isBarricadeGascans))
+		{
+			victim.TakeDamageEx(attacker, attacker.GetActiveWeapon(), damageTable.Weapon, Vector(0,0,0), damageTable.Location, damageTable.DamageDone, damageTable.DamageType);
+			return false;
+		}
 	}
 
 	if (!victim.IsPlayer() || attacker.GetPlayerUserId() == victim.GetPlayerUserId() || NetProps.GetPropInt(victim, "m_iTeamNum") != TEAM_SURVIVORS)
@@ -2163,7 +2206,7 @@ settings
 	if (!player || !player.IsValid() || IsPlayerABot(player) || Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) < Left4Bots.Settings.userlevel_orders)
 		return;
 
-	if (cmd != "settings" && cmd != "botselect" && cmd != "help" && args.len() < 3) // Normal bot commands have at least 2 arguments (excluding 'l4b')
+	if (cmd != "botselect" && cmd != "settings" && cmd != "findsettings" && cmd != "help" && args.len() < 3) // Normal bot commands have at least 2 arguments (excluding 'l4b')
 		return;
 
 	local arg2 = null;
