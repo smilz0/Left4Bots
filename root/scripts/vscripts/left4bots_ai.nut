@@ -32,6 +32,19 @@ enum AI_DOOR_ACTION {
 	Saferoom	// Check if we're fully in the saferoom, then Close
 }
 
+//lxc According to the level of threat
+enum AI_AIM_TYPE {
+	None,
+	Low,
+	Shoot, //rescue friend, "destroy" order...
+	Melee, //melee
+	Shove, //shove
+	Order, //normal order
+	Throw, //grenade
+	Rock, //we can dodge it, so put it in front of the witch
+	Witch
+}
+
 // Add the main AI think function to the given bot and initialize it
 ::Left4Bots.AddBotThink <- function (bot)
 {
@@ -118,6 +131,26 @@ enum AI_DOOR_ACTION {
 	scope["BotOnPause"] <- AIFuncs.BotOnPause;
 	scope["BotOnResume"] <- AIFuncs.BotOnResume;
 
+	//lxc add
+	scope.AimType <- AI_AIM_TYPE.None;
+	scope.AimEnt <- null; //if target is moving, we can follow it current pos each time
+	scope.AimPos <- null; //for fixed pos
+	//↑ only set one of this.
+	scope.AimPitch <- 0;
+	scope.AimYaw <- 0;
+	scope.Aim_StartTime <- 0;
+	scope.Aim_Duration <- 0;
+	scope.Aim_TimeStamp <- 0; //if not update target until this time, close func
+	scope["BotAim"] <- AIFuncs.BotAim;
+	scope["BotSetAim"] <- AIFuncs.BotSetAim;
+	scope["BotUnSetAim"] <- AIFuncs.BotUnSetAim;
+	//lxc don't send move command until
+	scope.NextMoveTime <- 0;
+	//lxc lock func
+	scope.OrderHuman <- null;
+	scope.OrderTarget <- null;
+	scope["BotLockShoot"] <- AIFuncs.LockShoot;
+	
 	AddThinkToEnt(bot, "BotThink_Main");
 }
 
@@ -175,6 +208,22 @@ enum AI_DOOR_ACTION {
 	scope["BotReset"] <- AIFuncs.BotReset;
 	scope["BotUpdatePickupToSearch"] <- AIFuncs.BotUpdatePickupToSearch;
 	scope["BotGetNearestPickupWithin"] <- AIFuncs.BotGetNearestPickupWithin;
+
+	//lxc add
+	scope.AimType <- AI_AIM_TYPE.None;
+	scope.AimEnt <- null; //if target is moving, we can follow it current pos each time
+	scope.AimPos <- null; //for fixed pos
+	//↑ only set one of this.
+	scope.AimPitch <- 0;
+	scope.AimYaw <- 0;
+	scope.Aim_StartTime <- 0;
+	scope.Aim_Duration <- 0;
+	scope.Aim_TimeStamp <- 0; //if not update target until this time, close func
+	scope["BotAim"] <- AIFuncs.BotAim;
+	scope["BotSetAim"] <- AIFuncs.BotSetAim;
+	scope["BotUnSetAim"] <- AIFuncs.BotUnSetAim;
+	//lxc don't send move command until
+	scope.NextMoveTime <- 0;
 
 	AddThinkToEnt(bot, "BotThink_Main");
 }
@@ -905,6 +954,9 @@ enum AI_DOOR_ACTION {
 	if (NetProps.GetPropInt(self, "movetype") == 9 /* MOVETYPE_LADDER */ || !L4B.ModeStarted)
 		return L4B.Settings.bot_think_interval;
 
+	//lxc exec here
+	BotAim();
+	
 	// Don't do anything while frozen
 	if ((NetProps.GetPropInt(self, "m_fFlags") & (1 << 5)))
 	{
@@ -925,7 +977,8 @@ enum AI_DOOR_ACTION {
 			if (to && to.IsValid())
 			{
 				self.SetVelocity(Vector(0,0,0));
-				self.SetOrigin(to.GetOrigin());
+				//lxc fix "warp" pos
+				self.SetOrigin(to.IsHangingFromLedge() ? NetProps.GetPropVector(to, "m_hangStandPos") : to.GetOrigin());
 
 				L4B.Logger.Info(self.GetPlayerName() + " has been teleported to " + to.GetPlayerName() + " while falling");
 
@@ -1052,7 +1105,10 @@ enum AI_DOOR_ACTION {
 	// Don't do anything if the bot is on a ladder or the mode hasn't started yet
 	if (NetProps.GetPropInt(self, "movetype") == 9 /* MOVETYPE_LADDER */ || !L4B.ModeStarted)
 		return L4B.Settings.bot_think_interval;
-
+	
+	//lxc exec here
+	BotAim();
+	
 	// Don't do anything while frozen
 	if ((NetProps.GetPropInt(self, "m_fFlags") & (1 << 5)))
 	{
@@ -1071,6 +1127,9 @@ enum AI_DOOR_ACTION {
 	{
 		case 1:
 		{
+			if (AimType >= AI_AIM_TYPE.Throw) //lxc don't do anything if Throw
+				return L4B.Settings.bot_think_interval;
+			
 			BotThink_Pickup();
 			break;
 		}
@@ -1081,7 +1140,7 @@ enum AI_DOOR_ACTION {
 		}
 	}
 
-	BotManualAttack(false);
+	BotManualAttack();
 
 	return L4B.Settings.bot_think_interval;
 }
@@ -1126,7 +1185,7 @@ enum AI_DOOR_ACTION {
 		TimePickup = CurTime;
 
 		Left4Timers.AddTimer(null, L4B.Settings.pickups_failsafe_delay, @(params) ::Left4Bots.PickupFailsafe.bindenv(::Left4Bots)(params.bot, params.item), { bot = self, item = pickup });
-		Left4Utils.PlayerPressButton(self, BUTTON_USE, L4B.Settings.button_holdtime_tap, pickup, 0, 0, true);
+		L4B.PlayerPressButton(self, BUTTON_USE, L4B.Settings.button_holdtime_tap, pickup, 0, 0, true);
 
 		if (MoveType == AI_MOVE_TYPE.Pickup)
 		{
@@ -1289,7 +1348,7 @@ enum AI_DOOR_ACTION {
 			{
 				// Yes, but can we use it right now?
 				if (CurTime > NetProps.GetPropFloat(ActiveWeapon, "m_flNextPrimaryAttack") + 0.1) // <- Add a little delay or the animation will be bugged
-					Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, L4B.Settings.button_holdtime_defib, MoveEnt, 0, 0, true); // Yes
+					L4B.PlayerPressButton(self, BUTTON_ATTACK, 0, MoveEnt, 0, 0, true); // Yes
 			}
 			else if (ActiveWeapon && ActiveWeapon.GetClassname() != "weapon_pain_pills" && ActiveWeapon.GetClassname() != "weapon_adrenaline") // We'll run into an infinite switch loop if the vanilla AI wants to use pills/adrenaline
 			{
@@ -1372,17 +1431,17 @@ enum AI_DOOR_ACTION {
 				{
 					case AI_THROW_TYPE.Tank:
 					{
-						Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, L4B.Settings.button_holdtime_tap, ThrowTarget, L4B.Settings.tank_throw_deltapitch, 0, true, 1);
+						L4B.PlayerPressButton(self, BUTTON_ATTACK, L4B.Settings.button_holdtime_tap, ThrowTarget, L4B.Settings.tank_throw_deltapitch, 0, true, 1);
 						break;
 					}
 					case AI_THROW_TYPE.Horde:
 					{
-						Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, L4B.Settings.button_holdtime_tap, ThrowTarget, L4B.Settings.throw_nade_deltapitch, 0, true, 1);
+						L4B.PlayerPressButton(self, BUTTON_ATTACK, L4B.Settings.button_holdtime_tap, ThrowTarget, L4B.Settings.throw_nade_deltapitch, 0, true, 1);
 						break;
 					}
 					case AI_THROW_TYPE.Manual:
 					{
-						Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, L4B.Settings.button_holdtime_tap, ThrowTarget, L4B.Settings.throw_nade_deltapitch, 0, true, 1);
+						L4B.PlayerPressButton(self, BUTTON_ATTACK, L4B.Settings.button_holdtime_tap, ThrowTarget, L4B.Settings.throw_nade_deltapitch, 0, true, 1);
 						break;
 					}
 					default: // None
@@ -1601,7 +1660,7 @@ enum AI_DOOR_ACTION {
 		else
 			L4B.Logger.Debug("[AI]" + self.GetPlayerName() + " - Closing the door: " + DoorEnt.GetName());
 
-		Left4Utils.PlayerPressButton(self, BUTTON_USE, L4B.Settings.button_holdtime_tap, DoorEnt, 0, 0, true);
+		L4B.PlayerPressButton(self, BUTTON_USE, L4B.Settings.button_holdtime_tap, DoorEnt, 0, 0, true);
 		Left4Timers.AddTimer(null, L4B.Settings.door_failsafe_delay, @(params) ::Left4Bots.DoorFailsafe.bindenv(::Left4Bots)(params.bot, params.door, params.action), { bot = self, door = DoorEnt, action = DoorAct });
 
 		// Reset
@@ -1635,12 +1694,19 @@ enum AI_DOOR_ACTION {
 		if (groundEnt && groundEnt.IsValid() && groundEnt.GetClassname() == "prop_car_alarm")
 			L4B.TriggerCarAlarm(self, groundEnt);
 	}
+	
+	//lxc lock func
+	BotLockShoot();
 }
 
 // Handles the bot's enemy melee/shove/shoot logics
 // Also prevents the bots for reloading their weapons for no reason while they are executing a MOVE command
-::Left4Bots.AIFuncs.BotManualAttack <- function (shootWhileMove = true)
+::Left4Bots.AIFuncs.BotManualAttack <- function ()
 {
+	//lxc skip if has higher type
+	if (AimType >= AI_AIM_TYPE.Melee)
+		return;
+	
 	local canMelee = ActiveWeapon && ActiveWeapon.GetClassname() == "weapon_melee" && CurTime >= NetProps.GetPropFloat(ActiveWeapon, "m_flNextPrimaryAttack");
 	local canShove = !self.IsFiringWeapon() && CurTime >= NetProps.GetPropFloat(self, "m_flNextShoveTime"); // TODO: add shove penalty?
 	local target = null;
@@ -1667,20 +1733,32 @@ enum AI_DOOR_ACTION {
 
 	// If we have a close target that we can either melee or shove then melee/shove it
 	if (target && canMelee && dot >= 0.6)
-		Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, L4B.Settings.button_holdtime_tap, target.GetCenter(), 0, 0, false);
-	else if (target && canShove) // TODO: add dot?
-		Left4Utils.PlayerPressButton(self, BUTTON_SHOVE, L4B.Settings.button_holdtime_tap, target.GetCenter(), 0, 0, false);
-	else if (shootWhileMove && MovePos && Paused == 0 && NetProps.GetPropInt(self, "m_hasVisibleThreats")) // m_hasVisibleThreats indicates that a threat is in the bot's current field of view. An infected behind the bot won't set this
 	{
-		// If no close target or we cannot melee or shove it at the moment, then handle manual shooting to targets in our field of view, but only if we are executing a MOVE command
+		//lxc 
+		BotSetAim(AI_AIM_TYPE.Melee, target, 0.3);
+		L4B.PlayerPressButton(self, BUTTON_ATTACK);
+	}
+	else if (target && canShove) // TODO: add dot?
+	{
+		//lxc z_gun_swing_duration: 0.2 ** How long shove attack is active (can shove an entities)
+		BotSetAim(AI_AIM_TYPE.Shove, L4B.GetHitPos(target), 0.233);
+		L4B.PlayerPressButton(self, BUTTON_SHOVE);
+	}
+	else if (((MovePos && Paused == 0) || L4B.Settings.manual_attack_always) && NetProps.GetPropInt(self, "m_hasVisibleThreats")) // m_hasVisibleThreats indicates that a threat is in the bot's current field of view. An infected behind the bot won't set this
+	{
+		// If no close target or we cannot melee or shove it at the moment, then handle manual shooting to targets in our field of view
 		if (ActiveWeapon && !NetProps.GetPropInt(ActiveWeapon, "m_bInReload"))
 		{
 			if (ActiveWeaponSlot == 0 || ActiveWeaponSlot == 1)
 			{
 				local tgt = L4B.FindBotNearestEnemy(self, Origin, L4B.GetWeaponRangeById(ActiveWeaponId), L4B.Settings.manual_attack_mindot);
 				if (tgt)
-					Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, L4B.Settings.button_holdtime_tap, tgt.GetCenter(), 0, 0, false);
-
+				{
+					//L4B.PlayerPressButton(self, BUTTON_ATTACK, 0, tgt.GetCenter(), 0, 0, false);
+					//lxc release attack button when Aim end
+					BotSetAim(AI_AIM_TYPE.Shoot, tgt, 0.1); //need refresh target next time
+					Left4Utils.PlayerForceButton(self, BUTTON_ATTACK);
+				}
 				// Bots always reload for no reason while executing a MOVE command. Don't let them if there are visible threats and still rounds in the magazine
 				if (ActiveWeapon.Clip1() >= 5)
 				{
@@ -1781,8 +1859,10 @@ enum AI_DOOR_ACTION {
 
 	if (force || !MovePos)
 		NeedMove = 2;	// For some reason, sometimes, the first MOVE does nothing so let's send at least 2
-
-	if (NeedMove <= 0 && (dest - MovePos).Length() <= 5) // <- This checks if the destination entity moved after the bot started moving towards it and forces a move command to the new entity position if the entity moved
+	
+	//lxc fix bot moved hard beacuse of send move cmd too quickly. found this bug when I test "follow" order
+	//lxc don't send move command in short time
+	if (NeedMove <= 0 && ((dest - MovePos).Length() <= 5 || CurTime < NextMoveTime)) // <- This checks if the destination entity moved after the bot started moving towards it and forces a move command to the new entity position if the entity moved
 		return;
 
 	if (NetProps.GetPropInt(self, "m_fFlags") & (1 << 5))
@@ -1796,6 +1876,9 @@ enum AI_DOOR_ACTION {
 
 	MovePos = dest;
 	MovePosReal = MovePos;
+	
+	//lxc don't send move command in short time
+	NextMoveTime = CurTime + 0.5;
 
 	if (L4B.Settings.moveto_debug_duration > 0)
 		DebugDrawCircle(MovePosReal, Vector(255, 0, 0), 255, 6, true, L4B.Settings.moveto_debug_duration);
@@ -1818,8 +1901,10 @@ enum AI_DOOR_ACTION {
 
 	if (force || !MovePos)
 		NeedMove = 2;	// For some reason, sometimes, the first MOVE does nothing so let's send at least 2
-
-	if (NeedMove <= 0 && (dest - MovePos).Length() <= 5) // <- This checks if the destination entity moved after the bot started moving towards it and forces a move command to the new entity position if the entity moved
+	
+	//lxc fix bot moved hard beacuse of send move cmd too quickly. found this bug when I test "follow" order
+	//lxc don't send move command in short time
+	if (NeedMove <= 0 && ((dest - MovePos).Length() <= 5 || CurTime < NextMoveTime)) // <- This checks if the destination entity moved after the bot started moving towards it and forces a move command to the new entity position if the entity moved
 		return;
 
 	if (NetProps.GetPropInt(self, "m_fFlags") & (1 << 5))
@@ -1863,7 +1948,10 @@ enum AI_DOOR_ACTION {
 		L4B.Logger.Warning("[AI]" + self.GetPlayerName() + " - BotMoveToNav -> " + MovePos + " - No NavArea found nearby; using the dest pos");
 		MovePosReal = MovePos;
 	}
-
+	
+	//lxc don't send move command in short time
+	NextMoveTime = CurTime + 0.5;
+	
 	if (L4B.Settings.moveto_debug_duration > 0)
 		DebugDrawCircle(MovePosReal, Vector(255, 0, 0), 255, 6, true, L4B.Settings.moveto_debug_duration);
 
@@ -2621,10 +2709,14 @@ enum AI_DOOR_ACTION {
 				L4B.Logger.Debug("[AI]" + self.GetPlayerName() + " - Found witch 'forward' attachment id: " + attachId);
 
 				// Shoot 3 bullets to her head as quick as possible (if using slow weapons like pump shotguns the bullets will be 2 but usually 1 is enough)
-				NetProps.SetPropInt(self, "m_fFlags", NetProps.GetPropInt(self, "m_fFlags") | (1 << 5)); // set FL_FROZEN for the entire duration of the 3 shoots
+				/*NetProps.SetPropInt(self, "m_fFlags", NetProps.GetPropInt(self, "m_fFlags") | (1 << 5)); // set FL_FROZEN for the entire duration of the 3 shoots
 				Left4Timers.AddTimer(null, 0.01, @(params) ::Left4Bots.BotShootAtEntityAttachment.bindenv(::Left4Bots)(params.bot, params.entity, params.attachmentid ), { bot = self, entity = CurrentOrder.DestEnt, attachmentid = attachId });
 				Left4Timers.AddTimer(null, 0.5, @(params) ::Left4Bots.BotShootAtEntityAttachment.bindenv(::Left4Bots)(params.bot, params.entity, params.attachmentid ), { bot = self, entity = CurrentOrder.DestEnt, attachmentid = attachId });
-				Left4Timers.AddTimer(null, 0.9, @(params) ::Left4Bots.BotShootAtEntityAttachment.bindenv(::Left4Bots)(params.bot, params.entity, params.attachmentid, true ), { bot = self, entity = CurrentOrder.DestEnt, attachmentid = attachId }); // this will unset FL_FROZEN at the end
+				Left4Timers.AddTimer(null, 0.9, @(params) ::Left4Bots.BotShootAtEntityAttachment.bindenv(::Left4Bots)(params.bot, params.entity, params.attachmentid, true ), { bot = self, entity = CurrentOrder.DestEnt, attachmentid = attachId }); // this will unset FL_FROZEN at the end*/
+				
+				//lxc no need freeze bot anymore
+				BotSetAim(AI_AIM_TYPE.Witch, CurrentOrder.DestEnt, 1); //if witch death, will auto release attack button
+				Left4Utils.PlayerForceButton(self, BUTTON_ATTACK);
 			}
 			else
 				L4B.Logger.Error("[AI]" + self.GetPlayerName() + " - Witch has no LookupAttachment!");
@@ -2635,7 +2727,7 @@ enum AI_DOOR_ACTION {
 		{
 			L4B.Logger.Info("[AI]" + self.GetPlayerName() + " is using " + CurrentOrder.DestEnt);
 
-			Left4Utils.PlayerPressButton(self, BUTTON_USE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
+			L4B.PlayerPressButton(self, BUTTON_USE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
 
 			break;
 		}
@@ -2644,7 +2736,7 @@ enum AI_DOOR_ACTION {
 			L4B.Logger.Info("[AI]" + self.GetPlayerName() + " is carrying " + CurrentOrder.DestEnt);
 
 			Left4Timers.AddTimer(null, L4B.Settings.pickups_failsafe_delay, @(params) ::Left4Bots.PickupFailsafe.bindenv(::Left4Bots)(params.bot, params.item), { bot = self, item = CurrentOrder.DestEnt });
-			Left4Utils.PlayerPressButton(self, BUTTON_USE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
+			L4B.PlayerPressButton(self, BUTTON_USE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
 
 			// Do not complete the order if we need to carry this item
 			orderComplete = !CurrentOrder.Param1 || Left4Utils.GetWeaponSlotById(CurrentOrder.Param1) != 5;
@@ -2667,7 +2759,7 @@ enum AI_DOOR_ACTION {
 					{
 						L4B.CarryItemStop(self);
 						L4B.Logger.Debug("[AI]" + self.GetPlayerName() + " is pouring");
-						Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, L4B.Settings.button_holdtime_pour, L4B.ScavengeUseTarget, 0, 0, true);
+						L4B.PlayerPressButton(self, BUTTON_ATTACK, 0.0, L4B.ScavengeUseTarget, 0, 0, true);
 					}
 				}
 				else
@@ -2682,7 +2774,7 @@ enum AI_DOOR_ACTION {
 				L4B.Logger.Info("[AI]" + self.GetPlayerName() + " is carrying " + CurrentOrder.DestEnt);
 
 				Left4Timers.AddTimer(null, L4B.Settings.pickups_failsafe_delay, @(params) ::Left4Bots.PickupFailsafe.bindenv(::Left4Bots)(params.bot, params.item), { bot = self, item = CurrentOrder.DestEnt });
-				Left4Utils.PlayerPressButton(self, BUTTON_USE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
+				L4B.PlayerPressButton(self, BUTTON_USE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
 
 				CurrentOrder.DestPos = L4B.ScavengeUseTargetPos;
 				if (L4B.Settings.scavenge_pour)
@@ -2705,7 +2797,7 @@ enum AI_DOOR_ACTION {
 			// Disable the AI stuff for a while so the bot doesn't switch back to medkit before finishing the deploy
 			HurryUntil = Left4Utils.Max(HurryUntil, CurTime + 5);
 
-			Left4Utils.PlayerPressButton(self, BUTTON_USE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
+			L4B.PlayerPressButton(self, BUTTON_USE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
 
 			Left4Timers.AddTimer(null, 1, @(params) params.bot.SwitchToItem(params.cls), { bot = self, cls = Left4Utils.StringReplace(CurrentOrder.DestEnt.GetClassname(), "_spawn", "") });
 
@@ -2726,10 +2818,10 @@ enum AI_DOOR_ACTION {
 						L4B.Logger.Info("[AI]" + self.GetPlayerName() + " is healing " + CurrentOrder.DestEnt.GetPlayerName());
 
 						if (CurrentOrder.DestEnt.GetPlayerUserId() == self.GetPlayerUserId())
-							Left4Utils.PlayerPressButton(self, BUTTON_ATTACK, CurrentOrder.HoldTime, null, 0, 0, true); // <- NOTE: Vanilla AI will likely interrupt the healing if lockLook is false
+							L4B.PlayerPressButton(self, BUTTON_ATTACK, CurrentOrder.HoldTime, null, 0, 0, true); // <- NOTE: Vanilla AI will likely interrupt the healing if lockLook is false
 						else
 						{
-							Left4Utils.PlayerPressButton(self, BUTTON_SHOVE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
+							L4B.PlayerPressButton(self, BUTTON_SHOVE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
 
 							// This will check if the healing started and the healing target is the right target. If not, it will abort the healing and the current order and will re-add the order to try again
 							Left4Timers.AddTimer(null, 0.8, @(params) ::Left4Bots.CheckHealingTarget.bindenv(::Left4Bots)(params.bot, params.order), { bot = self, order = CurrentOrder });
@@ -2812,10 +2904,14 @@ enum AI_DOOR_ACTION {
 				if (ActiveWeapon && L4B.IsRangedWeapon(ActiveWeaponId, ActiveWeaponSlot) && ActiveWeapon.Clip1() > 0 && !NetProps.GetPropInt(ActiveWeapon, "m_bInReload"))
 				{
 					// Shoot 3 bullets to the gascans as quick as possible (if using slow weapons like pump shotguns the bullets will be 2 but usually 1 is enough)
-					NetProps.SetPropInt(self, "m_fFlags", NetProps.GetPropInt(self, "m_fFlags") | (1 << 5)); // set FL_FROZEN for the entire duration of the 3 shoots
+					/*NetProps.SetPropInt(self, "m_fFlags", NetProps.GetPropInt(self, "m_fFlags") | (1 << 5)); // set FL_FROZEN for the entire duration of the 3 shoots
 					Left4Timers.AddTimer(null, 0.01, @(params) ::Left4Bots.BotShootAtEntity.bindenv(::Left4Bots)(params.bot, params.entity ), { bot = self, entity = CurrentOrder.DestEnt });
 					Left4Timers.AddTimer(null, 0.5, @(params) ::Left4Bots.BotShootAtEntity.bindenv(::Left4Bots)(params.bot, params.entity ), { bot = self, entity = CurrentOrder.DestEnt });
-					Left4Timers.AddTimer(null, 0.9, @(params) ::Left4Bots.BotShootAtEntity.bindenv(::Left4Bots)(params.bot, params.entity, true ), { bot = self, entity = CurrentOrder.DestEnt }); // this will unset FL_FROZEN at the end
+					Left4Timers.AddTimer(null, 0.9, @(params) ::Left4Bots.BotShootAtEntity.bindenv(::Left4Bots)(params.bot, params.entity, true ), { bot = self, entity = CurrentOrder.DestEnt }); // this will unset FL_FROZEN at the end*/
+					
+					//lxc no need freeze bot anymore
+					BotSetAim(AI_AIM_TYPE.Shoot, CurrentOrder.DestEnt.GetCenter(), 0.2); //The time for a complete cycle is 1.6667s
+					Left4Utils.PlayerForceButton(self, BUTTON_ATTACK);
 				}
 			}
 			else
@@ -2983,6 +3079,11 @@ enum AI_DOOR_ACTION {
 	CarryItem = null;
 	CarryItemWeaponId = 0;
 	*/
+	
+	//lxc apply changes
+	BotUnSetAim();
+	OrderHuman = null;
+	OrderTarget = null;
 }
 
 // Check if the bot should pause what he is doing. Handles the Paused flag and the RESET command
@@ -3186,6 +3287,148 @@ enum AI_DOOR_ACTION {
 	}
 	else if (MovePos)
 		NeedMove = 2; // Refresh previous MOVE
+}
+
+//lxc
+::Left4Bots.AIFuncs.LockShoot <- function ()
+{
+	if (OrderHuman && AimType <= AI_AIM_TYPE.Low && (ActiveWeaponSlot == 0 || (ActiveWeaponSlot == 1 && ActiveWeapon.GetClassname().find("pistol") != null)) && CurTime >= NetProps.GetPropFloat(self, "m_flNextShoveTime") && !NetProps.GetPropInt(ActiveWeapon, "m_bInReload"))
+	{
+		//lxc check commander
+		if (!OrderHuman.IsValid() || OrderHuman.IsDying() || OrderHuman.IsDead() || !OrderHuman.IsSurvivor())
+		{
+			OrderHuman = null;
+			OrderTarget = null;
+			BotUnSetAim();
+			return;
+		}
+		else if (OrderHuman.IsImmobilized() || OrderHuman.IsDominatedBySpecialInfected())
+		{
+			return;
+		}
+		
+		if (OrderTarget)
+		{
+			if (OrderTarget.IsValid() && NetProps.GetPropInt(OrderTarget, "m_lifeState") <= 0)
+			{
+				if (Left4Utils.CanTraceTo(self, OrderTarget, L4B.Settings.tracemask_others))
+				{
+					BotSetAim(AI_AIM_TYPE.Low, OrderTarget, 0.2);
+					Left4Utils.PlayerForceButton(self, BUTTON_ATTACK);
+					return;
+				}
+			}
+			else
+				OrderTarget = null;
+		}
+		else if (OrderHuman.IsFiringWeapon())
+		{
+			local t = Left4Utils.GetLookingTargetEx(OrderHuman, L4B.Settings.tracemask_others);
+			if (t)
+			{
+				if (t.ent)
+				{
+					//lxc filter infected, player and unkillable entity, there may be some missing
+					if (t.ent.GetClassname() != "infected" && (t.ent.GetHealth() > 0 || (t.ent.GetClassname() == "func_button" && NetProps.GetPropInt(t.ent, "m_spawnflags") & 512))) // [512] : Damage Activates
+					{
+						if (!t.ent.IsPlayer())
+						{
+							OrderTarget = t.ent;
+							return;
+						}
+						else if (t.ent.IsSurvivor())
+							return;
+					}
+				}
+				
+				if (Left4Utils.CanTraceToPos(self, t.pos, L4B.Settings.tracemask_others))
+				{
+					BotSetAim(AI_AIM_TYPE.Low, t.pos, 0.2);
+					Left4Utils.PlayerForceButton(self, BUTTON_ATTACK);
+					return;
+				}
+			}
+		}
+		if (AimType == AI_AIM_TYPE.Low)
+			BotUnSetAim();
+	}
+}
+
+//lxc
+::Left4Bots.AIFuncs.BotSetAim <- function (type, target, duration, pitch = 0, yaw = 0)
+{
+	if (target) //lxc if no target, cancel aim (for "heal self","tempheal","deploy" order)
+	{
+		Aim_StartTime = Time();
+		AimType = type;
+		Aim_Duration = duration;
+		Aim_TimeStamp = Aim_StartTime + Aim_Duration;
+		AimPitch = pitch;
+		AimYaw = yaw;
+		
+		if (typeof(target) == "instance")
+		{
+			AimEnt = target;
+			AimPos = null;
+		}
+		else //if (typeof(target) == "Vector")
+		{
+			AimEnt = null;
+			AimPos = target;
+		}
+	}
+	else
+		BotUnSetAim();
+}
+
+//lxc
+::Left4Bots.AIFuncs.BotUnSetAim <- function ()
+{
+	AimType = AI_AIM_TYPE.None;
+	Aim_Duration = 0;
+	Aim_TimeStamp = 0;
+	AimEnt = null;
+	AimPos = null;
+	AimPitch = 0;
+	AimYaw = 0;
+	
+	//lxc release attack button //TODO find a better way to release button
+	Left4Utils.PlayerUnForceButton(self, BUTTON_ATTACK);
+}
+
+//lxc if only aim in "weapon_fire" event, bots will keep shaking their head, which will also cause them to slow down, so need to always set the eye angles.
+::Left4Bots.AIFuncs.BotAim <- function (close = false, fixtime = 1.0 / 30.0)
+{
+	if (AimType != AI_AIM_TYPE.None)
+	{
+										//lxc Aim at the last tick, then close
+		if (Time() >= Aim_TimeStamp && (Time() - Aim_TimeStamp > fixtime || !(close = true)))
+		{
+			close = true;
+		}
+		else if (AimEnt)
+		{
+			//lxc if target is invalid or dead, delete it
+			if (AimEnt.IsValid() && NetProps.GetPropInt(AimEnt, "m_lifeState") <= 0)
+			{
+				Left4Utils.BotLookAt(self, L4B.GetHitPos(AimEnt), AimPitch, AimYaw);
+			}
+			else
+				close = true;
+		}
+		else if (AimPos)
+		{
+			Left4Utils.BotLookAt(self, AimPos, AimPitch, AimYaw);
+		}
+		else
+		{
+			close = true;
+		}
+		if (close)
+			BotUnSetAim();
+		
+		return !close; //lxc for "weapon_fire" event
+	}
 }
 
 //...

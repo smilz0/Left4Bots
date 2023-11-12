@@ -23,6 +23,7 @@ Msg("Including left4bots_commands...\n");
 	"heal",
 	"hurry",
 	"lead",
+	"lock",
 	"move",
 	"scavenge",
 	"swap",
@@ -579,7 +580,7 @@ Msg("Including left4bots_commands...\n");
 	if (allBots)
 	{
 		foreach (bot in Bots)
-			BotOrderAdd(bot, "heal", player, healTgt != null ? healTgt : bot, null, null, Settings.button_holdtime_heal, false);
+			BotOrderAdd(bot, "heal", player, healTgt != null ? healTgt : bot, null, null, 0, false);
 	}
 	else
 	{
@@ -592,7 +593,7 @@ Msg("Including left4bots_commands...\n");
 		}
 
 		if (tgtBot)
-			BotOrderAdd(tgtBot, "heal", player, healTgt != null ? healTgt : tgtBot, null, null, Settings.button_holdtime_heal, false);
+			BotOrderAdd(tgtBot, "heal", player, healTgt != null ? healTgt : tgtBot, null, null, 0, false);
 		else
 			Logger.Warning("No available bot for order of type: heal");
 	}
@@ -674,6 +675,44 @@ Msg("Including left4bots_commands...\n");
 	return PRINTCOLOR_NORMAL + "<" + PRINTCOLOR_CYAN + "botsource" + PRINTCOLOR_NORMAL + "> " + PRINTCOLOR_GREEN + "lead" + PRINTCOLOR_NORMAL + "\n"
 		 + PRINTCOLOR_NORMAL + "The order is added to the given bot(s) orders queue.\n"
 		 + PRINTCOLOR_NORMAL + "The bot(s) will start leading the way following the map's flow.";
+}
+
+//lxc let bots follow human aim, if the target has health, will automatically locked until it is killed, and back to follow mode.
+//bots only shoot when commander is firing unless target ent has been set.
+/*
+	scope.OrderHuman <- null;
+	scope.OrderTarget <- null;
+*/
+::Left4Bots.Cmd_lock <- function (player, allBots = false, tgtBot = null, param = null)
+{
+	Logger.Debug("Cmd_lock - player: " + player.GetPlayerName() + " - allBots: " + allBots + " - tgtBot: " + tgtBot + " - param: " + param);
+	
+	if (allBots)
+	{
+		foreach (bot in Bots)
+		{
+			local scope = bot.GetScriptScope();
+			scope.OrderHuman = param ? null : player; //lxc enter any value to disable
+			scope.OrderTarget = null;
+		}
+	}
+	else
+	{
+		if (tgtBot)
+		{
+			local scope = tgtBot.GetScriptScope();
+			scope.OrderHuman = param ? null : player; //lxc enter any value to disable
+			scope.OrderTarget = null;
+		}
+		else
+			Logger.Warning("No available bot for order of type: lock");
+	}
+}
+
+//lxc temp function
+::Left4Bots.CmdHelp_lock <- function ()
+{
+	return "";
 }
 
 ::Left4Bots.Cmd_move <- function (player, allBots = false, tgtBot = null, param = null)
@@ -842,7 +881,7 @@ Msg("Including left4bots_commands...\n");
 			if (item && item.IsValid())
 			{
 				bot.SwitchToItem(item.GetClassname());
-				Left4Timers.AddTimer(null, 1.2, @(params) ::Left4Utils.PlayerPressButton(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = bot, button = BUTTON_ATTACK, holdTime = 1, destination = null, deltaPitch = 0, deltaYaw = 0, lockLook = true });
+				Left4Timers.AddTimer(null, 1.2, @(params) ::Left4Bots.PlayerPressButton.bindenv(::Left4Bots)(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = bot, button = BUTTON_ATTACK, holdTime = 1, destination = null, deltaPitch = 0, deltaYaw = 0, lockLook = true });
 			}
 		}
 	}
@@ -857,7 +896,7 @@ Msg("Including left4bots_commands...\n");
 			if (item && item.IsValid())
 			{
 				tgtBot.SwitchToItem(item.GetClassname());
-				Left4Timers.AddTimer(null, 1.2, @(params) ::Left4Utils.PlayerPressButton(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = tgtBot, button = BUTTON_ATTACK, holdTime = 1, destination = null, deltaPitch = 0, deltaYaw = 0, lockLook = true });
+				Left4Timers.AddTimer(null, 1.2, @(params) ::Left4Bots.PlayerPressButton.bindenv(::Left4Bots)(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = tgtBot, button = BUTTON_ATTACK, holdTime = 1, destination = null, deltaPitch = 0, deltaYaw = 0, lockLook = true });
 			}
 		}
 		else
@@ -940,7 +979,7 @@ Msg("Including left4bots_commands...\n");
 	if (!tTable)
 		return;
 
-	local holdTime = Settings.button_holdtime_tap;
+	local holdTime = 0;
 	local target = null;
 
 	if (tTable["ent"])
@@ -969,7 +1008,7 @@ Msg("Including left4bots_commands...\n");
 			tgtBot = GetFirstAvailableBotForOrder("scavenge", null, target.GetCenter());
 
 		if (tgtBot)
-			BotOrderAdd(tgtBot, "scavenge", player, target, null, null, Settings.button_holdtime_tap);
+			BotOrderAdd(tgtBot, "scavenge", player, target, null, null, 0);
 		else
 			Logger.Warning("No available bot for order of type: scavenge");
 
@@ -984,7 +1023,7 @@ Msg("Including left4bots_commands...\n");
 			tgtBot = GetFirstAvailableBotForOrder("carry", null, target.GetCenter());
 
 		if (tgtBot)
-			BotOrderAdd(tgtBot, "carry", player, target, null, null, Settings.button_holdtime_tap);
+			BotOrderAdd(tgtBot, "carry", player, target, null, null, 0);
 		else
 			Logger.Warning("No available bot for order of type: carry");
 
@@ -999,7 +1038,7 @@ Msg("Including left4bots_commands...\n");
 			tgtBot = GetFirstAvailableBotForOrder("deploy", null, target.GetCenter());
 
 		if (tgtBot)
-			BotOrderAdd(tgtBot, "deploy", player, target, null, null, Settings.button_holdtime_tap);
+			BotOrderAdd(tgtBot, "deploy", player, target, null, null, 0);
 		else
 			Logger.Warning("No available bot for order of type: deploy");
 
@@ -1044,8 +1083,9 @@ Msg("Including left4bots_commands...\n");
 		targetPos = target.GetOrigin() - (target.GetAngles().Forward() * 50);
 	else if (targetClass.find("func_button") != null || targetClass.find("trigger_finale") != null || targetClass.find("prop_door_rotating") != null)
 	{
-		if (targetClass == "func_button_timed")
-			holdTime = NetProps.GetPropInt(target, "m_nUseTime") + 0.1;
+		//lxc apply changes
+		//if (targetClass == "func_button_timed")
+		//	holdTime = NetProps.GetPropInt(target, "m_nUseTime") + 0.1;
 
 		local p = tTable["pos"];
 		local a = Left4Utils.VectorAngles(player.GetCenter() - tTable["pos"]);
@@ -1188,8 +1228,8 @@ Msg("Including left4bots_commands...\n");
 	local warpPos = null;
 	if (param)
 	{
-		if (param.tolower() == "here")
-			warpPos = player.GetOrigin();
+		if (param.tolower() == "here") //lxc fix "warp" pos
+			warpPos = player.IsHangingFromLedge() ? NetProps.GetPropVector(player, "m_hangStandPos") : player.GetOrigin();
 		else if (param.tolower() == "there")
 			warpPos = Left4Utils.GetLookingPosition(player, Settings.tracemask_others);
 		else if (param.tolower() == "move")
@@ -1201,8 +1241,8 @@ Msg("Including left4bots_commands...\n");
 			return;
 		}
 	}
-	else
-		warpPos = player.GetOrigin();
+	else			//lxc fix "warp" pos
+		warpPos = player.IsHangingFromLedge() ? NetProps.GetPropVector(player, "m_hangStandPos") : player.GetOrigin();
 
 	if (allBots)
 	{
