@@ -173,7 +173,7 @@ IncludeScript("left4bots_settings");
 		VocalizerCommands = LoadVocalizerCommandsFromFile(Settings.file_vocalizer);
 		Logger.Info("Loaded " + VocalizerCommands.len() + " mappings");
 		
-		Left4Utils.PrintTable(VocalizerCommands); // TODO: remove
+		//Left4Utils.PrintTable(VocalizerCommands); // TODO: remove
 	}
 	else
 		Logger.Info("Vocalizer file was not loaded (settings.file_vocalizer is empty)");
@@ -263,6 +263,7 @@ close_saferoom_door_highres = 1
 heal_interrupt_minhealth = 30
 horde_nades_chance = 35
 jockey_redirect_damage = 50
+manual_attack_always = 1
 manual_attack_mindot = 0.90
 scavenge_max_bots = 1
 shove_deadstop_chance = 100
@@ -1033,7 +1034,7 @@ witch_autocrown = 0";
 
 	Logger.Debug("BotShootAtEntity - bot: " + bot.GetPlayerName() + " - entity: " + entity);
 
-	Left4Utils.PlayerPressButton(bot, BUTTON_ATTACK, Settings.button_holdtime_tap, entity.GetCenter(), 0, 0, lockLook, unlockLookDelay);
+	PlayerPressButton(bot, BUTTON_ATTACK, Settings.button_holdtime_tap, entity.GetCenter(), 0, 0, lockLook, unlockLookDelay);
 }
 
 // Force the given bot to fire a single bullet with the active weapon at the position of the entity's attachment with the given id
@@ -1052,7 +1053,7 @@ witch_autocrown = 0";
 
 	Logger.Debug("BotShootAtEntityAttachment - bot: " + bot.GetPlayerName() + " - entity: " + entity + " - attachmentid: " + attachmentid);
 
-	Left4Utils.PlayerPressButton(bot, BUTTON_ATTACK, Settings.button_holdtime_tap, entity.GetAttachmentOrigin(attachmentid), 0, 0, lockLook, unlockLookDelay);
+	PlayerPressButton(bot, BUTTON_ATTACK, Settings.button_holdtime_tap, entity.GetAttachmentOrigin(attachmentid), 0, 0, lockLook, unlockLookDelay);
 }
 
 // Returns the closest valid enemy for the given bot within the given radius and minimum dot
@@ -2004,7 +2005,9 @@ witch_autocrown = 0";
 
 		// Retry, but only after the timed unforce+unfreeze of the previous button press have done, otherwise the new heal will be interrupted
 		if (IsPlayerABot(bot))
-			Left4Timers.AddTimer(null, Settings.button_holdtime_heal - 0.5, @(params) ::Left4Bots.BotOrderRetry.bindenv(::Left4Bots)(params.bot, params.order), { bot = bot, order = order });
+			//lxc apply changes
+			//Left4Timers.AddTimer(null, Settings.button_holdtime_heal - 0.5, @(params) ::Left4Bots.BotOrderRetry.bindenv(::Left4Bots)(params.bot, params.order), { bot = bot, order = order });
+			Left4Timers.AddTimer(null, 0.5, @(params) ::Left4Bots.BotOrderRetry.bindenv(::Left4Bots)(params.bot, params.order), { bot = bot, order = order });
 	}
 }
 
@@ -2128,7 +2131,9 @@ witch_autocrown = 0";
 
 	Logger.Debug("Bot " + player.GetPlayerName() + " deploying upgrade " + itemClass);
 
-	Left4Utils.PlayerPressButton(player, BUTTON_ATTACK, 2.2, null, 0, 0, true);
+	//lxc apply changes
+	//PlayerPressButton(player, BUTTON_ATTACK, 2.2, null, 0, 0, true);
+	PlayerPressButton(player, BUTTON_ATTACK, 0.0, null, 0, 0, true);
 }
 
 // Think function that is attached to any spawned tank rock
@@ -2181,21 +2186,30 @@ witch_autocrown = 0";
 				// a must be between -dodge_rock_diffangle and dodge_rock_diffangle. a > 0 -> the bot should run to the rock's left. a < 0 -> the bot should run to the rock's right
 				if (!(id in DodgingBots) && l4b.Settings.dodge_rock && a >= -l4b.Settings.dodge_rock_diffangle && a <= l4b.Settings.dodge_rock_diffangle && l4b.TryDodge(bot, lft, a > 0, l4b.Settings.dodge_rock_mindistance, l4b.Settings.dodge_rock_maxdistance))
 					DodgingBots[id] <- 1;
-				else if (l4b.Settings.shoot_rock && a >= -l4b.Settings.shoot_rock_diffangle && a <= l4b.Settings.shoot_rock_diffangle)
+				//lxc now we can move and shoot in same time, rock can be destroyed if health > 0, don't waste bullets
+				if (l4b.Settings.shoot_rock && self.GetHealth() > 0 && a >= -l4b.Settings.shoot_rock_diffangle && a <= l4b.Settings.shoot_rock_diffangle)
 				{
 					local aw = bot.GetActiveWeapon();
 					if (aw && aw.IsValid() && Time() >= NetProps.GetPropFloat(aw, "m_flNextPrimaryAttack") && distance <= l4b.GetWeaponRangeById(Left4Utils.GetWeaponId(aw)))
 					{
-						Left4Utils.PlayerPressButton(bot, BUTTON_ATTACK, l4b.Settings.button_holdtime_tap, self.GetCenter() + (fwd * l4b.Settings.shoot_rock_ahead), 0, 0, true); // Try to shoot slightly in front of the rock
-
-						l4b.Logger.Debug(bot.GetPlayerName() + " shooting at rock " + self.GetEntityIndex());
+						//l4b.PlayerPressButton(bot, BUTTON_ATTACK, 0.0, self.GetCenter() + (fwd * l4b.Settings.shoot_rock_ahead), 0, 0, true); // Try to shoot slightly in front of the rock
+						
+						//lxc no need freeze bot anymore
+						local scope = bot.GetScriptScope();
+						if (scope.AimType <= AI_AIM_TYPE.Rock)
+						{
+							scope.BotSetAim(AI_AIM_TYPE.Rock, self, 0.5); //need refresh target, if can't see rock, will pasue aim and shoot after this delay
+							Left4Utils.PlayerForceButton(bot, BUTTON_ATTACK);
+							
+							l4b.Logger.Debug(bot.GetPlayerName() + " shooting at rock " + self.GetEntityIndex());
+						}
 					}
 				}
 			}
 		}
 	}
 
-	return 0.01;
+	return -1;
 }
 
 // Loads the given survivor weapon preference file and returns an array with 5 elements (one for each inventory slot)
@@ -2939,6 +2953,10 @@ witch_autocrown = 0";
 	NetProps.SetPropEntity(bot, "m_reviveTarget", null);
 	NetProps.SetPropEntity(subject, "m_reviveOwner", null);
 
+	//lxc clear progress bar and revive animation for survivor, if 'subject' is human, it's necessary
+	NetProps.SetPropFloat(bot, "m_flProgressBarDuration", 0);
+	NetProps.SetPropFloat(subject, "m_flProgressBarDuration", 0);
+	
 	Left4Utils.BotCmdReset(bot);
 
 	//BotThrow(bot, pos);
@@ -2981,15 +2999,20 @@ witch_autocrown = 0";
 		return;
 
 	local points = GetSmokerTargetPoints(tongue, smoker, victim);
-	local tracemask_others = Settings.tracemask_others;
-	local button_holdtime_tap = Settings.button_holdtime_tap;
+
 	foreach (bot in Bots)
 	{
 		//if (bot && bot.IsValid() && !bot.IsDying() && NetProps.GetPropInt(bot, "m_reviveTarget") <= 0 && NetProps.GetPropInt(bot, "m_iCurrentUseAction") <= 0 && !Left4Utils.IsPlayerHeld(bot))
 		if (bot && bot.IsValid() && !bot.IsDying() && !SurvivorCantMove(bot, bot.GetScriptScope().Waiting))
 		{
+			//lxc check first
+			local scope = bot.GetScriptScope();
+			if (scope.AimType > AI_AIM_TYPE.Shoot)
+				continue;
+			
 			//Left4Utils.BotCmdAttack(bot, smoker);
 
+			//lxc ValidWeaponForSmoker() can not match "weapon_autoshotgun"
 			if (ValidWeaponForSmoker(bot.GetActiveWeapon()) && !CanTraceToSmoker(bot, smoker))
 			{
 				if ((victim.GetCenter() - bot.GetCenter()).Length() < 100)
@@ -3001,19 +3024,23 @@ witch_autocrown = 0";
 				for (local i = 0; i < points.len(); i++)
 				{
 					local p = points[i];
-					if (Left4Utils.CanTraceToPos(bot, p, tracemask_others))
+					if (Left4Utils.CanTraceToPos(bot, p, Settings.tracemask_others))
 					{
+						//lxc no need freeze bot anymore
+						scope.BotSetAim(AI_AIM_TYPE.Shoot, p, 0.5); //need refresh target next time
+						Left4Utils.PlayerForceButton(bot, BUTTON_ATTACK);
+					
 						Logger.Info(bot.GetPlayerName() + " shooting the smoker's tongue");
 
 						//DebugDrawCircle(p, Vector(255, 0, 0), 255, 2, true, 1.5);
-
 						if (duck)
-							Left4Utils.PlayerPressButton(bot, BUTTON_DUCK, 1.5, p, 0, 0, true);
-						Left4Utils.PlayerPressButton(bot, BUTTON_ATTACK, button_holdtime_tap, p, 0, 0, true);
-						Left4Timers.AddTimer(null, 0.5, @(params) ::Left4Utils.PlayerPressButton(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = bot, button = BUTTON_ATTACK, holdTime = button_holdtime_tap, destination = p, deltaPitch = 0, deltaYaw = 0, lockLook = true });
-						Left4Timers.AddTimer(null, 0.9, @(params) ::Left4Utils.PlayerPressButton(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = bot, button = BUTTON_ATTACK, holdTime = button_holdtime_tap, destination = p, deltaPitch = 0, deltaYaw = 0, lockLook = true });
-						Left4Timers.AddTimer(null, 1.4, @(params) ::Left4Utils.PlayerPressButton(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = bot, button = BUTTON_ATTACK, holdTime = button_holdtime_tap, destination = p, deltaPitch = 0, deltaYaw = 0, lockLook = true });
-
+							PlayerPressButton(bot, BUTTON_DUCK, 1.5, p, 0, 0, true);
+						
+						/*PlayerPressButton(bot, BUTTON_ATTACK, 0, p, 0, 0, true);
+						Left4Timers.AddTimer(null, 0.5, @(params) PlayerPressButton(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = bot, button = BUTTON_ATTACK, holdTime = 0, destination = p, deltaPitch = 0, deltaYaw = 0, lockLook = true });
+						Left4Timers.AddTimer(null, 0.9, @(params) PlayerPressButton(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = bot, button = BUTTON_ATTACK, holdTime = 0, destination = p, deltaPitch = 0, deltaYaw = 0, lockLook = true });
+						Left4Timers.AddTimer(null, 1.4, @(params) PlayerPressButton(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = bot, button = BUTTON_ATTACK, holdTime = 0, destination = p, deltaPitch = 0, deltaYaw = 0, lockLook = true });*/
+						
 						break;
 					}
 					//else
@@ -3160,9 +3187,6 @@ witch_autocrown = 0";
 {
 	local aw = bot.GetActiveWeapon();
 	if (aw && aw.IsValid() && Left4Utils.GetWeaponSlotById(Left4Utils.GetWeaponId(aw)) == 5) // <- Carry item
-		//Left4Timers.AddTimer(null, 0.01, @(params) ::Left4Utils.PlayerPressButton(params.bot, params.button, params.holdtime), { bot = bot, button = BUTTON_USE, holdtime = Settings.button_holdtime_tap });
-		//Left4Utils.PlayerPressButton(bot, BUTTON_USE, Settings.button_holdtime_tap); // Drop it
-		//bot.DropItem(aw.GetClassname());
 		BotSwitchToAnotherWeapon(bot); // <- Best method
 }
 
@@ -3258,6 +3282,109 @@ witch_autocrown = 0";
 	NetProps.SetPropInt(player, "m_afButtonDisabled", NetProps.GetPropInt(player, "m_afButtonDisabled") & (~BUTTON_ATTACK)); // enable FIRE button
 	NetProps.SetPropInt(player, "m_afButtonForced", 0); // clear forced buttons
 	//NetProps.SetPropInt(player, "m_afButtonForced", NetProps.GetPropInt(player, "m_afButtonForced") & (~BUTTON_DUCK));
+}
+
+//lxc check if we need holding button, otherwise release. by this, we don't need get "m_nUseTime", and quickly unfreeze if bot release button for other reason.
+::Left4Bots.CheckReleaseButton <- function (bot, button)
+{
+	//m_iCurrentUseAction 0 = none, 1 = first aid, func_button_timed, 4 = defibrillator, 5 = revive from defibrillator
+															//lxc if "m_useActionOwner" is me, means I pressed the button						//help friend
+	if ((NetProps.GetPropInt(bot, "m_iCurrentUseAction") > 0 && NetProps.GetPropEntity(bot, "m_useActionOwner") == bot) || NetProps.GetPropEntity(bot, "m_reviveTarget"))
+	{
+		//lxc keep frozen
+		NetProps.SetPropInt(bot, "m_fFlags", NetProps.GetPropInt(bot, "m_fFlags") | (1 << 5));
+		
+		//lxc repeat every 0.1s
+		DoEntFire("!self", "RunScriptCode", format("Left4Bots.CheckReleaseButton(self, %d);", button), 0.099, null, bot);
+	}
+	else
+	{
+		Left4Utils.PlayerUnForceButton(bot, button);
+		Left4Utils.UnfreezePlayer(bot);
+	}
+}
+
+//lxc if timeout, release button
+::Left4Bots.ReleaseButton <- function (bot, button, endtime)
+{
+	if (Time() < endtime)
+	{
+		//lxc keep frozen
+		NetProps.SetPropInt(bot, "m_fFlags", NetProps.GetPropInt(bot, "m_fFlags") | (1 << 5));
+		
+		//lxc repeat every 0.1s
+		DoEntFire("!self", "RunScriptCode", format("Left4Bots.ReleaseButton(self, %d, %f);", button, endtime), 0.099, null, bot);
+	}
+	else
+	{
+		Left4Utils.PlayerUnForceButton(bot, button);
+		Left4Utils.UnfreezePlayer(bot);
+	}
+}
+
+//lxc get head, otherwise return center pos
+::Left4Bots.GetHitPos <- function (victim)
+{
+	if ("LookupBone" in victim)
+	{
+		//survivor, common infected, smoker, boomer, hunter, witch
+		local BoneId = victim.LookupBone("ValveBiped.Bip01_Head1");
+							//spitter, jockey, charger						//tank
+		if (BoneId != -1 || (BoneId = victim.LookupBone("bip_head")) != -1 || (BoneId = victim.LookupBone("ValveBiped.Bip01_Head")) != -1)
+			return victim.GetBoneOrigin(BoneId);
+	}
+	
+	return victim.GetOrigin();
+	//return victim.GetCenter();
+}
+
+// Moved here because Left4Utils.PlayerPressButton can be used by other addons
+::Left4Bots.PlayerPressButton <- function (player, button, holdTime = 0.0, destination = null, deltaPitch = 0, deltaYaw = 0, lockLook = false, unlockLookDelay = 0)
+{
+	if (!player || !player.IsValid())
+		return;
+	
+	if (lockLook)
+	{
+		//lxc make bot look at target
+		local scope = player.GetScriptScope();
+		local aimtype = AI_AIM_TYPE.Order;
+		//lxc Make the bot keep looking at the target At least 0.5s even after the order is completed, making them looks like the vanilla AI
+		local aimtime = 0.5;
+		
+		//lxc don't freeze if throw grenade
+		if (unlockLookDelay == 0)
+			NetProps.SetPropInt(player, "m_fFlags", NetProps.GetPropInt(player, "m_fFlags") | (1 << 5)); // set FL_FROZEN
+		//Left4Timers.AddTimer(null, holdTime + unlockLookDelay, @(params) ::Left4Utils.UnfreezePlayer(params.player), { player = player });
+		else
+		{
+			//lxc deal with throw grenade
+			aimtype = AI_AIM_TYPE.Throw;
+			aimtime = unlockLookDelay;
+		}
+		
+		//lxc fix bots rotating when pick up item
+		local aimtarget = (typeof(destination) == "instance" && !("GetLastKnownArea" in destination)) ? destination.GetOrigin() : destination;
+		
+		scope.BotSetAim(aimtype, aimtarget, aimtime, deltaPitch, deltaYaw);
+		Left4Utils.PlayerUnForceButton(player, BUTTON_ATTACK); //lxc in case...
+	}
+	
+	if (destination != null || deltaPitch != 0 || deltaYaw != 0)
+		Left4Utils.BotLookAt(player, destination, deltaPitch, deltaYaw);
+	
+	Left4Utils.PlayerForceButton(player, button);
+	
+	//lxc new func
+	if (holdTime == 0.0)
+	{
+		DoEntFire("!self", "RunScriptCode", format("Left4Bots.CheckReleaseButton(self, %d);", button), 0.099, null, player);
+	}
+	else //lxc if user set custom use time
+	{
+		DoEntFire("!self", "RunScriptCode", format("Left4Bots.ReleaseButton(self, %d, %f);", button, Time() + holdTime), -1, null, player);
+	}
+	//Left4Timers.AddTimer(null, holdTime, @(params) ::Left4Utils.PlayerUnForceButton(params.player, params.button), { player = player, button = button });
 }
 
 // Helps update the COMMANDS.md file on the github repo

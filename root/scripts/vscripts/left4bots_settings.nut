@@ -9,13 +9,13 @@
 	bot_think_interval = -1
 
 	// How long do the bots hold down the button to defib a dead survivor
-	button_holdtime_defib = 3.2
+	//button_holdtime_defib = 3.2 // TODO: Remove
 
 	// How long do the bots hold down the button to heal
-	button_holdtime_heal = 5.3
+	//button_holdtime_heal = 5.3 // TODO: Remove
 
 	// How long do the bots hold down the button to pour gascans/cola
-	button_holdtime_pour = 2.2
+	//button_holdtime_pour = 2.2 // TODO: Remove
 
 	// How long do the bots hold down a button to do single tap button press (it needs to last at least 2 ticks, so it must be greater than 0.033333 or the weapons firing can fail)
 	button_holdtime_tap = 0.04
@@ -243,11 +243,14 @@
 	// 4 = [ERROR], [WARNING], [INFO] and [DEBUG]
 	loglevel = 3
 
-	// [0.0 - 1.0] While executing MOVE commands, this is how straight the bot should be looking at the enemy in order to shoot it
+	// [1/0] Enable/Disable the manual attack while not executing any MOVE command. 0 = Manual attack only while executing MOVE commands, 1 = Always
+	manual_attack_always = 0
+
+	// [0.0 - 1.0] While executing MOVE commands (or always if manual_attack_always = 1), this is how straight the bot should be looking at the enemy in order to shoot it
 	// 0.0 = Even the enemies behind will be shoot (CSGO spinbot style). 1.0 = The bot will probably never shoot
 	manual_attack_mindot = 0.94
 
-	// While executing MOVE commands, this is the max distance of the enemies that the bot will shoot
+	// While executing MOVE commands (or always if manual_attack_always = 1), this is the max distance of the enemies that the bot will shoot
 	manual_attack_radius = 950
 
 	// Maximum distance from a generic destination position for setting the travel done
@@ -316,7 +319,7 @@
 	pickups_melee_noprimary = 1
 
 	// Pick up the item we are looking for when within this range
-	pickups_pick_range = 90
+	pickups_pick_range = 80
 
 	// Items to pick up must be within this radius (and be visible to the bot)
 	pickups_scan_radius = 400

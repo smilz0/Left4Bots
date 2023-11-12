@@ -35,6 +35,11 @@ Msg("Including left4bots_events...\n");
 	Left4Timers.AddThinker("L4BThinker", Left4Bots.Settings.thinkers_think_interval, ::Left4Bots.OnThinker.bindenv(::Left4Bots), {});
 
 	DirectorScript.GetDirectorOptions().cm_ShouldHurry <- Left4Bots.Settings.should_hurry;
+	
+	
+	//lxc set val
+	Left4Bots.Settings.button_holdtime_tap = 0;  // TODO: remove
+	Left4Bots.Settings.pickups_pick_range = 80;
 }
 
 ::Left4Bots.Events.OnGameEvent_round_end <- function (params)
@@ -364,6 +369,16 @@ Msg("Including left4bots_events...\n");
 	::Left4Bots.OnPlayerUse.bindenv(::Left4Bots)(player, entity);
 }
 
+//lxc molotov has his own event
+::Left4Bots.Events.OnGameEvent_molotov_thrown <- function (params)
+{
+	local player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+	
+	Left4Bots.Logger.Debug(player.GetPlayerName() + " threw molotov");
+	
+	Left4Bots.LastMolotovTime = Time();
+}
+
 ::Left4Bots.Events.OnGameEvent_weapon_fire <- function (params)
 {
 	local player = g_MapScript.GetPlayerFromUserID(params["userid"]);
@@ -376,12 +391,40 @@ Msg("Including left4bots_events...\n");
 		Left4Bots.Logger.Debug(player.GetPlayerName() + " threw " + weapon);
 
 		Left4Bots.LastNadeTime = Time();
+		
+		//lxc freeze bot 0.2s
+		if (params["userid"] in ::Left4Bots.Bots)
+		{
+			player.SetVelocity(player.GetVelocity() * 0.3); //lxc reduce speed
+			NetProps.SetPropInt(player, "m_fFlags", NetProps.GetPropInt(player, "m_fFlags") | (1 << 5)); // set FL_FROZEN
+			DoEntFire("!self", "RunScriptCode", "Left4Utils.UnfreezePlayer(self);", 0.2, null, player);
+		}
 	}
 	else if (weapon == "molotov")
 	{
 		Left4Bots.Logger.Debug(player.GetPlayerName() + " threw " + weapon);
 
 		Left4Bots.LastMolotovTime = Time();
+		
+		//lxc freeze bot 0.2s
+		if (params["userid"] in ::Left4Bots.Bots)
+		{
+			player.SetVelocity(player.GetVelocity() * 0.3); //lxc reduce speed
+			NetProps.SetPropInt(player, "m_fFlags", NetProps.GetPropInt(player, "m_fFlags") | (1 << 5)); // set FL_FROZEN
+			DoEntFire("!self", "RunScriptCode", "Left4Utils.UnfreezePlayer(self);", 0.2, null, player);
+		}
+	}
+	//lxc in "weapon_fire" event, we can make bots look at target, this work together with 'BotAim()' in BotThink_Main.
+	else if (params["userid"] in ::Left4Bots.Bots)
+	{
+		local scope = player.GetScriptScope();
+		//lxc if not gun or melee, skip
+		if (scope.ActiveWeaponSlot == 0 || scope.ActiveWeaponSlot == 1)
+		{
+			if (scope.BotAim())
+				//lxc Full Automatic Weapon, so we don't need release attack button
+				NetProps.SetPropInt(player.GetActiveWeapon(), "m_isHoldingFireButton", 0);
+		}
 	}
 }
 
@@ -459,7 +502,9 @@ Msg("Including left4bots_events...\n");
 
 	// Victim is supposed to be the infected's lookat survivor but if another survivor gets in the way, he will be the victim without trying to deadstop the special
 	local victim = NetProps.GetPropEntity(player, "m_lookatPlayer");
-	if (!victim || !victim.IsValid() || !victim.IsPlayer() || !("IsSurvivor" in victim) || !victim.IsSurvivor() || !IsPlayerABot(victim) || Time() < NetProps.GetPropFloat(victim, "m_flNextShoveTime"))
+	//if (!victim || !victim.IsValid() || !victim.IsPlayer() || !("IsSurvivor" in victim) || !victim.IsSurvivor() || !IsPlayerABot(victim) || Time() < NetProps.GetPropFloat(victim, "m_flNextShoveTime"))
+	//lxc only check handle bots
+	if (!victim || !victim.IsValid() || !("BotSetAim" in victim.GetScriptScope()) || Time() < NetProps.GetPropFloat(victim, "m_flNextShoveTime"))
 		return;
 
 	local d = (victim.GetOrigin() - player.GetOrigin()).Length();
@@ -469,10 +514,32 @@ Msg("Including left4bots_events...\n");
 	if (d > 700) // Too far to be a threat
 		return;
 
+	//lxc apply changes
 	if (d <= 150)
-		Left4Utils.PlayerPressButton(victim, BUTTON_SHOVE, Left4Bots.Settings.button_holdtime_tap, player, Left4Bots.Settings.shove_deadstop_deltapitch, 0, false);
+	{
+		//::Left4Bots.PlayerPressButton(victim, BUTTON_SHOVE, Left4Bots.Settings.button_holdtime_tap, player, Left4Bots.Settings.shove_deadstop_deltapitch, 0, false);
+		victim.GetScriptScope().BotSetAim(AI_AIM_TYPE.Shove, player, 0.233);
+		::Left4Bots.PlayerPressButton(victim, BUTTON_SHOVE);
+	}
 	else
-		Left4Timers.AddTimer(null, 0.001 * d, @(params) ::Left4Utils.PlayerPressButton(params.player, BUTTON_SHOVE, ::Left4Bots.Settings.button_holdtime_tap, params.destination, Left4Bots.Settings.shove_deadstop_deltapitch, 0, false), { player = victim, destination = player });
+	{
+		DoEntFire("!self", "RunScriptCode", @"
+			if (activator && !activator.IsDead() && !activator.IsDying() && !activator.IsStaggering())
+			{
+				local nextshove = NetProps.GetPropFloat(self, ""m_flNextShoveTime"");
+				if (Time() >= nextshove)
+				{
+					BotSetAim(AI_AIM_TYPE.Shove, activator, 0.233);
+					L4B.PlayerPressButton(self, BUTTON_SHOVE);
+				}
+				else //lxc can still stop hunter and jockey in left time, the success rate is proportional to the left time
+				{
+					BotSetAim(AI_AIM_TYPE.Shove, Left4Bots.GetHitPos(activator), nextshove - Time());
+				}
+			}
+		", 0.001 * d, player, victim);
+		//Left4Timers.AddTimer(null, 0.001 * d, @(params) ::Left4Bots.PlayerPressButton(params.player, BUTTON_SHOVE, 0, params.destination, Left4Bots.Settings.shove_deadstop_deltapitch, 0, false), { player = victim, destination = player });
+	}
 }
 
 ::Left4Bots.Events.OnGameEvent_player_entered_checkpoint <- function (params)
@@ -652,7 +719,7 @@ Msg("Including left4bots_events...\n");
 
 			Left4Bots.Logger.Debug(player.GetPlayerName() + " FORCE HEAL");
 
-			Left4Utils.PlayerPressButton(player, BUTTON_ATTACK, Left4Bots.Settings.button_holdtime_heal, null, 0, 0, true); // <- Without lockLook the vanilla AI will be able to interrupt the healing
+			::Left4Bots.PlayerPressButton(player, BUTTON_ATTACK, 0, null, 0, 0, true); // <- Without lockLook the vanilla AI will be able to interrupt the healing
 		}
 	}
 }
