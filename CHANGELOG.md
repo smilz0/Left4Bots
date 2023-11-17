@@ -1,5 +1,29 @@
 # Changelog
 
+## [v0.4.0-alpha](https://github.com/smilz0/Left4Bots/tree/v0.4.0-alpha) (2023-11-12)
+
+[Full Changelog](https://github.com/smilz0/Left4Bots/compare/v0.3.0-alpha...v0.4.0-alpha)
+
+**Implemented enhancements:**
+
+- Aiming and other improvements + new setting: "manual\_attack\_always" [\#55](https://github.com/smilz0/Left4Bots/issues/55)
+- New admin command: '!l4b findsettings \<string\>' [\#54](https://github.com/smilz0/Left4Bots/issues/54)
+- New setting: 'thinkers\_think\_interval' and 'bot\_think\_interval' default = -1 [\#53](https://github.com/smilz0/Left4Bots/issues/53)
+- New setting: 'moveto\_nav' [\#52](https://github.com/smilz0/Left4Bots/issues/52)
+- New settings 'damage\_barricade' and 'damage\_other' [\#51](https://github.com/smilz0/Left4Bots/issues/51)
+- New command: 'destroy' \(with smart use setting 'smart\_use\_destroy'\) [\#50](https://github.com/smilz0/Left4Bots/issues/50)
+- Allow 2 different l4b commands for the same vocalizer line [\#48](https://github.com/smilz0/Left4Bots/issues/48)
+- New command: !l4b help \[command\] [\#46](https://github.com/smilz0/Left4Bots/issues/46)
+- give/swap weapons \(new settings: 'give\_bots\_weapons', 'userlevel\_give\_weapons'\) [\#45](https://github.com/smilz0/Left4Bots/issues/45)
+
+**Fixed bugs:**
+
+- Player replacing a 'wait' bot can't move [\#47](https://github.com/smilz0/Left4Bots/issues/47)
+
+**Closed issues:**
+
+- improve search "tank\_rock" [\#56](https://github.com/smilz0/Left4Bots/issues/56)
+
 ## [v0.3.0-alpha](https://github.com/smilz0/Left4Bots/tree/v0.3.0-alpha) (2023-10-09)
 
 [Full Changelog](https://github.com/smilz0/Left4Bots/compare/v0.2.0-alpha...v0.3.0-alpha)
