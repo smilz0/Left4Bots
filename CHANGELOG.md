@@ -20,10 +20,6 @@
 
 - Player replacing a 'wait' bot can't move [\#47](https://github.com/smilz0/Left4Bots/issues/47)
 
-**Closed issues:**
-
-- improve search "tank\_rock" [\#56](https://github.com/smilz0/Left4Bots/issues/56)
-
 ## [v0.3.0-alpha](https://github.com/smilz0/Left4Bots/tree/v0.3.0-alpha) (2023-10-09)
 
 [Full Changelog](https://github.com/smilz0/Left4Bots/compare/v0.2.0-alpha...v0.3.0-alpha)
