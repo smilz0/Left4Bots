@@ -44,6 +44,7 @@ const LOG_LEVEL_DEBUG = 4;
 	Logger = Left4Logger("L4B")
 	Initialized = false
 	ModeName = ""
+	BaseModeName = ""
 	MapName = ""
 	Difficulty = "" // easy, normal, hard, impossible
 	SurvivorSet = 2
@@ -100,7 +101,6 @@ const LOG_LEVEL_DEBUG = 4;
 	TeamDefibs = 0
 	TeamChainsaws = 0
 	TeamMelee = 0
-	ScavengeStarted = false
 	ScavengeUseTarget = null
 	ScavengeUseTargetPos = null
 	ScavengeUseType = 0
@@ -113,6 +113,52 @@ const LOG_LEVEL_DEBUG = 4;
 	OnTankCvars = {}
 	OnTankCvarsBak = {}
 	AIFuncs = {}
+	
+	//lxc check infected's status, is there a better way?
+	InfectedCalmAct =
+	[
+		"", //empty when spawn
+		
+		//Basically includes all calm actions
+		"ACT_TERROR_IDLE_NEUTRAL",
+		"ACT_TERROR_FACE_RIGHT_NEUTRAL",
+		"ACT_TERROR_FACE_LEFT_NEUTRAL",
+		"ACT_TERROR_ABOUT_FACE_NEUTRAL",
+		"ACT_TERROR_CROUCH_IDLE_NEUTRAL",
+		"ACT_TERROR_ALERT_TO_NEUTRAL",
+		"ACT_TERROR_WALK_NEUTRAL",
+		"ACT_TERROR_SHAMBLE",
+		"ACT_TERROR_JUMP_LANDING_NEUTRAL",
+		"ACT_TERROR_JUMP_LANDING_HARD_NEUTRAL",
+		"ACT_TERROR_SIT_FROM_STAND",
+		"ACT_TERROR_SIT_IDLE",
+		"ACT_TERROR_SIT_TO_STAND",
+		"ACT_TERROR_SIT_IN_CHAIR_FROM_STAND",
+		"ACT_TERROR_SIT_IN_CHAIR_IDLE",
+		"ACT_TERROR_SIT_IN_CHAIR_TO_STAND",
+		"ACT_TERROR_LIE_FROM_STAND",
+		"ACT_TERROR_LIE_IDLE",
+		"ACT_TERROR_LIE_TO_STAND",
+		"ACT_TERROR_LIE_TO_SIT",
+		"ACT_TERROR_SIT_TO_LIE",
+		"ACT_TERROR_LEAN_RIGHTWARD_IDLE",
+		"ACT_TERROR_LEAN_BACKWARD_IDLE",
+		"ACT_TERROR_LEAN_LEFTWARD_IDLE",
+		"ACT_TERROR_LEAN_FORWARD_IDLE",
+		
+		//"ACT_TERROR_IDLE_ACQUIRE", //Indicates that the infected has set a target. If you shoot it from a distance, this actions may be played. Otherwise, the following actions will be played.
+		
+		//Here's where the infected find the threat, but have no clear target
+		"ACT_TERROR_IDLE_ALERT",
+		"ACT_TERROR_IDLE_ALERT_BEHIND",
+		"ACT_TERROR_IDLE_ALERT_LEFT",
+		"ACT_TERROR_IDLE_ALERT_RIGHT",
+		"ACT_TERROR_IDLE_ALERT_AHEAD",
+		"ACT_TERROR_IDLE_ALERT_INJURED_BEHIND",
+		"ACT_TERROR_IDLE_ALERT_INJURED_LEFT",
+		"ACT_TERROR_IDLE_ALERT_INJURED_RIGHT",
+		"ACT_TERROR_IDLE_ALERT_INJURED_AHEAD"
+	]
 }
 
 IncludeScript("left4bots_settings");
@@ -126,12 +172,7 @@ IncludeScript("left4bots_settings");
 		return;
 	}
 
-	ModeName = SessionState.ModeName;
-	MapName = SessionState.MapName;
-	Difficulty = Convars.GetStr("z_difficulty").tolower();
-	SurvivorSet = Director.GetSurvivorSet();
-
-	Logger.Info("Initializing for game mode: " + ModeName + " - map name: " + MapName + " - difficulty: " + Difficulty);
+	Logger.Info("Initializing for game mode: " + ModeName + " (" + BaseModeName + ") - map name: " + MapName + " - difficulty: " + Difficulty);
 
 	Logger.Info("Loading settings...");
 	Left4Utils.LoadSettingsFromFileNew("left4bots2/cfg/settings.txt", "Left4Bots.Settings.", Logger);
@@ -246,6 +287,7 @@ heal_interrupt_minhealth = 40
 horde_nades_chance = 35
 jockey_redirect_damage = 45
 manual_attack_mindot = 0.90
+manual_attack_skill = 2
 shove_deadstop_chance = 100
 spit_block_nav = 1
 tank_molotov_chance = 50
@@ -265,6 +307,7 @@ horde_nades_chance = 35
 jockey_redirect_damage = 50
 manual_attack_always = 1
 manual_attack_mindot = 0.90
+manual_attack_skill = 3
 scavenge_max_bots = 1
 shove_deadstop_chance = 100
 signal_chat = 1
@@ -332,13 +375,13 @@ witch_autocrown = 0";
 			"AskForHealth2 = bot heal me,botname heal me"
 			"PlayerAnswerLostCall = bot give,botname give",
 			"iMT_PlayerHello = bot swap,botname swap",
+			"PlayerImWithYou = bots automation,botname automation",
+			"PlayerYellRun = bots automation all,botname automation all" // TODO: test, remove
 			//"TODO = bots warp,botname warp",
 			//"TODO = bot tempheal,botname tempheal",
 			//"TODO = bot deploy,botname deploy",
 			//"TODO = bot throw,botname throw",
 			//"TODO = bots die,botname die",
-			//"PlayerYellRun = ?",
-			//"PlayerImWithYou = next thing to do" // TODO:
 		];
 
 		Left4Utils.StringListToFile("left4bots2/cfg/vocalizer.txt", defaultValues, false);
@@ -622,8 +665,8 @@ witch_autocrown = 0";
 	// Stop the inventory manager
 	Left4Timers.RemoveTimer("InventoryManager");
 
-	// Stop the scavenge logics
-	ScavengeStop();
+	// Stop the automation task manager
+	Left4Timers.RemoveTimer("TaskManager");
 
 	// Stop the cleaner
 	Left4Timers.RemoveTimer("Cleaner");
@@ -635,6 +678,9 @@ witch_autocrown = 0";
 	::HooksHub.RemoveChatCommandHandler("l4b");
 	::HooksHub.RemoveConsoleCommandHandler("l4b");
 	::HooksHub.RemoveAllowTakeDamage("L4B");
+
+	// Stop any pending automation task
+	Automation.ResetTasks();
 
 	// Remove all the bots think functions
 	ClearBotThink();
@@ -1079,7 +1125,17 @@ witch_autocrown = 0";
 		}
 	}
 	// TODO: Just return the special if it's within a certain range?
-
+	
+	//lxc kill raged Witch if no Specials nearby
+	if (!ret)
+	{
+		foreach (witch in Witches)
+		{
+			if (witch.IsValid() && (witch.GetOrigin() - orig).Length() <= 800 && NetProps.GetPropFloat(witch, "m_rage") && Left4Utils.CanTraceTo(bot, witch, tracemask_others))
+				return witch;
+		}
+	}
+	
 	local ent = null;
 	while (ent = Entities.FindByClassnameWithin(ent, "infected", orig, radius)) // If only we had a infected_spawned event for the commons...
 	{
@@ -1088,7 +1144,8 @@ witch_autocrown = 0";
 			local toEnt = ent.GetOrigin() - orig;
 			local dist = toEnt.Length();
 			toEnt.Norm();
-			if (dist < minDist && botFacing.Dot(toEnt) >= minDot && NetProps.GetPropInt(ent, "m_lifeState") == 0 && Left4Utils.CanTraceTo(bot, ent, tracemask_others))
+																													//lxc ignore wandering infected
+			if (dist < minDist && botFacing.Dot(toEnt) >= minDot && NetProps.GetPropInt(ent, "m_lifeState") == 0 && (Settings.manual_attack_skill >= 3 || IsInfectedAngry(ent)) && Left4Utils.CanTraceTo(bot, ent, tracemask_others))
 			{
 				ret = ent;
 				minDist = dist;
@@ -1103,6 +1160,30 @@ witch_autocrown = 0";
 // It is meant to prevent the bot getting stuck in a loop if the button press, for some reason, didn't pick the item up
 ::Left4Bots.PickupFailsafe <- function (bot, item)
 {
+	//lxc if use this method, will set context to ent, so other bots will ignore it until context deleted
+	item.SetContext("skip_use", "true", -1);
+	DoEntFire("!self", "RemoveContext", "skip_use", 0.2, null, item);
+	
+	item.ValidateScriptScope(); //lxc avoid [the index 'activator' does not exist]
+	
+	//"weapon_smg, weapon_smg_silenced, weapon_shotgun_chrome, weapon_pumpshotgun, weapon_rifle, weapon_rifle_desert, weapon_rifle_ak47, weapon_rifle_sg552, weapon_shotgun_spas, weapon_autoshotgun, weapon_hunting_rifle, weapon_sniper_military, weapon_smg_mp5, weapon_sniper_scout, weapon_sniper_awp, weapon_grenade_launcher, weapon_rifle_m60, weapon_pistol, weapon_pistol_magnum"
+	//By Inputs "Use" to pickup weapon, weapons in the list above never fire "item_pickup" or "player_use" event, the remaining weapons and all spawn ent only fire "item_pickup" event.
+	
+	//lxc if "PlayerPressButton" succeed, "item_pickup" or "player_use" event will always fire before 'DoEntFire()', so use -1 delay is safe.
+	DoEntFire("!self", "RunScriptCode", @"
+	if (activator && (self.GetClassname().find(""_spawn"") ? NetProps.GetPropInt(self, ""m_itemCount"") > 0 : !self.GetMoveParent()))
+	{
+		local weaponid = Left4Utils.GetWeaponId(self);
+		if (Left4Utils.HasWeaponId(activator, weaponid, Left4Utils.GetAmmoPercent(self)))
+			return;
+		
+		Left4Bots.Logger.Debug(""PickupFailsafe - "" + activator.GetPlayerName() + "" -> "" + self + "" ("" + weaponid + "")"");
+		
+		DoEntFire(""!self"", ""Use"", """", -1, activator, self);
+		Left4Bots.OnPlayerUse(activator, self, 1);
+	}", -1, bot, item);
+	
+	/*
 	if (!bot || !bot.IsValid() || !IsValidPickup(item))
 		return;
 
@@ -1115,6 +1196,7 @@ witch_autocrown = 0";
 
 	DoEntFire("!self", "Use", "", 0, bot, item); // <- make sure i pick this up even if the real pickup (with the button) fails or i will be stuck here forever
 	OnPlayerUse(bot, item, 1); // ^this doesn't trigger the event so i do it myself
+	*/
 }
 
 // Called when the bot opens/closes a door
@@ -1360,9 +1442,11 @@ witch_autocrown = 0";
 	// If orderType = "lead" or "follow", then the bots can't have another order of that type in the queue
 	switch (orderType)
 	{
-		case "lead":
-		case "follow": // bot can't have another order of the same type in the queue
+		case "lead": // bot can't have another order of the same type in the queue
 			return !BotHasOrderOfType(bot, orderType);
+
+		case "follow":
+			return (!BotHasOrderOfType(bot, orderType) && !(bot.GetPlayerUserId() in ScavengeBots));
 		
 		case "witch": // bot must be holding a shotgun
 			return (botScope.ActiveWeapon && botScope.ActiveWeapon.GetClassname().find("shotgun") != null);
@@ -2322,7 +2406,7 @@ witch_autocrown = 0";
 // Is the entity a valid pick up?
 ::Left4Bots.IsValidPickup <- function (ent)
 {
-	if (!ent || !ent.IsValid())
+	if (!ent || !ent.IsValid() || ent.GetContext("skip_use")) //lxc filter if someone about pick
 		return false;
 
 	if (ent.GetClassname().find("_spawn") != null)
@@ -2558,55 +2642,11 @@ witch_autocrown = 0";
 	return (traceTable.fraction > 0.98 || !traceTable.hit || !traceTable.enthit || traceTable.enthit == item || traceTable.enthit.GetClassname() == "prop_health_cabinet");
 }
 
-// Starts the scavenge logics
-::Left4Bots.ScavengeStart <- function ()
-{
-	if (ScavengeStarted)
-		return; // Already started
-
-	if (!SetScavengeUseTarget())
-		return; // No use target/pos available
-
-	ScavengeStarted = true;
-
-	// Start the scavenge manager
-	Left4Timers.AddTimer("ScavengeManager", Settings.scavenge_manager_interval, ::Left4Bots.OnScavengeManager.bindenv(::Left4Bots), {}, true);
-
-	Logger.Info("Scavenge started");
-}
-
-// Stops the scavenge logics
-::Left4Bots.ScavengeStop <- function ()
-{
-	if (!ScavengeStarted)
-		return; // Already stopped
-
-	ScavengeStarted = false;
-
-	// Stop the scavenge manager
-	Left4Timers.RemoveTimer("ScavengeManager");
-
-	ScavengeUseTarget = null;
-	ScavengeUseTargetPos = null;
-	ScavengeUseType = 0;
-	ScavengeBots.clear();
-
-	// Cancel any pending scavenge order
-	foreach (bot in Bots)
-	{
-		if (bot && bot.IsValid())
-			bot.GetScriptScope().BotCancelOrders("scavenge");
-	}
-
-	Logger.Info("Scavenge stopped");
-}
-
 // Finds/Sets the scavenge use target
 ::Left4Bots.SetScavengeUseTarget <- function ()
 {
 	//Logger.Debug("SetScavengeUseTarget");
 
-	// TODO: get it from automation?
 	ScavengeUseTarget = Entities.FindByClassname(null, "point_prop_use_target");
 	if (!ScavengeUseTarget)
 		return false;
@@ -2636,8 +2676,8 @@ witch_autocrown = 0";
 	return true;
 }
 
-// Returns the list of scavenge items of type 'type'
-::Left4Bots.GetAvailableScavengeItems <- function (type)
+// Returns the list of scavenge items of type 'Left4Bots.ScavengeUseType'
+::Left4Bots.GetAvailableScavengeItems <- function ()
 {
 	//	- Spawned gascans have class "weapon_gascan" when they have been picked up by players; after spawn too but i'm not 100% sure.
 	//	  They can have different m_nSkin (default is 0).
@@ -2646,7 +2686,7 @@ witch_autocrown = 0";
 	//	- cola's class can be "prop_physics" after spawn but it becomes "weapon_cola_bottles" after being picked up by a player; model should be always the same.
 
 	local model = "models/props_junk/gascan001a.mdl";
-	if (type == SCAV_TYPE_COLA)
+	if (ScavengeUseType == SCAV_TYPE_COLA)
 		model = "models/w_models/weapons/w_cola.mdl";
 
 	local t = {};
@@ -2658,6 +2698,16 @@ witch_autocrown = 0";
 			t[++i] <- ent;
 	}
 	return t;
+}
+
+::Left4Bots.ScavengeStart <- function ()
+{
+	// TODO: Create and start a Scavenge task
+}
+
+::Left4Bots.ScavengeStop <- function ()
+{
+	// TODO: 
 }
 
 // Makes the given 'player' (likely a survivor bot) trigger the given 'alarm' (prop_car_alarm)
@@ -3027,14 +3077,14 @@ witch_autocrown = 0";
 					if (Left4Utils.CanTraceToPos(bot, p, Settings.tracemask_others))
 					{
 						//lxc no need freeze bot anymore
-						scope.BotSetAim(AI_AIM_TYPE.Shoot, p, 0.5); //need refresh target next time
+						scope.BotSetAim(AI_AIM_TYPE.Shoot, p, 0.6);
 						Left4Utils.PlayerForceButton(bot, BUTTON_ATTACK);
 					
 						Logger.Info(bot.GetPlayerName() + " shooting the smoker's tongue");
 
 						//DebugDrawCircle(p, Vector(255, 0, 0), 255, 2, true, 1.5);
 						if (duck)
-							PlayerPressButton(bot, BUTTON_DUCK, 1.5, p, 0, 0, true);
+							PlayerPressButton(bot, BUTTON_DUCK, 1.5);
 						
 						/*PlayerPressButton(bot, BUTTON_ATTACK, 0, p, 0, 0, true);
 						Left4Timers.AddTimer(null, 0.5, @(params) PlayerPressButton(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = bot, button = BUTTON_ATTACK, holdTime = 0, destination = p, deltaPitch = 0, deltaYaw = 0, lockLook = true });
@@ -3285,57 +3335,74 @@ witch_autocrown = 0";
 }
 
 //lxc check if we need holding button, otherwise release. by this, we don't need get "m_nUseTime", and quickly unfreeze if bot release button for other reason.
-::Left4Bots.CheckReleaseButton <- function (bot, button)
+::Left4Bots.CheckReleaseButton <- function (bot, button, lockLook)
 {
 	//m_iCurrentUseAction 0 = none, 1 = first aid, func_button_timed, 4 = defibrillator, 5 = revive from defibrillator
 															//lxc if "m_useActionOwner" is me, means I pressed the button						//help friend
 	if ((NetProps.GetPropInt(bot, "m_iCurrentUseAction") > 0 && NetProps.GetPropEntity(bot, "m_useActionOwner") == bot) || NetProps.GetPropEntity(bot, "m_reviveTarget"))
 	{
-		//lxc keep frozen
-		NetProps.SetPropInt(bot, "m_fFlags", NetProps.GetPropInt(bot, "m_fFlags") | (1 << 5));
+		//lxc keep frozen if needed
+		if (lockLook)
+			NetProps.SetPropInt(bot, "m_fFlags", NetProps.GetPropInt(bot, "m_fFlags") | (1 << 5));
 		
-		//lxc repeat every 0.1s
-		DoEntFire("!self", "RunScriptCode", format("Left4Bots.CheckReleaseButton(self, %d);", button), 0.099, null, bot);
+		//repeat every 0.1s
+		DoEntFire("!self", "RunScriptCode", format("Left4Bots.CheckReleaseButton(self, %d, %d);", button, lockLook), 0.099, null, bot);
 	}
 	else
 	{
 		Left4Utils.PlayerUnForceButton(bot, button);
-		Left4Utils.UnfreezePlayer(bot);
+		if (lockLook)
+			Left4Utils.UnfreezePlayer(bot);
 	}
 }
 
 //lxc if timeout, release button
-::Left4Bots.ReleaseButton <- function (bot, button, endtime)
+::Left4Bots.ReleaseButton <- function (bot, button, endtime, lockLook)
 {
 	if (Time() < endtime)
 	{
-		//lxc keep frozen
-		NetProps.SetPropInt(bot, "m_fFlags", NetProps.GetPropInt(bot, "m_fFlags") | (1 << 5));
+		//lxc keep frozen if needed
+		if (lockLook)
+			NetProps.SetPropInt(bot, "m_fFlags", NetProps.GetPropInt(bot, "m_fFlags") | (1 << 5));
 		
-		//lxc repeat every 0.1s
-		DoEntFire("!self", "RunScriptCode", format("Left4Bots.ReleaseButton(self, %d, %f);", button, endtime), 0.099, null, bot);
+		//repeat every 0.1s
+		DoEntFire("!self", "RunScriptCode", format("Left4Bots.ReleaseButton(self, %d, %f, %d);", button, endtime, lockLook), 0.099, null, bot);
 	}
 	else
 	{
 		Left4Utils.PlayerUnForceButton(bot, button);
-		Left4Utils.UnfreezePlayer(bot);
+		if (lockLook)
+			Left4Utils.UnfreezePlayer(bot);
 	}
 }
 
-//lxc get head, otherwise return center pos
-::Left4Bots.GetHitPos <- function (victim)
+// get head, otherwise return center pos
+::Left4Bots.GetHitPos <- function (victim, head = true)
 {
-	if ("LookupBone" in victim)
+	//lxc use "GetLastKnownArea" replace "LookupBone"
+	if ("GetLastKnownArea" in victim)
 	{
-		//survivor, common infected, smoker, boomer, hunter, witch
-		local BoneId = victim.LookupBone("ValveBiped.Bip01_Head1");
-							//spitter, jockey, charger						//tank
-		if (BoneId != -1 || (BoneId = victim.LookupBone("bip_head")) != -1 || (BoneId = victim.LookupBone("ValveBiped.Bip01_Head")) != -1)
-			return victim.GetBoneOrigin(BoneId);
+		if (head)
+		{
+			//survivor, common infected, smoker, boomer, hunter, witch
+			local BoneId = victim.LookupBone("ValveBiped.Bip01_Head1");
+								//spitter, jockey, charger						//tank
+			if (BoneId != -1 || (BoneId = victim.LookupBone("bip_head")) != -1 || (BoneId = victim.LookupBone("ValveBiped.Bip01_Head")) != -1)
+				return victim.GetBoneOrigin(BoneId);
+		}
+		else //body
+		{
+			//survivor, common infected, smoker, boomer, hunter, witch, tank
+			local BoneId = victim.LookupBone("ValveBiped.Bip01_Spine1");
+								//spitter, jockey, charger
+			if (BoneId != -1 || (BoneId = victim.LookupBone("bip_spine_1")) != -1)
+				return victim.GetBoneOrigin(BoneId);
+		}
 	}
 	
-	return victim.GetOrigin();
-	//return victim.GetCenter();
+	//lxc center should be better
+	//return victim.GetOrigin();
+	return victim.GetCenter();
 }
 
 // Moved here because Left4Utils.PlayerPressButton can be used by other addons
@@ -3346,28 +3413,30 @@ witch_autocrown = 0";
 	
 	if (lockLook)
 	{
-		//lxc make bot look at target
+		// make bot look at target
 		local scope = player.GetScriptScope();
+		scope.BotUnSetAim();
+		
 		local aimtype = AI_AIM_TYPE.Order;
-		//lxc Make the bot keep looking at the target At least 0.5s even after the order is completed, making them looks like the vanilla AI
+		// Make the bot keep looking at the target At least 0.5s even after the order is completed, making them looks like the vanilla AI
 		local aimtime = 0.5;
 		
-		//lxc don't freeze if throw grenade
+		// don't freeze if throw grenade
 		if (unlockLookDelay == 0)
 			NetProps.SetPropInt(player, "m_fFlags", NetProps.GetPropInt(player, "m_fFlags") | (1 << 5)); // set FL_FROZEN
 		//Left4Timers.AddTimer(null, holdTime + unlockLookDelay, @(params) ::Left4Utils.UnfreezePlayer(params.player), { player = player });
 		else
 		{
-			//lxc deal with throw grenade
+			//deal with throw grenade
+			lockLook = false;
 			aimtype = AI_AIM_TYPE.Throw;
 			aimtime = unlockLookDelay;
 		}
 		
-		//lxc fix bots rotating when pick up item
+		// fix bots rotating when pick up item
 		local aimtarget = (typeof(destination) == "instance" && !("GetLastKnownArea" in destination)) ? destination.GetOrigin() : destination;
 		
 		scope.BotSetAim(aimtype, aimtarget, aimtime, deltaPitch, deltaYaw);
-		Left4Utils.PlayerUnForceButton(player, BUTTON_ATTACK); //lxc in case...
 	}
 	
 	if (destination != null || deltaPitch != 0 || deltaYaw != 0)
@@ -3375,16 +3444,92 @@ witch_autocrown = 0";
 	
 	Left4Utils.PlayerForceButton(player, button);
 	
-	//lxc new func
 	if (holdTime == 0.0)
 	{
-		DoEntFire("!self", "RunScriptCode", format("Left4Bots.CheckReleaseButton(self, %d);", button), 0.099, null, player);
+		DoEntFire("!self", "RunScriptCode", format("Left4Bots.CheckReleaseButton(self, %d, %d);", button, lockLook.tointeger()), 0.099, null, player);
 	}
-	else //lxc if user set custom use time
+	else //if user set custom use time
 	{
-		DoEntFire("!self", "RunScriptCode", format("Left4Bots.ReleaseButton(self, %d, %f);", button, Time() + holdTime), -1, null, player);
+		DoEntFire("!self", "RunScriptCode", format("Left4Bots.ReleaseButton(self, %d, %f, %d);", button, Time() + holdTime, lockLook.tointeger()), -1, null, player);
 	}
 	//Left4Timers.AddTimer(null, holdTime, @(params) ::Left4Utils.PlayerUnForceButton(params.player, params.button), { player = player, button = button });
+}
+
+// Returns the survivors highest flow percent
+::Left4Bots.GetFlowPercent <- function ()
+{
+	local ret = 0;
+	foreach (id, surv in ::Left4Bots.Survivors)
+	{
+		if (surv && surv.IsValid())
+		{
+			local flow = GetCurrentFlowPercentForPlayer(surv);
+			if (flow > ret)
+				ret = flow;
+		}
+	}
+	return ret;
+}
+
+// TODO: Test
+::Left4Bots.GetNearestAggroedTankWithin <- function (player, min = 80, max = 1000)
+{
+	local ret = null;
+	local minDist = 1000000;
+	foreach (id, tank in ::Left4Bots.Tanks)
+	{
+		if (NetProps.GetPropInt(player, "m_lookatPlayer") >= 0)
+		{
+			local dist = (player.GetOrigin() - tank.GetOrigin()).Length();
+			if (dist >= min && dist <= max && dist < minDist)
+			{
+				ret = tank;
+				minDist = dist;
+			}
+		}
+	}
+	return ret;
+}
+
+// Handles the dodging of the spitter's acid dropped upon spitter's death
+::Left4Bots.FindSpitterDeathPool <- function (spitterpos)
+{
+	local spit = null;
+	
+	for (local ent; ent = Entities.FindByClassnameWithin(ent, "insect_swarm", spitterpos, 300); )
+	{
+		//lxc compare pos to find the dead spitter's acid
+		if ((ent.GetOrigin() - spitterpos).Length2D() == 0)
+		{
+			spit = ent;
+			break;
+		}
+	}
+	
+	if (!spit)
+		return;
+	
+	Logger.Debug("Find Spitter Death Pool - acid pool: " + spit);
+	
+	if (!Settings.dodge_spit)
+		return;
+	
+	foreach (bot in Bots)
+	{
+		if (bot.IsValid() && !SurvivorCantMove(bot, bot.GetScriptScope().Waiting))
+			TryDodgeSpit(bot, spit);
+	}
+	
+	//lxc if script_nav_blocker already created and bots in it's radius, 'TryGetPathableLocationWithin()' can not find pos.
+	//Is it possible to use "wait" command instead?
+	if (Settings.spit_block_nav)
+		Left4Timers.AddTimer(null, 3.8, ::Left4Bots.SpitterSpitBlockNav.bindenv(::Left4Bots), { spit_ent = spit });
+}
+
+// Is the given infected angry?
+::Left4Bots.IsInfectedAngry <- function (Infected)
+{
+	return InfectedCalmAct.find(Infected.GetSequenceActivityName(Infected.GetSequence())) == null;
 }
 
 // Helps update the COMMANDS.md file on the github repo
@@ -3436,9 +3581,16 @@ witch_autocrown = 0";
 
 //
 
+::Left4Bots.ModeName = SessionState.ModeName;
+::Left4Bots.BaseModeName = Director.GetGameModeBase();
+::Left4Bots.MapName = SessionState.MapName;
+::Left4Bots.Difficulty = Convars.GetStr("z_difficulty").tolower();
+::Left4Bots.SurvivorSet = Director.GetSurvivorSet();
+
 IncludeScript("left4bots_ai");
 IncludeScript("left4bots_events");
 IncludeScript("left4bots_commands");
+IncludeScript("left4bots_automation");
 
 try
 {
@@ -3450,5 +3602,6 @@ catch(exception)
 }
 
 __CollectEventCallbacks(::Left4Bots.Events, "OnGameEvent_", "GameEventCallbacks", RegisterScriptGameEventListener);
+__CollectEventCallbacks(::Left4Bots.Automation.Events, "OnGameEvent_", "GameEventCallbacks", RegisterScriptGameEventListener);
 
-Left4Bots.Initialize();
+::Left4Bots.Initialize();

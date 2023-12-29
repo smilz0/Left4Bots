@@ -122,6 +122,7 @@ enum AI_AIM_TYPE {
 	scope["BotCancelCurrentOrder"] <- AIFuncs.BotCancelCurrentOrder;
 	scope["BotCancelOrder"] <- AIFuncs.BotCancelOrder;
 	scope["BotCancelOrders"] <- AIFuncs.BotCancelOrders;
+	scope["BotCancelAutoOrders"] <- AIFuncs.BotCancelAutoOrders;
 	scope["BotCancelOrdersDestEnt"] <- AIFuncs.BotCancelOrdersDestEnt;
 	scope["BotCancelDefib"] <- AIFuncs.BotCancelDefib;
 	scope["BotCancelAll"] <- AIFuncs.BotCancelAll;
@@ -150,6 +151,9 @@ enum AI_AIM_TYPE {
 	scope.OrderHuman <- null;
 	scope.OrderTarget <- null;
 	scope["BotLockShoot"] <- AIFuncs.LockShoot;
+	
+	//lxc add
+	scope.LastFireTime <- 0;
 	
 	AddThinkToEnt(bot, "BotThink_Main");
 }
@@ -224,7 +228,10 @@ enum AI_AIM_TYPE {
 	scope["BotUnSetAim"] <- AIFuncs.BotUnSetAim;
 	//lxc don't send move command until
 	scope.NextMoveTime <- 0;
-
+	
+	//lxc add
+	scope.LastFireTime <- 0;
+	
 	AddThinkToEnt(bot, "BotThink_Main");
 }
 
@@ -262,7 +269,8 @@ enum AI_AIM_TYPE {
 		}
 		case "witch":
 		{
-			SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
+			if (from)
+				SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
 
 			order.DestRadius <- Settings.move_end_radius_witch;
 			order.MaxSeparation <- 0;
@@ -270,7 +278,8 @@ enum AI_AIM_TYPE {
 		}
 		case "heal":
 		{
-			//SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
+			//if (from)
+			//	SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
 
 			order.DestRadius <- Settings.move_end_radius_heal;
 			order.MaxSeparation <- 0;
@@ -278,7 +287,8 @@ enum AI_AIM_TYPE {
 		}
 		case "use":
 		{
-			SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
+			if (from)
+				SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
 
 			local entClass = destEnt.GetClassname();
 			if (entClass.find("weapon_") != null || entClass.find("prop_physics") != null)
@@ -308,7 +318,8 @@ enum AI_AIM_TYPE {
 			if (Left4Utils.GetWeaponSlotById(wId) != 5)
 				return null; // Not a carriable item
 
-			SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
+			if (from)
+				SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
 
 			order.Param1 <- wId;
 			order.DestRadius <- Settings.pickups_pick_range;
@@ -317,7 +328,8 @@ enum AI_AIM_TYPE {
 		}
 		case "deploy":
 		{
-			SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
+			if (from)
+				SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
 
 			order.DestRadius <- Settings.pickups_pick_range;
 			order.MaxSeparation <- 0;
@@ -331,7 +343,8 @@ enum AI_AIM_TYPE {
 		}
 		case "wait":
 		{
-			SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
+			if (from)
+				SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
 
 			order.DestRadius <- Settings.move_end_radius_wait;
 			order.MaxSeparation <- 0;
@@ -339,7 +352,8 @@ enum AI_AIM_TYPE {
 		}
 		case "destroy":
 		{
-			SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
+			if (from)
+				SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
 
 			order.DestRadius <- Settings.move_end_radius;
 			order.MaxSeparation <- 0;
@@ -347,7 +361,8 @@ enum AI_AIM_TYPE {
 		}
 		default:
 		{
-			SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
+			if (from)
+				SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
 
 			order.DestRadius <- Settings.move_end_radius;
 			order.MaxSeparation <- 0;
@@ -490,26 +505,22 @@ enum AI_AIM_TYPE {
 	BotOrderAdd(bot, order.OrderType, order.From, order.DestEnt, order.DestPos, order.DestLookAtPos, order.HoldTime, order.CanPause); // Retry
 }
 
-// Returns the number of order of type 'orderType' in the bot's queue (including CurrentOrder), or -1 if invalid bot supplied
-::Left4Bots.BotOrdersCount <- function (bot, orderType)
+// Returns the number of order of type 'orderType' (or any type if 'orderType' = null) in the bot's queue (including CurrentOrder), or -1 if invalid bot supplied
+::Left4Bots.BotOrdersCount <- function (bot, orderType = null)
 {
 	if (!IsHandledBot(bot))
 		return -1;
 
-	local count = 0;
 	local scope = bot.GetScriptScope();
+	if (!orderType)
+		return (scope.CurrentOrder != null).tointeger() + scope.Orders.len();
 
-	if (scope.CurrentOrder && scope.CurrentOrder.OrderType == orderType)
-		count++;
-
+	local count = (scope.CurrentOrder && scope.CurrentOrder.OrderType == orderType).tointeger();
 	for (local i = 0; i < scope.Orders.len(); i++)
 	{
 		if (scope.Orders[i].OrderType == orderType)
 			count++;
 	}
-
-	Logger.Debug("[AI]" + bot.GetPlayerName() + " - Has " + count + " orders of type: " + orderType);
-
 	return count;
 }
 
@@ -659,6 +670,46 @@ enum AI_AIM_TYPE {
 	return ret;
 }
 
+// Does 'bot' have an order with the given parameters?
+// true = yes, false = no, null = invalid bot
+::Left4Bots.BotHasOrder <- function (bot, orderType, destEnt = null, destPos = null, destLookAtPos = null)
+{
+	if (!IsHandledBot(bot))
+		return null;
+
+	local scope = bot.GetScriptScope();
+	if (scope.CurrentOrder && scope.CurrentOrder.OrderType == orderType && (!destEnt || scope.CurrentOrder.DestEnt == destEnt) && (!destPos || (scope.CurrentOrder.DestPos - destPos).Length() < 2) && (!destLookAtPos || (scope.CurrentOrder.DestLookAtPos - destLookAtPos).Length() < 2))
+		return true;
+
+	for (local i = 0; i < scope.Orders.len(); i++)
+	{
+		if (scope.Orders[i].OrderType == orderType && (!destEnt || scope.Orders[i].DestEnt == destEnt) && (!destPos || (scope.Orders[i].DestPos - destPos).Length() < 2) && (!destLookAtPos || (scope.Orders[i].DestLookAtPos - destLookAtPos).Length() < 2))
+			return true;
+	}
+
+	return false;
+}
+
+// Does 'bot' have an auto (From = null) order with the given parameters?
+// true = yes, false = no, null = invalid bot
+::Left4Bots.BotHasAutoOrder <- function (bot, orderType, destEnt = null, destPos = null, destLookAtPos = null)
+{
+	if (!IsHandledBot(bot))
+		return null;
+
+	local scope = bot.GetScriptScope();
+	if (scope.CurrentOrder && scope.CurrentOrder.From == null && scope.CurrentOrder.OrderType == orderType && (!destEnt || scope.CurrentOrder.DestEnt == destEnt) && (!destPos || (scope.CurrentOrder.DestPos - destPos).Length() < 2) && (!destLookAtPos || (scope.CurrentOrder.DestLookAtPos - destLookAtPos).Length() < 2))
+		return true;
+
+	for (local i = 0; i < scope.Orders.len(); i++)
+	{
+		if (scope.Orders[i].OrderType == orderType && scope.Orders[i].From == null && (!destEnt || scope.Orders[i].DestEnt == destEnt) && (!destPos || (scope.Orders[i].DestPos - destPos).Length() < 2) && (!destLookAtPos || (scope.Orders[i].DestLookAtPos - destLookAtPos).Length() < 2))
+			return true;
+	}
+
+	return false;
+}
+
 // Does 'bot' have an order of type 'orderType'?
 // true = yes, false = no, null = invalid bot
 ::Left4Bots.BotHasOrderOfType <- function (bot, orderType)
@@ -714,6 +765,25 @@ enum AI_AIM_TYPE {
 		for (local i = 0; i < scope.Orders.len(); i++)
 		{
 			if (scope.Orders[i].DestEnt && scope.Orders[i].DestEnt.IsValid() && scope.Orders[i].DestEnt.GetEntityIndex() == destEnt.GetEntityIndex())
+				return true;
+		}
+	}
+
+	return false;
+}
+
+// Does any bot have any order with the given parameters?
+::Left4Bots.BotsHaveOrder <- function (orderType, destEnt = null, destPos = null, destLookAtPos = null)
+{
+	foreach (bot in Bots)
+	{
+		local scope = bot.GetScriptScope();
+		if (scope.CurrentOrder && scope.CurrentOrder.OrderType == orderType && (!destEnt || scope.CurrentOrder.DestEnt == destEnt) && (!destPos || (scope.CurrentOrder.DestPos - destPos).Length() < 2) && (!destLookAtPos || (scope.CurrentOrder.DestLookAtPos - destLookAtPos).Length() < 2))
+			return true;
+
+		for (local i = 0; i < scope.Orders.len(); i++)
+		{
+			if (scope.Orders[i].OrderType == orderType && (!destEnt || scope.Orders[i].DestEnt == destEnt) && (!destPos || (scope.Orders[i].DestPos - destPos).Length() < 2) && (!destLookAtPos || (scope.Orders[i].DestLookAtPos - destLookAtPos).Length() < 2))
 				return true;
 		}
 	}
@@ -1183,8 +1253,10 @@ enum AI_AIM_TYPE {
 		WeaponsToSearch.clear();
 
 		TimePickup = CurTime;
-
-		Left4Timers.AddTimer(null, L4B.Settings.pickups_failsafe_delay, @(params) ::Left4Bots.PickupFailsafe.bindenv(::Left4Bots)(params.bot, params.item), { bot = self, item = pickup });
+		
+		//lxc switch to new method
+		L4B.PickupFailsafe(self, pickup);
+		//Left4Timers.AddTimer(null, L4B.Settings.pickups_failsafe_delay, @(params) ::Left4Bots.PickupFailsafe.bindenv(::Left4Bots)(params.bot, params.item), { bot = self, item = pickup });
 		L4B.PlayerPressButton(self, BUTTON_USE, L4B.Settings.button_holdtime_tap, pickup, 0, 0, true);
 
 		if (MoveType == AI_MOVE_TYPE.Pickup)
@@ -1370,16 +1442,6 @@ enum AI_AIM_TYPE {
 // Handles the bot's items give and nades throw logics
 ::Left4Bots.AIFuncs.BotThink_Throw <- function ()
 {
-	/* I'm not sure this is even needed, the bots already retreat on their own and this has no effect when there is a downed survivor anyway
-	local nearestTank = L4B.GetNearestActiveTankWithin(self, 0, RETREAT_FROM_TANK_DINSTANCE);
-	if (nearestTank && !nearestTank.IsDead() && !nearestTank.IsDying() && !nearestTank.IsIncapacitated())
-	{
-		Left4Utils.BotCmdRetreat(self, nearestTank);
-
-		L4B.Logger.Debug(self.GetPlayerName() + " RETREAT");
-	}
-	*/
-
 	// Handle give items
 	local lookAtHuman = NetProps.GetPropEntity(self, "m_lookatPlayer");
 	if (lookAtHuman && lookAtHuman.IsValid() && !IsPlayerABot(lookAtHuman) && NetProps.GetPropInt(lookAtHuman, "m_iTeamNum") == TEAM_SURVIVORS && !L4B.SurvivorCantMove(lookAtHuman, Waiting) && (Origin - lookAtHuman.GetOrigin()).Length() <= L4B.Settings.give_max_range)
@@ -1687,6 +1749,15 @@ enum AI_AIM_TYPE {
 // Handles other bot's logics
 ::Left4Bots.AIFuncs.BotThink_Misc <- function ()
 {
+	// TODO: Test
+	local nearestTank = L4B.GetNearestAggroedTankWithin(self, 0, 700);
+	if (nearestTank && !nearestTank.IsDead() && !nearestTank.IsDying() && !nearestTank.IsIncapacitated())
+	{
+		Left4Utils.BotCmdRetreat(self, nearestTank);
+
+		//L4B.Logger.Debug(self.GetPlayerName() + " RETREAT");
+	}
+	
 	// Handling car alarms
 	if (L4B.Settings.trigger_caralarm)
 	{
@@ -1708,7 +1779,8 @@ enum AI_AIM_TYPE {
 		return;
 	
 	local canMelee = ActiveWeapon && ActiveWeapon.GetClassname() == "weapon_melee" && CurTime >= NetProps.GetPropFloat(ActiveWeapon, "m_flNextPrimaryAttack");
-	local canShove = !self.IsFiringWeapon() && CurTime >= NetProps.GetPropFloat(self, "m_flNextShoveTime"); // TODO: add shove penalty?
+											//lxc chainsaw won't set 'IsFiringWeapon()' to true
+	local canShove = !self.IsFiringWeapon() && ActiveWeaponId != Left4Utils.WeaponId.weapon_chainsaw && CurTime >= NetProps.GetPropFloat(self, "m_flNextShoveTime"); // TODO: add shove penalty?
 	local target = null;
 	local dot = 0;
 	if (canMelee || canShove)
@@ -1754,8 +1826,6 @@ enum AI_AIM_TYPE {
 				local tgt = L4B.FindBotNearestEnemy(self, Origin, L4B.GetWeaponRangeById(ActiveWeaponId), L4B.Settings.manual_attack_mindot);
 				if (tgt)
 				{
-					//L4B.PlayerPressButton(self, BUTTON_ATTACK, 0, tgt.GetCenter(), 0, 0, false);
-					//lxc release attack button when Aim end
 					BotSetAim(AI_AIM_TYPE.Shoot, tgt, 0.1); //need refresh target next time
 					Left4Utils.PlayerForceButton(self, BUTTON_ATTACK);
 				}
@@ -2017,6 +2087,7 @@ enum AI_AIM_TYPE {
 	local currWeps = [Left4Utils.WeaponId.none, Left4Utils.WeaponId.none, Left4Utils.WeaponId.none, Left4Utils.WeaponId.none, Left4Utils.WeaponId.none]; // Will be filled with the weapon ids of the bot's current weapons
 	local hasT1Shotgun = false;
 	local hasT2Shotgun = false;
+	local hasT3Weapon = false; // https://github.com/smilz0/Left4Bots/issues/70
 	local priAmmoPercent = 100;
 	local hasAmmoUpgrade = true;
 	local hasLaserSight = true;
@@ -2056,6 +2127,7 @@ enum AI_AIM_TYPE {
 			{
 				hasT1Shotgun = (currWeps[i] == Left4Utils.WeaponId.weapon_shotgun_chrome) || (currWeps[i] == Left4Utils.WeaponId.weapon_pumpshotgun);
 				hasT2Shotgun = (currWeps[i] == Left4Utils.WeaponId.weapon_autoshotgun) || (currWeps[i] == Left4Utils.WeaponId.weapon_shotgun_spas);
+				hasT3Weapon = (currWeps[i] == Left4Utils.WeaponId.weapon_grenade_launcher) || (currWeps[i] == Left4Utils.WeaponId.weapon_rifle_m60);
 				priAmmoPercent = Left4Utils.GetAmmoPercent(inv[slot]);
 				hasAmmoUpgrade = NetProps.GetPropInt(inv[slot], "m_nUpgradedPrimaryAmmoLoaded") >= L4B.Settings.pickups_wep_upgraded_ammo;
 				hasLaserSight = (NetProps.GetPropInt(inv[slot], "m_upgradeBitVec") & 4) != 0;
@@ -2454,7 +2526,11 @@ enum AI_AIM_TYPE {
 
 	// Handle Ammo
 	if (priAmmoPercent < L4B.Settings.pickups_wep_ammo_replenish)
-		WeaponsToSearch[Left4Utils.WeaponId.weapon_ammo] <- 0;
+	{
+		// https://github.com/smilz0/Left4Bots/issues/70
+		if (!hasT3Weapon || hasT3Weapon && L4B.Settings.t3_ammo_bots)
+			WeaponsToSearch[Left4Utils.WeaponId.weapon_ammo] <- 0;
+	}
 
 	// Handle Upgrades
 	if (!hasAmmoUpgrade)
@@ -2636,7 +2712,7 @@ enum AI_AIM_TYPE {
 						if (CurrentOrder.From && CurrentOrder.From.IsValid())
 							L4B.Logger.Info("[AI]" + self.GetPlayerName() + " started leading; order from: " + CurrentOrder.From.GetPlayerName());
 						else
-							L4B.Logger.Warning("[AI]" + self.GetPlayerName() + " started leading; order from: ?");
+							L4B.Logger.Info("[AI]" + self.GetPlayerName() + " started leading; order from: null");
 
 						if ((CurTime - L4B.LastLeadStartVocalize) >= L4B.Settings.lead_vocalize_interval)
 						{
@@ -2735,7 +2811,9 @@ enum AI_AIM_TYPE {
 		{
 			L4B.Logger.Info("[AI]" + self.GetPlayerName() + " is carrying " + CurrentOrder.DestEnt);
 
-			Left4Timers.AddTimer(null, L4B.Settings.pickups_failsafe_delay, @(params) ::Left4Bots.PickupFailsafe.bindenv(::Left4Bots)(params.bot, params.item), { bot = self, item = CurrentOrder.DestEnt });
+			//lxc switch to new method
+			L4B.PickupFailsafe(self, CurrentOrder.DestEnt);
+			//Left4Timers.AddTimer(null, L4B.Settings.pickups_failsafe_delay, @(params) ::Left4Bots.PickupFailsafe.bindenv(::Left4Bots)(params.bot, params.item), { bot = self, item = CurrentOrder.DestEnt });
 			L4B.PlayerPressButton(self, BUTTON_USE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
 
 			// Do not complete the order if we need to carry this item
@@ -2773,7 +2851,9 @@ enum AI_AIM_TYPE {
 			{
 				L4B.Logger.Info("[AI]" + self.GetPlayerName() + " is carrying " + CurrentOrder.DestEnt);
 
-				Left4Timers.AddTimer(null, L4B.Settings.pickups_failsafe_delay, @(params) ::Left4Bots.PickupFailsafe.bindenv(::Left4Bots)(params.bot, params.item), { bot = self, item = CurrentOrder.DestEnt });
+				//lxc switch to new method
+				L4B.PickupFailsafe(self, CurrentOrder.DestEnt);
+				//Left4Timers.AddTimer(null, L4B.Settings.pickups_failsafe_delay, @(params) ::Left4Bots.PickupFailsafe.bindenv(::Left4Bots)(params.bot, params.item), { bot = self, item = CurrentOrder.DestEnt });
 				L4B.PlayerPressButton(self, BUTTON_USE,  CurrentOrder.HoldTime, CurrentOrder.DestEnt.GetCenter(), 0, 0, true);
 
 				CurrentOrder.DestPos = L4B.ScavengeUseTargetPos;
@@ -2929,6 +3009,10 @@ enum AI_AIM_TYPE {
 
 	if (orderComplete)
 	{
+		//lxc reset bot
+		if (MovePos)
+			BotReset();
+		
 		NeedMove = 0;
 		MovePos = null;
 		MovePosReal = null;
@@ -2999,29 +3083,34 @@ enum AI_AIM_TYPE {
 	L4B.Logger.Debug("[AI]" + self.GetPlayerName() + " - Orders still in queue: " + Orders.len());
 }
 
-// Cancel all the orders (current and queued) of type 'orderType'. if 'orderType' is null, all the bot's orders will be cancelled
-::Left4Bots.AIFuncs.BotCancelOrders <- function (orderType = null)
+// Cancel all the orders (current and queued) matching the given parameters
+::Left4Bots.AIFuncs.BotCancelOrders <- function (orderType = null, destEnt = null, param1 = null)
 {
-	if (orderType)
-		L4B.Logger.Debug("[AI]" + self.GetPlayerName() + " - Cancelling all the orders of type: " + orderType);
-	else
-		L4B.Logger.Debug("[AI]" + self.GetPlayerName() + " - Cancelling all the orders");
+	L4B.Logger.Debug("[AI]" + self.GetPlayerName() + " - Cancelling all the orders with: orderType = " + orderType + ", destEnt = " + destEnt + ", param1 = " + param1);
 
-	if (orderType)
+	for (local i = Orders.len() - 1; i >= 0; i--)
 	{
-		for (local i = Orders.len() - 1; i >= 0; i--)
-		{
-			if (Orders[i].OrderType == orderType)
-				Orders.remove(i);
-		}
-		if (CurrentOrder && CurrentOrder.OrderType == orderType)
-			BotCancelCurrentOrder();
+		if ((!orderType || Orders[i].OrderType == orderType) && (!destEnt || Orders[i].DestEnt == destEnt) && (!param1 || Orders[i].Param1 == param1))
+			Orders.remove(i);
 	}
-	else
-	{
-		Orders.clear();
+	if (CurrentOrder && (!orderType || CurrentOrder.OrderType == orderType) && (!destEnt || CurrentOrder.DestEnt == destEnt) && (!param1 || CurrentOrder.Param1 == param1))
 		BotCancelCurrentOrder();
+
+	L4B.Logger.Debug("[AI]" + self.GetPlayerName() + " - Orders still in queue: " + Orders.len());
+}
+
+// Cancel all the auto (From = null) orders (current and queued) matching the given parameters
+::Left4Bots.AIFuncs.BotCancelAutoOrders <- function (orderType = null, destEnt = null, param1 = null)
+{
+	L4B.Logger.Debug("[AI]" + self.GetPlayerName() + " - Cancelling all the auto orders with: orderType = " + orderType + ", destEnt = " + destEnt + ", param1 = " + param1);
+
+	for (local i = Orders.len() - 1; i >= 0; i--)
+	{
+		if (Orders[i].From == null && (!orderType || Orders[i].OrderType == orderType) && (!destEnt || Orders[i].DestEnt == destEnt) && (!param1 || Orders[i].Param1 == param1))
+			Orders.remove(i);
 	}
+	if (CurrentOrder && CurrentOrder.From == null && (!orderType || CurrentOrder.OrderType == orderType) && (!destEnt || CurrentOrder.DestEnt == destEnt) && (!param1 || CurrentOrder.Param1 == param1))
+		BotCancelCurrentOrder();
 
 	L4B.Logger.Debug("[AI]" + self.GetPlayerName() + " - Orders still in queue: " + Orders.len());
 }
@@ -3328,13 +3417,19 @@ enum AI_AIM_TYPE {
 			{
 				if (t.ent)
 				{
-					//lxc filter infected, player and unkillable entity, there may be some missing
-					if (t.ent.GetClassname() != "infected" && (t.ent.GetHealth() > 0 || (t.ent.GetClassname() == "func_button" && NetProps.GetPropInt(t.ent, "m_spawnflags") & 512))) // [512] : Damage Activates
+					//filter infected, player and unkillable entity, there may be some missing
+					local cname = t.ent.GetClassname();
+																															// [512] : Damage Activates
+					if (cname != "infected" && cname != "prop_door_rotating" && (t.ent.GetHealth() > 0 || (cname == "func_button" && (NetProps.GetPropInt(t.ent, "m_spawnflags") & 512))))
 					{
 						if (!t.ent.IsPlayer())
 						{
-							OrderTarget = t.ent;
-							return;
+															//lxc with this flags means survivor can't break it
+							if (cname != "func_breakable" || (NetProps.GetPropInt(t.ent, "m_spawnflags") & 8192) == 0)
+							{
+								OrderTarget = t.ent;
+								return;
+							}
 						}
 						else if (t.ent.IsSurvivor())
 							return;
@@ -3401,17 +3496,17 @@ enum AI_AIM_TYPE {
 {
 	if (AimType != AI_AIM_TYPE.None)
 	{
-										//lxc Aim at the last tick, then close
+		// Aim at the last tick, then close
 		if (Time() >= Aim_TimeStamp && (Time() - Aim_TimeStamp > fixtime || !(close = true)))
 		{
 			close = true;
 		}
 		else if (AimEnt)
 		{
-			//lxc if target is invalid or dead, delete it
+			// if target is invalid or dead, delete it
 			if (AimEnt.IsValid() && NetProps.GetPropInt(AimEnt, "m_lifeState") <= 0)
 			{
-				Left4Utils.BotLookAt(self, L4B.GetHitPos(AimEnt), AimPitch, AimYaw);
+				Left4Utils.BotLookAt(self, L4B.GetHitPos(AimEnt, (L4B.Settings.manual_attack_skill > 1 || AimType > AI_AIM_TYPE.Melee)), AimPitch, AimYaw);
 			}
 			else
 				close = true;
@@ -3427,7 +3522,9 @@ enum AI_AIM_TYPE {
 		if (close)
 			BotUnSetAim();
 		
-		return !close; //lxc for "weapon_fire" event
+		//lxc for "weapon_fire" event
+		//limit dual pistol dps
+		return !close && (L4B.Settings.manual_attack_skill > 2 || ActiveWeaponId != Left4Utils.WeaponId.weapon_pistol || (CurTime - LastFireTime >= 0.19 && NetProps.SetPropInt(ActiveWeapon, "m_isHoldingFireButton", 0)));
 	}
 }
 
