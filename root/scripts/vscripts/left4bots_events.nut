@@ -31,6 +31,9 @@ Msg("Including left4bots_events...\n");
 	// Start the inventory manager
 	Left4Timers.AddTimer("InventoryManager", 0.5, ::Left4Bots.OnInventoryManager.bindenv(::Left4Bots), {}, true);
 
+	// Start the automation task manager
+	Left4Timers.AddTimer("TaskManager", 1, ::Left4Bots.Automation.OnTaskManager.bindenv(::Left4Bots), {}, true);
+
 	// Start the thinker
 	Left4Timers.AddThinker("L4BThinker", Left4Bots.Settings.thinkers_think_interval, ::Left4Bots.OnThinker.bindenv(::Left4Bots), {});
 
@@ -402,9 +405,9 @@ Msg("Including left4bots_events...\n");
 	}
 	else if (weapon == "molotov")
 	{
-		Left4Bots.Logger.Debug(player.GetPlayerName() + " threw " + weapon);
-
-		Left4Bots.LastMolotovTime = Time();
+		//lxc missed fixes: set time in "molotov_thrown" events
+		//Left4Bots.Logger.Debug(player.GetPlayerName() + " threw " + weapon);
+		//Left4Bots.LastMolotovTime = Time();
 		
 		//lxc freeze bot 0.2s
 		if (params["userid"] in ::Left4Bots.Bots)
@@ -421,6 +424,8 @@ Msg("Including left4bots_events...\n");
 		//lxc if not gun or melee, skip
 		if (scope.ActiveWeaponSlot == 0 || scope.ActiveWeaponSlot == 1)
 		{
+			//lxc
+			scope.LastFireTime = Time();
 			if (scope.BotAim())
 				//lxc Full Automatic Weapon, so we don't need release attack button
 				NetProps.SetPropInt(player.GetActiveWeapon(), "m_isHoldingFireButton", 0);
@@ -449,6 +454,35 @@ Msg("Including left4bots_events...\n");
 
 	if (Left4Bots.Settings.spit_block_nav)
 		Left4Timers.AddTimer(null, 3.8, ::Left4Bots.SpitterSpitBlockNav.bindenv(::Left4Bots), { spit_ent = spit });
+}
+
+// when "player_death" and "spitter_killed" events fire, can not find acid pool, but in "zombie_death" could
+// https://github.com/smilz0/Left4Bots/issues/68
+::Left4Bots.Events.OnGameEvent_zombie_death <- function (params)
+{
+	switch (params["infected_id"]) //common = 0, Smoker = 1, Boomer = 2, Hunter = 3, Spitter = 4, Jockey = 5, Charger = 6, Witch = 7, Tank = 8
+	{
+		/*case 0: //common
+		{
+			if (params["victim"] in ::Left4Bots.CommonInfected)
+				delete ::Left4Bots.CommonInfected[params["victim"]];
+		
+			//printl(Left4Bots.CommonInfected.len());
+			break;
+		}*/
+		case 4: //spitter "spitter_killed"
+		{
+			Left4Bots.FindSpitterDeathPool(EntIndexToHScript(params["victim"]).GetOrigin());
+			break;
+		}
+		//case 1: //Smoker
+		//case 2: //Boomer 	"boomer_exploded"
+		//case 3: //Hunter
+		//case 5: //Jockey 	"jockey_killed"
+		//case 6: //Charger "charger_killed"
+		//case 7: //Witch 	"witch_killed"
+		//case 8: //Tank 	"player_incapacitated", "tank_killed"
+	}
 }
 
 ::Left4Bots.Events.OnGameEvent_charger_charge_start <- function (params)
@@ -1525,89 +1559,6 @@ Msg("Including left4bots_events...\n");
 	}
 }
 
-// Coordinates the scavenge process
-::Left4Bots.OnScavengeManager <- function (params)
-{
-	//Logger.Debug("OnScavengeManager");
-
-	if (!ScavengeStarted)
-	{
-		// This isn't supposed to happen, but...
-		Left4Timers.RemoveTimer("ScavengeManager");
-		return;
-	}
-
-	if (ScavengeUseTarget == null || !ScavengeUseTarget.IsValid())
-	{
-		Logger.Warning("ScavengeUseTarget is no longer valid. Stopping the scavenge process..");
-
-		ScavengeStop();
-		return;
-	}
-
-	local num_bots = Settings.scavenge_max_bots;
-
-	// Add the required bots
-	while (ScavengeBots.len() < num_bots && ScavengeBots.len() < Bots.len())
-	{
-		local bot = GetFirstAvailableBotForOrder("scavenge");
-		if (!bot)
-			break;
-
-		ScavengeBots[bot.GetPlayerUserId()] <- bot;
-
-		Logger.Info("Added scavenge order slot for bot " + bot.GetPlayerName());
-
-		SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.2, 1.0));
-	}
-
-	// Remove the excess
-	foreach (id, bot in ScavengeBots)
-	{
-		if (ScavengeBots.len() <= Settings.scavenge_max_bots)
-			break;
-
-		delete ScavengeBots[id];
-
-		Logger.Info("Removed scavenge order slot for bot " + bot.GetPlayerName());
-	}
-
-	//Logger.Debug("ScavengeBots len is " + ScavengeBots.len());
-
-	if (ScavengeBots.len() <= 0)
-		return; // No bot is available for scavenge
-
-	local scavengeItems = GetAvailableScavengeItems(ScavengeUseType);
-	if (scavengeItems.len() <= 0)
-		return; // nothing to do here
-
-	foreach (id, bot in ScavengeBots)
-	{
-		if (!bot || !bot.IsValid() || bot.IsDead() || bot.IsDying())
-			delete ScavengeBots[id]; // Remove invalid/dead bots
-		else if (!BotHasOrderOfType(bot, "scavenge"))
-		{
-			// Assign the order
-			while (scavengeItems.len() > 0)
-			{
-				local idx = Left4Utils.GetNearestEntityInList(bot, scavengeItems); // TODO: add option to search by shortest path
-				local item = scavengeItems[idx];
-
-				delete scavengeItems[idx];
-
-				if (!BotsHaveOrderDestEnt(item))
-				{
-					BotOrderAdd(bot, "scavenge", null, item);
-
-					Logger.Info("Assigned a scavenge order to bot " + bot.GetPlayerName());
-
-					break;
-				}
-			}
-		}
-	}
-}
-
 // Does various stuff
 ::Left4Bots.OnThinker <- function (params)
 {
@@ -1969,6 +1920,8 @@ settings
 	else if ("Subject" in query)
 		subject = query.Subject;
 
+	Automation.OnConcept(who, subject, concept, query);
+
 	if (!who || !who.IsValid())
 	{
 		Logger.Debug("OnConcept(" + concept + ") - who: none (" + who + ")");
@@ -2098,18 +2051,36 @@ settings
 		if (Settings.vocalizer_commands && lvl >= Settings.userlevel_orders)
 		{
 			if (concept == "PlayerLook" || concept == "PlayerLookHere")
-			{
-				// Bot selection
-				if (subjectid != null)
-					subject = g_MapScript.GetPlayerFromUserID(subjectid);
-				else if (subject)
-					subject = GetSurvivorFromActor(subject);
-
-				if (IsHandledBot(subject))
+			{	
+				//lxc filter automatically triggered "Look" vocalizer
+				// "smartlooktype = auto|manual"
+				if ("smartlooktype" in query && query.smartlooktype == "manual")
 				{
-					VocalizerBotSelection[who.GetPlayerUserId()] <- { bot = subject, time = Time() };
+					//printl("smartlooktype" + " = " + query.smartlooktype);
+					
+					// Bot selection
+					if (subjectid != null)
+						subject = g_MapScript.GetPlayerFromUserID(subjectid);
+					else if (subject)
+					{
+						//lxc
+						// "m_vocalizationSubject" will updated at the same time as the vocalizer fires if someone in my vision.
+						// "subject" and "m_vocalizationSubject" are not always the same, but "m_vocalizationSubject" is definitely what we are looking at within 400 radius.
+						if ((NetProps.GetPropFloat(who, "m_vocalizationSubjectTimer.m_timestamp") - NetProps.GetPropFloat(who, "m_vocalizationSubjectTimer.m_duration")) == Time())
+						{
+							subject = NetProps.GetPropEntity(who, "m_vocalizationSubject");
+							//printl(subject.GetPlayerName());
+						}
+						else
+							subject = GetSurvivorFromActor(subject);
+					}
 
-					Logger.Debug(who.GetPlayerName() + " selected bot " + subject.GetPlayerName());
+					if (IsHandledBot(subject))
+					{
+						VocalizerBotSelection[who.GetPlayerUserId()] <- { bot = subject, time = Time() };
+
+						Logger.Debug(who.GetPlayerName() + " selected bot " + subject.GetPlayerName());
+					}
 				}
 			}
 			else if (concept in VocalizerCommands)
@@ -2120,14 +2091,13 @@ settings
 				{
 					local botname = VocalizerBotSelection[userid].bot.GetPlayerName().tolower();
 					cmd = Left4Utils.StringReplace(VocalizerCommands[concept].one, "botname ", botname + " ");
+					
+					//lxc should be deleted here, otherwise, vocalizer command cannot be used on other bots until it times out or use "PlayerLook" again.
+					delete VocalizerBotSelection[userid];
 				}
 				cmd = "!l4b " + cmd;
 				local args = split(cmd, " ");
 				HandleCommand(who, args[1], args, cmd);
-			}
-			else if (concept == "PlayerImWithYou") // TODO
-			{
-				ScavengeStart();
 			}
 		}
 
@@ -2180,7 +2150,8 @@ settings
 	switch (concept)
 	{
 		case "PlayerChoke":
-		case "PlayerTonguePullStart":
+		//case "PlayerTonguePullStart": //lxc not always fire if victim is human
+		case "PlayerGrabbedByTongue":
 			if (Settings.smoker_shoot_tongue)
 			{
 				local smoker = NetProps.GetPropEntity(who, "m_tongueOwner");
@@ -2196,6 +2167,7 @@ settings
 			break;
 		
 		case "PlayerPourFinished":
+			/* TODO
 			local score = null;
 			local towin = null;
 
@@ -2213,6 +2185,7 @@ settings
 
 				ScavengeStop();
 			}
+			*/
 			
 			break;
 		

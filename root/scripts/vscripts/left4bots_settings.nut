@@ -243,15 +243,24 @@
 	// 4 = [ERROR], [WARNING], [INFO] and [DEBUG]
 	loglevel = 3
 
-	// [1/0] Enable/Disable the manual attack while not executing any MOVE command. 0 = Manual attack only while executing MOVE commands, 1 = Always
+	// [1/0] Enable/Disable the vscripted manual attack while not executing any MOVE command. 0 = Manual attack only while executing MOVE commands, 1 = Always
 	manual_attack_always = 0
 
 	// [0.0 - 1.0] While executing MOVE commands (or always if manual_attack_always = 1), this is how straight the bot should be looking at the enemy in order to shoot it
-	// 0.0 = Even the enemies behind will be shoot (CSGO spinbot style). 1.0 = The bot will probably never shoot
+	// 0.0 (or -1) = Even the enemies behind will be shoot (CSGO spinbot style)
+	// 0.6 Kill everything in sight
+	// 0.99 Almost never actively looking for new targets
+	// 1.0 = The bot will probably never shoot
 	manual_attack_mindot = 0.94
 
 	// While executing MOVE commands (or always if manual_attack_always = 1), this is the max distance of the enemies that the bot will shoot
 	manual_attack_radius = 950
+	
+	// Skill level for the vscripted manual attack
+	// 1: Aim & Shoot infected body (few skeeting hunter) & limit dual pistol dps to vanilla level (no more machine pistol)
+	// 2: + shoot head
+	// 3: + max dps + kill wandering infected
+	manual_attack_skill = 1
 
 	// Maximum distance from a generic destination position for setting the travel done
 	move_end_radius = 30
@@ -344,6 +353,12 @@
 	// [1/0] Should the sounds be played on give/swap items?
 	play_sounds = 1
 
+	// [1/0] Enable/Disable auto starting the gascans scavenge in campaign based game modes (coop, versus, realism)
+	scavenge_campaign_autostart = 1
+
+	// Max number of "idle" bots that will automatically follow the scavenge bots
+	scavenge_max_autofollow = 2
+
 	// If 'scavenge_pour' is '0' the bots will drop gascans and cola bottles within this radius from the pour target
 	scavenge_drop_radius = 200
 
@@ -429,7 +444,7 @@
 	smoker_shoot_tongue = 1
 
 	// [1/0] Enable/Disable crouching while shooting the smoker's tongue
-	smoker_shoot_tongue_duck = 1
+	smoker_shoot_tongue_duck = 0
 
 	// [1/0] 1 = When the spitter's acid lands, it will block the nav areas under it as long as the acid is there. This means that the bots nav system will not make them step into the acid. 0 = normal behavior
 	// NOTE: The bots can still step into the acid if they were close to where it landed and they were already running to that direction
@@ -439,16 +454,16 @@
 	// The damage received by the bots from the spitter's acid is multiplied by this factor. If you want them to receive the same amount of damage as you, you can set 2
 	spit_damage_multiplier = 1
 
-	// [1/0] Enable/Disable debug chat messages of the stuck detection algorithm
+	// [1/0] Enable/Disable debug chat messages of the L4B2 stuck detection algorithm (NOT the game's detection algorithm)
 	stuck_debug = 0
 
-	// [1/0] Enable/Disable the stuck detection algorithm
+	// [1/0] Enable/Disable the L4B2 stuck detection algorithm (NOT the game's detection algorithm)
 	stuck_detection = 1
 
 	// [1/0] 1 = Unstuck is also triggered as soon the bot stops moving. 0 = Only when his movement is > stuck_range
 	stuck_nomove_unstuck = 1
 
-	// Range used by the stuck detection algorithm
+	// Range used by the L4B2 stuck detection algorithm (NOT the game's detection algorithm)
 	stuck_range = 100.0
 
 	// Min time to be considered stuck

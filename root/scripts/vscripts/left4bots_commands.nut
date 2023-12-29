@@ -12,6 +12,7 @@ Msg("Including left4bots_commands...\n");
 ];
 
 ::Left4Bots.UserCommands <- [
+	"automation"
 	"cancel",
 	"carry",
 	"come",
@@ -133,6 +134,56 @@ Msg("Including left4bots_commands...\n");
 
 // -- User commands --------------------------
 
+::Left4Bots.Cmd_automation <- function (player, allBots = false, tgtBot = null, param = null)
+{
+	Logger.Debug("Cmd_automation - player: " + player.GetPlayerName() + " - allBots: " + allBots + " - tgtBot: " + tgtBot + " - param: " + param);
+	
+	if (!allBots && !tgtBot)
+	{
+		Logger.Warning("Can't use the 'bot' keyword with the 'automation' command");
+		return;
+	}
+
+	// param can be:
+	// - "current" (or empty) to execute the current task(s) only
+	// - "all" to automatically execute the current tasks and the next ones
+	// - "stop" to stop the current task(s) and the automatic execution of the next ones (if 'all' was used)
+	if (param)
+		param = param.tolower();
+	
+	if (!param || param == "current")
+	{
+		if (Automation.CurrentTasks.len() > 0)
+		{
+			foreach (bot in Bots)
+				SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
+		}
+		
+		Automation.StartTasks(false);
+	}
+	else if (param == "all")
+	{
+		foreach (bot in Bots)
+			SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
+		
+		Automation.StartTasks(true);
+	}
+	else if (param == "stop")
+		Automation.StopTasks();
+	else
+		Logger.Warning("Invalid [switch]: " + param);
+}
+
+::Left4Bots.CmdHelp_automation <- function ()
+{
+	return PRINTCOLOR_NORMAL + "<" + PRINTCOLOR_CYAN + "botsource" + PRINTCOLOR_NORMAL + "> " + PRINTCOLOR_GREEN + "automation" + PRINTCOLOR_NORMAL + " [" + PRINTCOLOR_ORANGE + "switch" + PRINTCOLOR_NORMAL + "]\n"
+		 + PRINTCOLOR_NORMAL + "The order is executed immediately.\n"
+		 + PRINTCOLOR_NORMAL + "If 'current' [switch] is used (or [switch] is empty), the automation system will start the current task(s).\n"
+		 + PRINTCOLOR_NORMAL + "If 'all' [switch] is used, the automation system will start the current task(s) and will automatically start the next ones.\n"
+		 + PRINTCOLOR_NORMAL + "If 'stop' [switch] is used, the automation system will stop the current task(s) and the automatic execution of the next ones (if previously started with 'all').\n"
+		 + PRINTCOLOR_ORANGE + "NOTE: '" + PRINTCOLOR_CYAN + "botsource" + PRINTCOLOR_ORANGE + "' is ignored, it can be either 'bots', 'bot' or 'botname', the result is the same.";
+}
+
 ::Left4Bots.Cmd_cancel <- function (player, allBots = false, tgtBot = null, param = null)
 {
 	Logger.Debug("Cmd_cancel - player: " + player.GetPlayerName() + " - allBots: " + allBots + " - tgtBot: " + tgtBot + " - param: " + param);
@@ -172,9 +223,9 @@ Msg("Including left4bots_commands...\n");
 				bot.GetScriptScope().BotCancelOrders(param);
 		}
 
-		// With 'bots cancel all' we also stop the scavenge
+		// With 'bots cancel all' we also stop the current automation tasks
 		if (!param || param == "all")
-			ScavengeStop();
+			Automation.StopTasks();
 	}
 	else
 	{
@@ -501,7 +552,7 @@ Msg("Including left4bots_commands...\n");
 {
 	return PRINTCOLOR_NORMAL + "<" + PRINTCOLOR_CYAN + "botsource" + PRINTCOLOR_NORMAL + "> " + PRINTCOLOR_GREEN + "give" + PRINTCOLOR_NORMAL + "\n"
 		 + PRINTCOLOR_NORMAL + "The order is executed immediately.\n"
-		 + PRINTCOLOR_NORMAL + "The bot will give you one item from their pills/throwable/medkit inventory slot if your slot is emtpy.\n"
+		 + PRINTCOLOR_NORMAL + "The bot will give you one item from their pills/throwable/medkit inventory slot if your slot is empty.\n"
 		 + PRINTCOLOR_NORMAL + "'" + PRINTCOLOR_CYAN + "bot" + PRINTCOLOR_NORMAL + "' and '" + PRINTCOLOR_CYAN + "bots" + PRINTCOLOR_NORMAL + "' botsources are the same here, the first available bot is selected.";
 }
 
@@ -698,6 +749,9 @@ Msg("Including left4bots_commands...\n");
 	}
 	else
 	{
+		if (!tgtBot)
+			tgtBot = GetFirstAvailableBotForOrder("lock"); // not a real order but we still handle the "bot" botsource version of the command
+		
 		if (tgtBot)
 		{
 			local scope = tgtBot.GetScriptScope();
@@ -712,7 +766,10 @@ Msg("Including left4bots_commands...\n");
 //lxc temp function
 ::Left4Bots.CmdHelp_lock <- function ()
 {
-	return "";
+	return PRINTCOLOR_NORMAL + "<" + PRINTCOLOR_CYAN + "botsource" + PRINTCOLOR_NORMAL + "> " + PRINTCOLOR_GREEN + "lock" + PRINTCOLOR_NORMAL + " [" + PRINTCOLOR_ORANGE + "off" + PRINTCOLOR_NORMAL + "]\n"
+		 + PRINTCOLOR_NORMAL + "The order is executed immediately.\n"
+		 + PRINTCOLOR_NORMAL + "If no [off] parameter is specified, the bot(s) will start shooting the same target you shoot until you stop it with the [off] parameter (any value).\n"
+		 + PRINTCOLOR_NORMAL + "This command can be useful to make the bots shoot at the non standard scripted bosses in custom maps or items they wouldn't normally shoot.\n";
 }
 
 ::Left4Bots.Cmd_move <- function (player, allBots = false, tgtBot = null, param = null)
@@ -732,7 +789,7 @@ Msg("Including left4bots_commands...\n");
 			bot.GetScriptScope().BotCancelAll();
 
 		// With 'bots cancel all' we also stop the scavenge
-		ScavengeStop();
+		Automation.StopTasks();
 	}
 	else
 		tgtBot.GetScriptScope().BotCancelAll();
