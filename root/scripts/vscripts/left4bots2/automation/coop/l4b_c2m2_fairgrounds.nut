@@ -7,6 +7,11 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c2m2_fairgrounds automation 
 	switch (concept)
 	{
 		case "SurvivorLeavingInitialCheckpoint":
+			if (::Left4Bots.Automation.step > 1)
+				return; // !!! This also triggers when a survivor is defibbed later in the game !!!
+		
+			// *** TASK 2. Wait for the first survivor to leave the start saferoom, then start leading
+			
 			if (!::Left4Bots.Automation.TaskExists("bots", "lead"))
 			{
 				::Left4Bots.Automation.ResetTasks();
@@ -15,6 +20,8 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c2m2_fairgrounds automation 
 			break;
 		
 		case "c2m2CarouselStart":
+			// *** TASK 4. Carousel started, go back to leading
+			
 			if (!::Left4Bots.Automation.TaskExists("bots", "lead"))
 			{
 				::Left4Bots.Automation.ResetTasks();
@@ -23,6 +30,8 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c2m2_fairgrounds automation 
 			break;
 		
 		case "c2m2CarouselEnd":
+			// *** TASK 6. Carousel stopped, back to leading up to the saferoom
+			
 			if (!::Left4Bots.Automation.TaskExists("bots", "lead"))
 			{
 				::Left4Bots.Automation.ResetTasks();
@@ -31,6 +40,8 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c2m2_fairgrounds automation 
 			break;
 		
 		case "SurvivorBotReachedCheckpoint":
+			// *** TASK 7. Saferoom reached. Remove all the task and let the given orders (lead) complete
+			
 			CurrentTasks.clear();
 			break;
 	}
@@ -41,6 +52,8 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c2m2_fairgrounds automation 
 	switch (::Left4Bots.Automation.step)
 	{
 		case 0:
+			// *** TASK 1. Heal while in the start saferoom
+			
 			if (!::Left4Bots.Automation.TaskExists("bots", "HealInSaferoom"))
 			{
 				::Left4Bots.Automation.ResetTasks();
@@ -51,7 +64,8 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c2m2_fairgrounds automation 
 			break;
 		
 		case 1:
-			// Start the carousel
+			// *** TASK 3. Start the carousel
+			
 			if (curFlowPercent > 77 && prevFlowPercent <= 77)
 			{
 				local carousel_gate_button = Entities.FindByName(null, "carousel_gate_button");
@@ -66,7 +80,8 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c2m2_fairgrounds automation 
 			break;
 		
 		case 2:
-			// Stop the carousel
+			// *** TASK 5. Stop the carousel started
+			
 			if (curFlowPercent > 89 && prevFlowPercent <= 89)
 			{
 				local carousel_button = Entities.FindByName(null, "carousel_button");

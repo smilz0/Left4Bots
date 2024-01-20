@@ -250,7 +250,7 @@ enum AI_AIM_TYPE {
 }
 
 // Returns the table representing the order with the given parameters, or null if the given bot is invalid or orderType is unknown
-::Left4Bots.BotOrderPrepare <- function (bot, orderType, from = null, destEnt = null, destPos = null, destLookAtPos = null, holdTime = 0.05, canPause = true, param1 = null)
+::Left4Bots.BotOrderPrepare <- function (bot, orderType, from = null, destEnt = null, destPos = null, destLookAtPos = null, holdTime = 0.0, canPause = true, param1 = null)
 {
 	if (!IsHandledBot(bot))
 		return null;
@@ -373,7 +373,7 @@ enum AI_AIM_TYPE {
 
 // Append an order to the given bot's queue. No check on priorities
 // Returns the order's position in the bot's queue (where 1 = first position), or -1 if bad bot/orderType
-::Left4Bots.BotOrderAppend <- function (bot, orderType, from = null, destEnt = null, destPos = null, destLookAtPos = null, holdTime = 0.05, canPause = true, param1 = null)
+::Left4Bots.BotOrderAppend <- function (bot, orderType, from = null, destEnt = null, destPos = null, destLookAtPos = null, holdTime = 0.0, canPause = true, param1 = null)
 {
 	local order = BotOrderPrepare(bot, orderType, from, destEnt, destPos, destLookAtPos, holdTime, canPause, param1);
 	if (!order)
@@ -390,7 +390,7 @@ enum AI_AIM_TYPE {
 
 // Insert an order to the first position of the bot's queue and replaces CurrentOrder if needed. No check on priorities
 // Returns the bot's queue len after the operation, or -1 if bad bot/orderType
-::Left4Bots.BotOrderInsert <- function (bot, orderType, from = null, destEnt = null, destPos = null, destLookAtPos = null, holdTime = 0.05, canPause = true, param1 = null)
+::Left4Bots.BotOrderInsert <- function (bot, orderType, from = null, destEnt = null, destPos = null, destLookAtPos = null, holdTime = 0.0, canPause = true, param1 = null)
 {
 	local order = BotOrderPrepare(bot, orderType, from, destEnt, destPos, destLookAtPos, holdTime, canPause, param1);
 	if (!order)
@@ -421,7 +421,7 @@ enum AI_AIM_TYPE {
 
 // Add an order to the bot's queue placing it in the right position according to the priorities and replacing CurrentOrder if needed
 // Returns the order's position in the bot's queue (where 0 = set/replaced CurrentOrder, 1 = first position in the queue), or -1 if bad bot/orderType
-::Left4Bots.BotOrderAdd <- function (bot, orderType, from = null, destEnt = null, destPos = null, destLookAtPos = null, holdTime = 0.05, canPause = true, param1 = null)
+::Left4Bots.BotOrderAdd <- function (bot, orderType, from = null, destEnt = null, destPos = null, destLookAtPos = null, holdTime = 0.0, canPause = true, param1 = null)
 {
 	local order = BotOrderPrepare(bot, orderType, from, destEnt, destPos, destLookAtPos, holdTime, canPause, param1);
 	if (!order)
@@ -789,6 +789,17 @@ enum AI_AIM_TYPE {
 	}
 
 	return false;
+}
+
+// Is 'bot' executing a 'wait' order and actually in wait status?
+// true = yes, false = no, null = invalid bot
+::Left4Bots.BotIsWaiting <- function (bot)
+{
+	if (!IsHandledBot(bot))
+		return null;
+
+	local scope = bot.GetScriptScope();
+	return (scope.CurrentOrder && scope.CurrentOrder.OrderType == "wait" && NetProps.GetPropInt(bot, "movetype") == 0);
 }
 
 // Starts an high priority MOVE command (mainly used for spit/charger dodging and such)
@@ -1749,13 +1760,16 @@ enum AI_AIM_TYPE {
 // Handles other bot's logics
 ::Left4Bots.AIFuncs.BotThink_Misc <- function ()
 {
-	// TODO: Test
-	local nearestTank = L4B.GetNearestAggroedTankWithin(self, 0, 700);
-	if (nearestTank && !nearestTank.IsDead() && !nearestTank.IsDying() && !nearestTank.IsIncapacitated())
+	if (!L4B.FinalVehicleArrived)
 	{
-		Left4Utils.BotCmdRetreat(self, nearestTank);
+		// TODO: settings
+		local nearestTank = L4B.GetNearestAggroedTankWithin(self, 0, 700);
+		if (nearestTank && !nearestTank.IsDead() && !nearestTank.IsDying() && !nearestTank.IsIncapacitated())
+		{
+			Left4Utils.BotCmdRetreat(self, nearestTank);
 
-		//L4B.Logger.Debug(self.GetPlayerName() + " RETREAT");
+			//L4B.Logger.Debug(self.GetPlayerName() + " RETREAT");
+		}
 	}
 	
 	// Handling car alarms
@@ -1815,8 +1829,8 @@ enum AI_AIM_TYPE {
 		//lxc z_gun_swing_duration: 0.2 ** How long shove attack is active (can shove an entities)
 		BotSetAim(AI_AIM_TYPE.Shove, L4B.GetHitPos(target), 0.233);
 		L4B.PlayerPressButton(self, BUTTON_SHOVE);
-	}
-	else if (((MovePos && Paused == 0) || L4B.Settings.manual_attack_always) && NetProps.GetPropInt(self, "m_hasVisibleThreats")) // m_hasVisibleThreats indicates that a threat is in the bot's current field of view. An infected behind the bot won't set this
+	}												// depending on manual_attack_mindot, the desired FOV might be larger than the m_hasVisibleThreats FOV, so this condition has to be removed (thx MutinCholer)
+	else if (((MovePos && Paused == 0) || L4B.Settings.manual_attack_always) /*&& NetProps.GetPropInt(self, "m_hasVisibleThreats")*/) // m_hasVisibleThreats indicates that a threat is in the bot's current field of view. An infected behind the bot won't set this
 	{
 		// If no close target or we cannot melee or shove it at the moment, then handle manual shooting to targets in our field of view
 		if (ActiveWeapon && !NetProps.GetPropInt(ActiveWeapon, "m_bInReload"))

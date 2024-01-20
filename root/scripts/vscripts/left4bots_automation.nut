@@ -13,9 +13,10 @@ Msg("Including left4bots_automation...\n");
 	PrevFlow = 0
 }
 
+// Base Task. Assigns a single 'order' to the 'target' bot(s)
 class ::Left4Bots.Automation.Task
 {
-	constructor(target, order, destEnt = null, destPos = null, destLookAtPos = null, holdTime = -1, canPause = true, param1 = null, cancelAllOnBegin = false, cancelAllOnEnd = true)
+	constructor(target, order, destEnt = null, destPos = null, destLookAtPos = null, holdTime = 0.0, canPause = true, param1 = null, cancelAllOnBegin = false, cancelAllOnEnd = true)
 	{
 		_target = target;
 		_order = order;
@@ -123,7 +124,7 @@ class ::Left4Bots.Automation.Task
 	
 	function Think()
 	{
-		if (!_started || !_order)
+		if (!_started || !_order || (_destEnt && !_destEnt.IsValid()))
 			return;
 		
 		_l4b.Logger.Debug("Task thinking " + tostring());
@@ -190,7 +191,7 @@ class ::Left4Bots.Automation.Task
 	_destEnt = null;
 	_destPos = null;
 	_destLookAtPos = null;
-	_holdTime = -1;
+	_holdTime = 0.0;
 	_canPause = true;
 	_param1 = null;
 	_cancelAllOnBegin = false;
@@ -202,12 +203,13 @@ class ::Left4Bots.Automation.Task
 	_targetBots = [];
 }
 
+// Gives a 'heal' order to the bots with health <= 98 and a medkit in the inventory, then automatically remove its task from CurrentTasks
 class ::Left4Bots.Automation.HealInSaferoom extends ::Left4Bots.Automation.Task
 {
 	constructor()
 	{
 		// 'target' and 'order' are only used for the task identification (GetTaskId), not for the actual orders
-		base.constructor("bots", "HealInSaferoom", null, null, null, -1, true, null, false, false);
+		base.constructor("bots", "HealInSaferoom", null, null, null, 0.0, true, null, false, false);
 		
 		_ordersSent = false;
 	}
@@ -248,12 +250,13 @@ class ::Left4Bots.Automation.HealInSaferoom extends ::Left4Bots.Automation.Task
 	_ordersSent = false;
 }
 
+// General gascan scavenge task. Handles the autofollow bots
 class ::Left4Bots.Automation.Scavenge extends ::Left4Bots.Automation.Task
 {
 	constructor()
 	{
 		// 'target' and 'order' are only used for the task identification (GetTaskId), not for the actual orders
-		base.constructor("bots", "Scavenge", null, null, null, -1, true, null, false, false);
+		base.constructor("bots", "Scavenge", null, null, null, 0.0, true, null, false, false);
 	}
 	
 	function Stop()
@@ -452,7 +455,200 @@ class ::Left4Bots.Automation.Scavenge extends ::Left4Bots.Automation.Task
 	}
 }
 
-::Left4Bots.Automation.AddTask <- function (target, order, destEnt = null, destPos = null, destLookAtPos = null, holdTime = -1, canPause = true, param1 = null, cancelAllOnBegin = false, cancelAllOnEnd = true)
+// Orders the bots to heal (if they have a medkit and their health is <= 98) and then goto (likely to check for pickups) at the given location(s)
+// Waits until all the orders complete before completing and removing its task from CurrentTasks
+class ::Left4Bots.Automation.HealAndGoto extends ::Left4Bots.Automation.Task
+{
+	constructor(pos = [])
+	{
+		// 'target' and 'order' are only used for the task identification (GetTaskId), not for the actual orders
+		base.constructor("bots", "HealAndGoto", null, null, null, 0.0, true, null, false, false);
+		
+		_ordersSent = false;
+		
+		for (local i = 0; i < pos.len(); i++)
+			_goto_pos.append(pos[i]);
+	}
+	
+	function Think()
+	{
+		if (!_started)
+			return;
+		
+		_l4b.Logger.Debug("Task thinking " + tostring());
+		
+		if (!_ordersSent)
+		{
+			foreach (bot in _l4b.Bots)
+			{
+				// Heal if needed
+				if (bot.GetHealth() <= 98 && ::Left4Utils.HasMedkit(bot))
+					_l4b.BotOrderAdd(bot, "heal", null, bot, null, null, 0, false);
+				
+				// Goto the given locations
+				for (local i = 0; i < _goto_pos.len(); i++)
+					_l4b.BotOrderAdd(bot, "goto", null, null, _goto_pos[i]);
+			}
+			_ordersSent = true;
+			return;
+		}
+		
+		// Make sure the bots completed their previously assigned orders (heal and goto) before continuing
+		foreach (bot in _l4b.Bots)
+		{
+			if (_l4b.BotOrdersCount(bot) > 0)
+				return;
+		}
+		
+		// Task is complete. Remove it from CurrentTasks
+		_l4b.Automation.DeleteTasks(_target, _order, _destEnt, _destPos, _destLookAtPos);
+		_l4b.Logger.Debug("Task complete");
+	}
+	
+	_ordersSent = false;
+	_goto_pos = [];
+}
+
+// Gives all the bots a 'wait' order at the specified location and automatically cancels it (and removes its task from CurrentTasks) when all the bots are in their 'Waiting' status
+class ::Left4Bots.Automation.RegroupAt extends ::Left4Bots.Automation.Task
+{
+	constructor(pos)
+	{
+		// 'target' and 'order' are only used for the task identification (GetTaskId), not for the actual orders
+		base.constructor("bots", "RegroupAt", null, null, null, 0.0, true, null, false, false);
+		
+		_ordersSent = false;
+		_gotoPos = pos;
+	}
+	
+	function Think()
+	{
+		if (!_started)
+			return;
+		
+		_l4b.Logger.Debug("Task thinking " + tostring());
+		
+		if (!_ordersSent)
+		{
+			foreach (bot in _l4b.Bots)
+				_l4b.BotOrderAdd(bot, "wait", null, null, _gotoPos);
+			
+			_ordersSent = true;
+			return;
+		}
+		
+		// Make sure that all the bots are in the 'Waiting' status before continuing
+		foreach (bot in _l4b.Bots)
+		{
+			if (!bot.GetScriptScope().Waiting)
+				return;
+		}
+		
+		// Task is complete. Cancel the 'wait' order and remove the task from CurrentTasks
+		foreach (bot in _l4b.Bots)
+			bot.GetScriptScope().BotCancelOrders("wait");
+		
+		_l4b.Automation.DeleteTasks(_target, _order, _destEnt, _destPos, _destLookAtPos);
+		_l4b.Logger.Debug("Task complete");
+	}
+	
+	_ordersSent = false;
+	_gotoPos = null;
+}
+
+// Gives all the bots a 'wait' order at the specified location and automatically cancels it (and removes its task from CurrentTasks) after the given amount of 'time' elapsed
+class ::Left4Bots.Automation.HoldAt extends ::Left4Bots.Automation.Task
+{
+	constructor(pos, time)
+	{
+		// 'target' and 'order' are only used for the task identification (GetTaskId), not for the actual orders
+		base.constructor("bots", "HoldAt", null, null, null, 0.0, true, null, false, false);
+		
+		_ordersSent = false;
+		_gotoPos = pos;
+		_holdTime = time;
+	}
+	
+	function Think()
+	{
+		if (!_started)
+			return;
+		
+		_l4b.Logger.Debug("Task thinking " + tostring());
+		
+		if (!_ordersSent)
+		{
+			foreach (bot in _l4b.Bots)
+				_l4b.BotOrderAdd(bot, "wait", null, null, _gotoPos);
+			
+			_ordersSent = true;
+			_holdStart = Time();
+			return;
+		}
+		
+		// Wait for _holdTime
+		if ((Time() - _holdStart) < _holdTime)
+			return;
+		
+		// Task is complete. Cancel the 'wait' order and remove the task from CurrentTasks
+		foreach (bot in _l4b.Bots)
+			bot.GetScriptScope().BotCancelOrders("wait");
+		
+		_l4b.Automation.DeleteTasks(_target, _order, _destEnt, _destPos, _destLookAtPos);
+		_l4b.Logger.Debug("Task complete");
+	}
+	
+	_ordersSent = false;
+	_gotoPos = null;
+	_holdTime = null;
+	_holdStart = null;
+}
+
+// Gives all the bots a 'goto' order to the specified location and waits for the completion of the order for all the bots before removing its task from CurrentTasks
+class ::Left4Bots.Automation.GotoAndIdle extends ::Left4Bots.Automation.Task
+{
+	constructor(pos)
+	{
+		// 'target' and 'order' are only used for the task identification (GetTaskId), not for the actual orders
+		base.constructor("bots", "GotoAndIdle", null, null, null, 0.0, true, null, false, false);
+		
+		_ordersSent = false;
+		_gotoPos = pos;
+	}
+	
+	function Think()
+	{
+		if (!_started)
+			return;
+		
+		_l4b.Logger.Debug("Task thinking " + tostring());
+		
+		if (!_ordersSent)
+		{
+			foreach (bot in _l4b.Bots)
+				_l4b.BotOrderAdd(bot, "goto", null, null, _gotoPos);
+			
+			_ordersSent = true;
+			return;
+		}
+		
+		// Make sure the bots completed their previously assigned orders (goto) before continuing
+		foreach (bot in _l4b.Bots)
+		{
+			if (_l4b.BotOrdersCount(bot) > 0)
+				return;
+		}
+		
+		// Task is complete. Remove it from CurrentTasks
+		_l4b.Automation.DeleteTasks(_target, _order, _destEnt, _destPos, _destLookAtPos);
+		_l4b.Logger.Debug("Task complete");
+	}
+	
+	_ordersSent = false;
+	_gotoPos = null;
+}
+
+::Left4Bots.Automation.AddTask <- function (target, order, destEnt = null, destPos = null, destLookAtPos = null, holdTime = 0.0, canPause = true, param1 = null, cancelAllOnBegin = false, cancelAllOnEnd = true)
 {
 	local task = Task(target, order, destEnt, destPos, destLookAtPos, holdTime, canPause, param1, cancelAllOnBegin, cancelAllOnEnd);
 	CurrentTasks[CurrentTasks.len()] <- task;
@@ -481,7 +677,9 @@ class ::Left4Bots.Automation.Scavenge extends ::Left4Bots.Automation.Task
 
 ::Left4Bots.Automation.ResetTasks <- function ()
 {
-	StopTasks();
+	foreach (task in CurrentTasks)
+		task.Stop();
+
 	CurrentTasks.clear();
 }
 

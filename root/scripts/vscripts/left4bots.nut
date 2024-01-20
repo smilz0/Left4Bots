@@ -1,5 +1,7 @@
 /* TODO:
 
+- molotov check for area underwater
+- "wait" movetype = 0 check for groundent first
 - "use_nopause" etc.
 - Force ammo replenish while in saferoom
 - Invece di GetScriptScope... DoEntFire("!self", "RunScriptCode", "AutomaticShot()", 0.01, null, bot);  oppure  DoEntFire("!self", "CallScriptFunction", "AutomaticShot", 0.01, null, bot);
@@ -84,6 +86,7 @@ const LOG_LEVEL_DEBUG = 4;
 	VocalizerCommands = {}
 	VocalizerBotSelection = {}
 	BtnStatus_Shove = {}
+	FinalVehicleArrived = false
 	GiveItemIndex1 = 0
 	GiveItemIndex2 = 0
 	LastGiveItemTime = 0
@@ -252,9 +255,19 @@ IncludeScript("left4bots_settings");
 	if (Settings.chat_hello_replies != "")
 		ChatHelloReplies = split(Settings.chat_hello_replies, ",");
 
+	local name = "l4b2automation";
+	Left4Hud.HideHud(name);
+	Left4Hud.RemoveHud(name);
+	if (Settings.automation_debug)
+	{
+		Left4Hud.AddHud(name, g_ModeScript["HUD_TICKER"], g_ModeScript.HUD_FLAG_NOTVISIBLE | g_ModeScript.HUD_FLAG_ALIGN_LEFT);
+		Left4Hud.PlaceHud(name, 0.01, 0.15, 0.8, 0.05);
+		Left4Hud.ShowHud(name);
+	}
+
 	for (local i = 1; i <= 4; i++)
 	{
-		local name = "l4b2debug" + i;
+		local name = "l4b2orders" + i;
 		Left4Hud.HideHud(name);
 		Left4Hud.RemoveHud(name);
 		if (Settings.orders_debug)
@@ -300,7 +313,8 @@ tank_throw_survivors_mindistance = 250";
 	// Default settings overrides for 'Expert' difficulty
 	if (!Left4Utils.FileExists("left4bots2/cfg/settings_impossible.txt"))
 	{
-		local defaultText = @"close_saferoom_door_all_chance = 0
+		local defaultText = @"automation_autostart = 0
+close_saferoom_door_all_chance = 0
 close_saferoom_door_highres = 1
 heal_interrupt_minhealth = 30
 horde_nades_chance = 35
@@ -375,8 +389,8 @@ witch_autocrown = 0";
 			"AskForHealth2 = bot heal me,botname heal me"
 			"PlayerAnswerLostCall = bot give,botname give",
 			"iMT_PlayerHello = bot swap,botname swap",
-			"PlayerImWithYou = bots automation,botname automation",
-			"PlayerYellRun = bots automation all,botname automation all" // TODO: test, remove
+			"PlayerImWithYou = bots automation all,botname automation all"
+			//"PlayerYellRun = ?",
 			//"TODO = bots warp,botname warp",
 			//"TODO = bot tempheal,botname tempheal",
 			//"TODO = bot deploy,botname deploy",
@@ -1108,7 +1122,7 @@ witch_autocrown = 0";
 {
 	local botFacing = bot.EyeAngles().Forward();
 	local ret = null;
-	local minDist = 1000000;
+	local minDist = radius;
 	local tracemask_others = Settings.tracemask_others;
 	foreach (ent in Specials)
 	{
@@ -1117,7 +1131,7 @@ witch_autocrown = 0";
 			local toEnt = ent.GetOrigin() - orig;
 			local dist = toEnt.Length();
 			toEnt.Norm();
-			if (dist <= radius && dist < minDist && botFacing.Dot(toEnt) >= minDot && !ent.IsGhost() && Left4Utils.CanTraceTo(bot, ent, tracemask_others))
+			if (dist < minDist && botFacing.Dot(toEnt) >= minDot && !ent.IsGhost() && Left4Utils.CanTraceTo(bot, ent, tracemask_others))
 			{
 				ret = ent;
 				minDist = dist;
@@ -1137,7 +1151,7 @@ witch_autocrown = 0";
 	}
 	
 	local ent = null;
-	while (ent = Entities.FindByClassnameWithin(ent, "infected", orig, radius)) // If only we had a infected_spawned event for the commons...
+	while (ent = Entities.FindByClassnameWithin(ent, "infected", orig, minDist)) // If only we had a infected_spawned event for the commons...
 	{
 		if (ent.IsValid())
 		{
@@ -1442,8 +1456,8 @@ witch_autocrown = 0";
 	// If orderType = "lead" or "follow", then the bots can't have another order of that type in the queue
 	switch (orderType)
 	{
-		case "lead": // bot can't have another order of the same type in the queue
-			return !BotHasOrderOfType(bot, orderType);
+		//case "lead": // bot can't have another order of the same type in the queue
+		//	return !BotHasOrderOfType(bot, orderType);
 
 		case "follow":
 			return (!BotHasOrderOfType(bot, orderType) && !(bot.GetPlayerUserId() in ScavengeBots));
@@ -1456,6 +1470,9 @@ witch_autocrown = 0";
 		
 		case "destroy":
 			return (botScope.ActiveWeapon && IsRangedWeapon(botScope.ActiveWeaponId, botScope.ActiveWeaponSlot) && Left4Utils.GetAmmoPercent(botScope.ActiveWeapon) >= 2);
+		
+		default: // bot can't have another order of the same type in the queue
+			return !BotHasOrderOfType(bot, orderType);
 	}
 	
 	return true;
@@ -2089,8 +2106,6 @@ witch_autocrown = 0";
 
 		// Retry, but only after the timed unforce+unfreeze of the previous button press have done, otherwise the new heal will be interrupted
 		if (IsPlayerABot(bot))
-			//lxc apply changes
-			//Left4Timers.AddTimer(null, Settings.button_holdtime_heal - 0.5, @(params) ::Left4Bots.BotOrderRetry.bindenv(::Left4Bots)(params.bot, params.order), { bot = bot, order = order });
 			Left4Timers.AddTimer(null, 0.5, @(params) ::Left4Bots.BotOrderRetry.bindenv(::Left4Bots)(params.bot, params.order), { bot = bot, order = order });
 	}
 }
@@ -2610,20 +2625,10 @@ witch_autocrown = 0";
 ::Left4Bots.GetWeaponRangeById <- function (weaponId)
 {
 	if (weaponId > Left4Utils.MeleeWeaponId.none || weaponId == Left4Utils.WeaponId.weapon_chainsaw)
-	{
-		if (Settings.manual_attack_radius < 150)
-			return Settings.manual_attack_radius;
-		else
-			return 150;
-	}
+		return Settings.manual_attack_radius < 100 ? Settings.manual_attack_radius : 100; // TODO: maybe we should make it a setting
 
 	if (weaponId == Left4Utils.WeaponId.weapon_pumpshotgun || weaponId == Left4Utils.WeaponId.weapon_autoshotgun || weaponId == Left4Utils.WeaponId.weapon_shotgun_chrome || weaponId == Left4Utils.WeaponId.weapon_shotgun_spas)
-	{
-		if (Settings.manual_attack_radius < 600)
-			return Settings.manual_attack_radius;
-		else
-			return 600;
-	}
+		return Settings.manual_attack_radius < 600 ? Settings.manual_attack_radius : 600;
 
 	return Settings.manual_attack_radius;
 }
@@ -3268,8 +3273,24 @@ witch_autocrown = 0";
 	return ret;
 }
 
-// Debug hud text
-::Left4Bots.RefreshDebugHudText <- function()
+// Automation debug hud text
+::Left4Bots.RefreshAutomationDebugHudText <- function()
+{
+	local str = "";
+	foreach (task in Automation.CurrentTasks)
+	{
+		if (str != "")
+			str += ", ";
+		str += "[" + task._target + " " + task._order + " (" + task.IsStarted() + ")]";
+	}
+	if (str == "")
+		str = "[]";
+	
+	Left4Hud.SetHudText("l4b2automation", "Flow: " + Automation.PrevFlow + " - Tasks: " + str);
+}
+
+// Orders debug hud text
+::Left4Bots.RefreshOrdersDebugHudText <- function()
 {
 	local i = 0;
 	foreach (bot in Bots)
@@ -3303,7 +3324,7 @@ witch_autocrown = 0";
 		}
 		txt += ")";
 		
-		Left4Hud.SetHudText("l4b2debug" + i, txt);
+		Left4Hud.SetHudText("l4b2orders" + i, txt);
 	}
 }
 

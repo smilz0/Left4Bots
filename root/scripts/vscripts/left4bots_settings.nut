@@ -3,22 +3,19 @@
 	// [1/0] 1 = Prevents (at least will try) the infamous bug of the pipe bomb thrown right before transitioning to the next chapter, the bots will bug out and do nothing for the entire next chapter
 	anti_pipebomb_bug = 1
 
+	// [1/0] Enable/Disable the autostart of the automation tasks when humans are in the team
+	automation_autostart = 1
+
+	// [1/0] Enable/Disable the automation debug text overlay (only visible to the host)
+	automation_debug = 0
+
 	// Interval of the main bot Think function (default is 0.1 which means 10 ticks per second)
 	// Set the max i can get even though the think functions can go up to 30 ticks per second (interval 0.0333) and the CTerrorPlayer entities limit their think functions to max 15 ticks per second (0.06666)
 	// -1 automatically sets the fastest interval possible
 	bot_think_interval = -1
 
-	// How long do the bots hold down the button to defib a dead survivor
-	//button_holdtime_defib = 3.2 // TODO: Remove
-
-	// How long do the bots hold down the button to heal
-	//button_holdtime_heal = 5.3 // TODO: Remove
-
-	// How long do the bots hold down the button to pour gascans/cola
-	//button_holdtime_pour = 2.2 // TODO: Remove
-
 	// How long do the bots hold down a button to do single tap button press (it needs to last at least 2 ticks, so it must be greater than 0.033333 or the weapons firing can fail)
-	button_holdtime_tap = 0.04
+	button_holdtime_tap = 0.0
 
 	// [1/0] Enable/Disable debug chat messages when the bot picks-up/drops the assigned carry item
 	carry_debug = 0
@@ -122,14 +119,8 @@
 	// Can be set to the value of one of the game's cvars "fall_speed_fatal" (default val. 720), "fall_speed_safe" (560) to avoid insta-death or any damage at all respectively
 	fall_velocity_warp = 0
 
-	// Name of the file containing the BG chat lines
-	//		file_bg = "left4bots2/cfg/bg.txt" // TODO: remove
-
 	// Name of the file with the convar changes to load (empty = don't load the convar changes)
 	file_convars = "left4bots2/cfg/convars.txt"
-
-	// Name of the file containing the GG chat lines
-	//		file_gg = "left4bots2/cfg/gg.txt" // TODO: remove
 
 	// Name of the file containing the items that the vanilla AI should/should not pickup (empty = don't load the items)
 	file_itemstoavoid = "left4bots2/cfg/itemstoavoid.txt"
@@ -214,7 +205,7 @@
 
 	// If during the 'lead' order, a blocked nav area is found, the algorithm will try to find an alternate route to get past the blocked area. This is the max distance of the alternate route
 	// Set 0 to disable the alternate route calculation and just stop at the blocked area
-	lead_detour_maxdist = 5000
+	lead_detour_maxdist = 10000
 
 	// [1/0] If 1, lead segments will avoid to end on nav areas with DAMAGING attribute (such as areas with fire and spitter's spit),
 	// so the vanilla nav system of the bot can try to avoid such areas and take an alternate route (if possible)
@@ -328,7 +319,7 @@
 	pickups_melee_noprimary = 1
 
 	// Pick up the item we are looking for when within this range
-	pickups_pick_range = 80
+	pickups_pick_range = 90
 
 	// Items to pick up must be within this radius (and be visible to the bot)
 	pickups_scan_radius = 400

@@ -7,6 +7,11 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m4_atrium automation scrip
 	switch (concept)
 	{
 		case "SurvivorLeavingInitialCheckpoint":
+			if (::Left4Bots.Automation.step > 1)
+				return; // !!! This also triggers when a survivor is defibbed later in the game !!!
+		
+			// *** TASK 2. Wait for the first survivor to leave the start saferoom, then all go press the elevator button
+			
 			local button_elev_3rdfloor = Entities.FindByName(null, "button_elev_3rdfloor");
 			if (button_elev_3rdfloor && button_elev_3rdfloor.IsValid())
 			{
@@ -21,10 +26,14 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m4_atrium automation scrip
 			break;
 		
 		case "c1m4startelevator":
+			// *** TASK 3. Elevator started, go idle until it reaches the bottom floor
+			
 			::Left4Bots.Automation.ResetTasks();
 			break;
 		
 		case "FinaleTriggered":
+			// *** TASK 4. Elevator down and finale was triggered, start the gasgan scavenge
+			
 			// This is optional, it's just to set a better ScavengeUseTargetPos than the autocalculated one
 			::Left4Bots.ScavengeUseTarget = Entities.FindByClassname(null, "point_prop_use_target");
 			::Left4Bots.ScavengeUseType = NetProps.GetPropInt(::Left4Bots.ScavengeUseTarget, "m_spawnflags");
@@ -40,6 +49,8 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m4_atrium automation scrip
 			break;
 			
 		case "PlayerPourFinished":
+			// *** TASK 5. Scavenge finished, just go idle and let the vanilla AI go to the rescue vehicle
+			
 			local score = null;
 			local towin = null;
 
@@ -65,6 +76,8 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m4_atrium automation scrip
 	switch (::Left4Bots.Automation.step)
 	{
 		case 0:
+			// *** TASK 1. Heal while in the start saferoom
+			
 			if (!::Left4Bots.Automation.TaskExists("bots", "HealInSaferoom"))
 			{
 				::Left4Bots.Automation.ResetTasks();

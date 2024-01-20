@@ -2,55 +2,16 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c2m3_coaster automation scri
 
 ::Left4Bots.Automation.step <- 0;
 
-// TODO: Maybe better replace with Regroup (wait?)
-class ::Left4Bots.Automation.GotoSingle extends ::Left4Bots.Automation.Task
-{
-	constructor(pos)
-	{
-		// 'target' and 'order' are only used for the task identification (GetTaskId), not for the actual orders
-		base.constructor("bots", "GotoSingle", null, null, null, -1, true, null, false, false);
-		
-		_ordersSent = false;
-		_gotoPos = pos;
-	}
-	
-	function Think()
-	{
-		if (!_started)
-			return;
-		
-		_l4b.Logger.Debug("Task thinking " + tostring());
-		
-		if (!_ordersSent)
-		{
-			foreach (bot in _l4b.Bots)
-				_l4b.BotOrderAdd(bot, "goto", null, null, _gotoPos);
-			
-			_ordersSent = true;
-			return;
-		}
-		
-		// Make sure the bots completed their previously assigned orders (goto) before continuing
-		foreach (bot in _l4b.Bots)
-		{
-			if (_l4b.BotOrdersCount(bot) > 0)
-				return;
-		}
-		
-		// Task is complete. Remove it from CurrentTasks
-		_l4b.Automation.DeleteTasks(_target, _order, _destEnt, _destPos, _destLookAtPos);
-		_l4b.Logger.Debug("Task complete");
-	}
-	
-	_ordersSent = false;
-	_gotoPos = null;
-}
-
 ::Left4Bots.Automation.OnConcept <- function(who, subject, concept, query)
 {
 	switch (concept)
 	{
 		case "SurvivorLeavingInitialCheckpoint":
+			if (::Left4Bots.Automation.step > 1)
+				return; // !!! This also triggers when a survivor is defibbed later in the game !!!
+		
+			// *** TASK 2. Wait for the first survivor to leave the start saferoom, then start leading
+			
 			if (!::Left4Bots.Automation.TaskExists("bots", "lead"))
 			{
 				::Left4Bots.Automation.ResetTasks();
@@ -59,10 +20,14 @@ class ::Left4Bots.Automation.GotoSingle extends ::Left4Bots.Automation.Task
 			break;
 		
 		case "c2m3CoasterStart":
+			// *** TASK 6. Coaster started, wait for the gate to open
+			
 			::Left4Bots.Automation.ResetTasks();
 			break;
 		
 		case "C2M3CoasterRun":
+			// *** TASK 7. Coaster gate is open, go back to leading
+			
 			if (!::Left4Bots.Automation.TaskExists("bots", "lead"))
 			{
 				::Left4Bots.Automation.ResetTasks();
@@ -71,15 +36,20 @@ class ::Left4Bots.Automation.GotoSingle extends ::Left4Bots.Automation.Task
 			break;
 		
 		case "c2m3CoasterEnd":
-			// Don't use 'lead', the map's flow is broken here. Let them go on the bridge instead, they will be able to path to the saferoom from there
-			if (!::Left4Bots.Automation.TaskExists("bots", "GotoSingle"))
+			// *** TASK 9. Coaster stopped, regroup on the bridge before proceeding to the saferoom. Can't use 'lead' here cause of bad flow, they will be able to lead again from the bridge
+			
+			if (!::Left4Bots.Automation.TaskExists("bots", "RegroupAt"))
 			{
 				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddCustomTask(::Left4Bots.Automation.GotoSingle(Vector(-4015.306885, 2316.522705, 272.031250)));
+				::Left4Bots.Automation.AddCustomTask(::Left4Bots.Automation.RegroupAt(Vector(-4124.318359, 2319.524170, 272.031250)));
+				
+				::Left4Bots.Automation.step = 6;
 			}
 			break;
 		
 		case "SurvivorBotReachedCheckpoint":
+			// *** TASK 11. Saferoom reached. Remove all the task and let the given orders (lead) complete
+			
 			CurrentTasks.clear();
 			break;
 	}
@@ -90,6 +60,8 @@ class ::Left4Bots.Automation.GotoSingle extends ::Left4Bots.Automation.Task
 	switch (::Left4Bots.Automation.step)
 	{
 		case 0:
+			// *** TASK 1. Heal while in the start saferoom
+			
 			if (!::Left4Bots.Automation.TaskExists("bots", "HealInSaferoom"))
 			{
 				::Left4Bots.Automation.ResetTasks();
@@ -100,13 +72,14 @@ class ::Left4Bots.Automation.GotoSingle extends ::Left4Bots.Automation.Task
 			break;
 		
 		case 1:
-			// Go check the pills cabinet for pickups
+			// *** TASK 3. Regroup near the pain pills cabinet before proceeding, so everyone can get the pills if needed
+			
 			if (curFlowPercent >= 42 && prevFlowPercent < 42)
 			{
-				if (!::Left4Bots.Automation.TaskExists("bots", "GotoSingle"))
+				if (!::Left4Bots.Automation.TaskExists("bots", "RegroupAt"))
 				{
 					::Left4Bots.Automation.ResetTasks();
-					::Left4Bots.Automation.AddCustomTask(::Left4Bots.Automation.GotoSingle(Vector(-1403.558472, 1134.177246, 4.031250)));
+					::Left4Bots.Automation.AddCustomTask(::Left4Bots.Automation.RegroupAt(Vector(-1403.558472, 1134.177246, 4.031250)));
 				}
 				
 				::Left4Bots.Automation.step++;
@@ -114,7 +87,20 @@ class ::Left4Bots.Automation.GotoSingle extends ::Left4Bots.Automation.Task
 			break;
 		
 		case 2:
-			// Start the coaster
+			// *** TASK 4. Wait until everyone regrouped, then go back to leading
+			
+			if (!::Left4Bots.Automation.TaskExists("bots", "RegroupAt"))
+			{
+				::Left4Bots.Automation.ResetTasks();
+				::Left4Bots.Automation.AddTask("bots", "lead");
+				
+				::Left4Bots.Automation.step++;
+			}
+			break;
+		
+		case 3:
+			// *** TASK 5. Start the coaster
+			
 			if (curFlowPercent > 52 && prevFlowPercent <= 52)
 			{
 				local minifinale_button = Entities.FindByName(null, "minifinale_button");
@@ -128,8 +114,9 @@ class ::Left4Bots.Automation.GotoSingle extends ::Left4Bots.Automation.Task
 			}
 			break;
 		
-		case 3:
-			// Stop the coaster
+		case 4:
+			// *** TASK 8. Stop the coaster
+			
 			if (curFlowPercent > 92 && prevFlowPercent <= 92)
 			{
 				local finale_alarm_stop_button = Entities.FindByName(null, "finale_alarm_stop_button");
@@ -138,6 +125,18 @@ class ::Left4Bots.Automation.GotoSingle extends ::Left4Bots.Automation.Task
 					::Left4Bots.Automation.ResetTasks();
 					::Left4Bots.Automation.AddTask("bots", "use", finale_alarm_stop_button, Vector(-3576.294922, 1472.324341, 160.031250));
 				}
+				
+				::Left4Bots.Automation.step++;
+			}
+			break;
+		
+		case 6:
+			// *** TASK 10. Wait until everyone is on the bridge, then back to leading up to the saferoom
+			
+			if (!::Left4Bots.Automation.TaskExists("bots", "RegroupAt"))
+			{
+				::Left4Bots.Automation.ResetTasks();
+				::Left4Bots.Automation.AddTask("bots", "lead");
 				
 				::Left4Bots.Automation.step++;
 			}
