@@ -39,10 +39,8 @@ Msg("Including left4bots_events...\n");
 
 	DirectorScript.GetDirectorOptions().cm_ShouldHurry <- Left4Bots.Settings.should_hurry;
 	
-	
-	//lxc set val
-	Left4Bots.Settings.button_holdtime_tap = 0;  // TODO: remove
-	Left4Bots.Settings.pickups_pick_range = 80;
+	if (::Left4Bots.Settings.automation_autostart)
+		::Left4Bots.Automation.StartTasks(true);
 }
 
 ::Left4Bots.Events.OnGameEvent_round_end <- function (params)
@@ -187,7 +185,7 @@ Msg("Including left4bots_events...\n");
 					Left4Bots.Logger.Debug("Active tanks: " + ::Left4Bots.Tanks.len());
 				}
 				else
-					Left4Bots.Logger.Error("Dead tank was not in Left4Bots.Tanks");
+					Left4Bots.Logger.Warning("Dead tank was not in Left4Bots.Tanks");
 			}
 			else
 			{
@@ -761,31 +759,6 @@ Msg("Including left4bots_events...\n");
 ::Left4Bots.Events.OnGameEvent_finale_win <- function (params)
 {
 	Left4Bots.Logger.Debug("OnGameEvent_finale_win");
-	/*
-	local ggLines = Left4Utils.FileToStringList(Left4Bots.Settings.file_gg);
-	local bgLines = Left4Utils.FileToStringList(Left4Bots.Settings.file_bg);
-
-	foreach (id, bot in ::Left4Utils.GetAllSurvivors())
-	{
-		if (bot && bot.IsValid() && IsPlayerABot(bot))
-		{
-			local line = null;
-			if (!bot.IsIncapacitated() && !bot.IsDead() && !bot.IsDying())
-			{
-				if (ggLines && ggLines.len() > 0 && RandomInt(1, 100) <= Left4Bots.Settings.chat_gg_chance)
-					line = ggLines[RandomInt(0, ggLines.len() - 1)];
-			}
-			else
-			{
-				if (bgLines && bgLines.len() > 0 && RandomInt(1, 100) <= Left4Bots.Settings.chat_bg_chance)
-					line = bgLines[RandomInt(0, bgLines.len() - 1)];
-			}
-
-			if (line)
-				Left4Timers.AddTimer(null, RandomFloat(2.0, 5.0), @(params) ::Left4Bots.SayLine.bindenv(::Left4Bots)(params.bot, params.line), { bot = bot, line = line });
-		}
-	}
-	*/
 
 	foreach (id, bot in ::Left4Utils.GetAllSurvivors())
 	{
@@ -1607,8 +1580,11 @@ Msg("Including left4bots_events...\n");
 		}
 	}
 	
+	if (Settings.automation_debug)
+		RefreshAutomationDebugHudText();
+	
 	if (Settings.orders_debug)
-		RefreshDebugHudText();
+		RefreshOrdersDebugHudText();
 }
 
 // -----
@@ -1732,6 +1708,7 @@ settings
 
 			player.SetContext("subject", Left4Utils.GetActorFromSurvivor(tgtBot), 0.1);
 			player.SetContext("subjectid", tgtBot.GetPlayerUserId().tostring(), 0.1);
+			player.SetContext("smartlooktype", "manual", 0.1);
 			//DoEntFire("!self", "AddContext", "subject:" + Left4Utils.GetActorFromSurvivor(tgtBot), 0, null, player);
 			DoEntFire("!self", "SpeakResponseConcept", "PlayerLook", 0, null, player);
 			//DoEntFire("!self", "ClearContext", "", 0, null, player);
@@ -1770,11 +1747,23 @@ settings
 							Logger.LogLevel(Settings.loglevel);
 						else if (arg2 == "should_hurry")
 							DirectorScript.GetDirectorOptions().cm_ShouldHurry <- Settings.should_hurry;
+						else if (arg2 == "automation_debug")
+						{
+							local name = "l4b2automation";
+							Left4Hud.HideHud(name);
+							Left4Hud.RemoveHud(name);
+							if (Settings.automation_debug)
+							{
+								Left4Hud.AddHud(name, g_ModeScript["HUD_TICKER"], g_ModeScript.HUD_FLAG_NOTVISIBLE | g_ModeScript.HUD_FLAG_ALIGN_LEFT);
+								Left4Hud.PlaceHud(name, 0.01, 0.15, 0.8, 0.05);
+								Left4Hud.ShowHud(name);
+							}
+						}
 						else if (arg2 == "orders_debug")
 						{
 							for (local i = 1; i <= 4; i++)
 							{
-								local name = "l4b2debug" + i;
+								local name = "l4b2orders" + i;
 								Left4Hud.HideHud(name);
 								Left4Hud.RemoveHud(name);
 								if (Settings.orders_debug)
@@ -1919,6 +1908,14 @@ settings
 		subject = query.subject;
 	else if ("Subject" in query)
 		subject = query.Subject;
+
+	if (Settings.automation_debug)
+	{
+		if (who && who.IsValid() && "GetPlayerName" in who)
+			::Left4Users.AdminNotice("[" + concept + "] " + who.GetPlayerName() + " -> " + subject);
+		else
+			::Left4Users.AdminNotice("[" + concept + "] " + who + " -> " + subject);
+	}
 
 	Automation.OnConcept(who, subject, concept, query);
 
@@ -2166,8 +2163,8 @@ settings
 			
 			break;
 		
+		/* TODO
 		case "PlayerPourFinished":
-			/* TODO
 			local score = null;
 			local towin = null;
 
@@ -2185,9 +2182,9 @@ settings
 
 				ScavengeStop();
 			}
-			*/
 			
 			break;
+		*/
 		
 		case "PropExplosion":
 			// Barricade gascans are successfully ignited, cancel any pending "destroy" order
@@ -2195,6 +2192,16 @@ settings
 			{
 				if (bot.IsValid())
 					bot.GetScriptScope().BotCancelOrders("destroy");
+			}
+			
+			break;
+		
+		case "FinalVehicleArrived": // FinalVehicleSpotted
+			if (!FinalVehicleArrived)
+			{
+				FinalVehicleArrived = true;
+				
+				Logger.Debug("FinalVehicleArrived");
 			}
 			
 			break;

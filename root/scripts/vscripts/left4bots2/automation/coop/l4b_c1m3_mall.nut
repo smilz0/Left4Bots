@@ -1,12 +1,56 @@
 Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m3_mall automation script...\n");
 
 ::Left4Bots.Automation.step <- 0;
+::Left4Bots.Automation.minifinale <- 0;
+::Left4Bots.Automation.avoidAreas <- [1095, 118545, 118546, 4018, 314746]; // Avoid these common stuck spots
+
+::Left4Bots.Automation.SetElevatorPath <- function(num)
+{
+	printl("SetElevatorPath(" + num + ")");
+	
+	// Navblockers that are meant to be unblocked for each path
+	local paths = {};
+	paths[1] <- ["escalator_lower_01-navblocker", "escalator_lower_03-navblocker", "escalator_upper_01-navblocker", "escalator_upper_03-navblocker"];
+	paths[2] <- ["escalator_lower_01-navblocker", "escalator_lower_04-navblocker", "escalator_upper_02-navblocker", "escalator_upper_04-navblocker"];
+	paths[3] <- ["escalator_lower_01-navblocker", "escalator_lower_03-navblocker", "escalator_upper_02-navblocker", "escalator_upper_04-navblocker"];
+	paths[4] <- ["escalator_lower_01-navblocker", "escalator_lower_04-navblocker", "escalator_upper_02-navblocker", "escalator_upper_03-navblocker"];
+	paths[5] <- ["escalator_lower_02-navblocker", "escalator_lower_04-navblocker", "escalator_upper_01-navblocker", "escalator_upper_03-navblocker"];
+	paths[6] <- ["escalator_lower_02-navblocker", "escalator_lower_03-navblocker", "escalator_upper_01-navblocker", "escalator_upper_04-navblocker"];
+	paths[7] <- ["escalator_lower_02-navblocker", "escalator_lower_03-navblocker", "escalator_upper_01-navblocker", "escalator_upper_03-navblocker"];
+	paths[8] <- ["escalator_lower_02-navblocker", "escalator_lower_04-navblocker", "escalator_upper_01-navblocker", "escalator_upper_04-navblocker"];
+	
+	if (!(num in paths))
+	{
+		printl("Error: " + num + " is not a valid path number");
+		return;
+	}
+	
+	// Blocking all the 'escalator' navblockers except the ones that are meant to be unblocked for this path
+	local ent = null;
+	while (ent = Entities.FindByClassname(ent, "func_nav_blocker"))
+	{
+		local name = ent.GetName();
+		if (name.find("escalator") != null)
+		{
+			if (paths[num].find(name) == null)
+			{
+				DoEntFire("!self", "BlockNav", "", 1, ent, ent);
+				printl(name + " blocked");
+			}
+		}
+	}
+}
 
 ::Left4Bots.Automation.OnConcept <- function(who, subject, concept, query)
 {
 	switch (concept)
 	{
 		case "SurvivorLeavingInitialCheckpoint":
+			if (::Left4Bots.Automation.step > 1)
+				return; // !!! This also triggers when a survivor is defibbed later in the game !!!
+		
+			// *** TASK 2. Wait for the first survivor to leave the start saferoom, then start leading
+			
 			if (!::Left4Bots.Automation.TaskExists("bots", "lead"))
 			{
 				::Left4Bots.Automation.ResetTasks();
@@ -16,6 +60,8 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m3_mall automation script.
 		
 		case "C1M3AlarmDoor":
 		case "C1M3BrokeWindow":
+			// *** TASK 5. Alarm set, go press the stop alarm button on the upper floor
+			
 			::Left4Bots.Automation.step = 3;
 		
 			// For some reason the button has no name but it's the only func_button on the map
@@ -33,6 +79,8 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m3_mall automation script.
 			break;
 			
 		case "C1M3AlarmOff":
+			// *** TASK 6. Alarm is off, go back to leading up to the saferoom
+			
 			if (!::Left4Bots.Automation.TaskExists("bots", "lead"))
 			{
 				::Left4Bots.Automation.ResetTasks();
@@ -41,6 +89,8 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m3_mall automation script.
 			break;
 			
 		case "SurvivorBotReachedCheckpoint":
+			// *** TASK 7. Saferoom reached. Remove all the task and let the given orders (lead) complete
+			
 			CurrentTasks.clear();
 			break;
 	}
@@ -48,9 +98,19 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m3_mall automation script.
 
 ::Left4Bots.Automation.OnFlow <- function(prevFlowPercent, curFlowPercent)
 {
+	// Make sure the areas listed in avoidAreas are always DAMAGING so the bots will try to avoid them
+	for (local i = 0; i < ::Left4Bots.Automation.avoidAreas.len(); i++)
+	{
+		local area = NavMesh.GetNavAreaByID(::Left4Bots.Automation.avoidAreas[i]);
+		if (area && area.IsValid() && !area.IsDamaging())
+			area.MarkAsDamaging(99999);
+	}
+	
 	switch (::Left4Bots.Automation.step)
 	{
 		case 0:
+			// *** TASK 1. Heal while in the start saferoom
+			
 			if (!::Left4Bots.Automation.TaskExists("bots", "HealInSaferoom"))
 			{
 				::Left4Bots.Automation.ResetTasks();
@@ -61,25 +121,26 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m3_mall automation script.
 			break;
 		
 		case 1:
-			if (curFlowPercent > 42)
+			// *** TASK 3. Wait for the minifinale (one of the 2 dynamic paths) to be set
+			
+			if (::Left4Bots.Automation.minifinale == 1)
+			{
+				Left4Bots.Logger.Debug("Automation.Events.OnFlow - Stairwell minifinale");
+				NavMesh.GetNavAreaByID(53672).UnblockArea(); // Unblock the area in front of the alarm door so the bots can open the door
 				::Left4Bots.Automation.step++;
+			}
+			else if (::Left4Bots.Automation.minifinale == 2)
+			{
+				Left4Bots.Logger.Debug("Automation.Events.OnFlow - Hallway minifinale");
+				::Left4Bots.Automation.step++;
+			}
 			break;
 			
 		case 2:
-			local door_hallway = Entities.FindByName(null, "door_hallway");
-			if (!door_hallway && door_hallway.IsValid())
-			{
-				Left4Bots.Logger.Error("Automation.Events.OnFlow - door_hallway not found!");
-				::Left4Bots.Automation.step = 3;
-				return;
-			}
+			// *** TASK 4. Depending on the choosen minifinale, when near the breakable glass/alarm door, break/open it
 			
-			local closed = NetProps.GetPropInt(door_hallway, "m_eDoorState") == 0;
-			if (closed && curFlowPercent >= 55.8 && prevFlowPercent < 55.8)
+			if (::Left4Bots.Automation.minifinale == 1 && curFlowPercent >= 55.8 && prevFlowPercent < 55.8)
 			{
-				// We are at the alarm door
-				Left4Bots.Logger.Debug("Automation.Events.OnFlow - stairwell minifinale");
-				
 				local door_hallway_lower4a = Entities.FindByName(null, "door_hallway_lower4a");
 				if (door_hallway_lower4a && door_hallway_lower4a.IsValid())
 				{
@@ -94,11 +155,8 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m3_mall automation script.
 				
 				::Left4Bots.Automation.step++;
 			}
-			else if (curFlowPercent >= 54 && prevFlowPercent < 54)
+			else if (::Left4Bots.Automation.minifinale == 2 && curFlowPercent >= 54 && prevFlowPercent < 54)
 			{
-				// We are at the breakable glass
-				Left4Bots.Logger.Debug("Automation.Events.OnFlow - hallway minifinale");
-				
 				local breakble_glass_minifinale = Entities.FindByName(null, "breakble_glass_minifinale");
 				if (breakble_glass_minifinale && breakble_glass_minifinale.IsValid())
 				{
@@ -114,32 +172,31 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m3_mall automation script.
 				::Left4Bots.Automation.step++;
 			}
 			break;
-		
-		case 3:
-			if (curFlowPercent > 86 && prevFlowPercent <= 86)
-			{
-				if (!::Left4Bots.Automation.TaskExists("bots", "goto"))
-				{
-					::Left4Bots.Automation.ResetTasks();
-					::Left4Bots.Automation.AddTask("bots", "goto", null, Vector(-1960.306763, -3884.179932, 536.031250));
-				}
-				
-				::Left4Bots.Automation.step++;
-			}
-			break;
-			
-		case 4:
-			if (curFlowPercent > 93.5 && prevFlowPercent <= 93.5)
-			{
-				if (::Left4Bots.Automation.HasTasks())
-					::Left4Bots.Automation.ResetTasks();
-				
-				::Left4Bots.Automation.step++;
-			}
-			break;
 	}
 }
 
+::Left4Bots.Automation.Events.OnGameEvent_round_start <- function (params)
+{
+	printl("::Left4Bots.Automation.Events.OnGameEvent_round_start");
+
+	local ent = null;
+	while (ent = Entities.FindByClassname(ent, "func_nav_blocker"))
+	{
+		if (ent.GetName().find("escalator") != null)
+		{
+			NetProps.SetPropInt(ent, "m_bAffectsFlow", 1);
+			DoEntFire("!self", "UnblockNav", "", 1, ent, ent); // Idk why UnblockNav needs this delay but it fails without it
+		}
+	}
+}
+
+// relay_hallway_close triggers the Stairwell (Alarm door) minifinale
+EntityOutputs.AddOutput(Entities.FindByName(null, "relay_hallway_close"), "OnTrigger", "worldspawn", "RunScriptCode", "::Left4Bots.Automation.minifinale = 1", 0, -1);
+// relay_stairwell_close triggers the Hallway (Breakable glass) minifinale
+EntityOutputs.AddOutput(Entities.FindByName(null, "relay_stairwell_close"), "OnTrigger", "worldspawn", "RunScriptCode", "::Left4Bots.Automation.minifinale = 2", 0, -1);
+
+for (local i = 1; i <= 8; i++)
+	EntityOutputs.AddOutput(Entities.FindByName(null, "relay_elevator_path_0" + i), "OnTrigger", "worldspawn", "RunScriptCode", "::Left4Bots.Automation.SetElevatorPath(" + i + ")", 0, -1);
 
 /*
 local compare_minifinale = Entities.FindByName(null, "compare_minifinale");

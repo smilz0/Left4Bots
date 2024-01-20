@@ -1,64 +1,16 @@
 Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m2_streets automation script...\n");
 
 ::Left4Bots.Automation.step <- 0;
+::Left4Bots.Automation.avoidAreas <- [222122, 233809, 233810];
 
-class ::Left4Bots.Automation.HealAndGoto extends ::Left4Bots.Automation.Task
+// Handles the entire cola delivery process.
+// Picks one bot for the cola scavenge and orders the others to wait outside of the shop until the cola carrier runs outside, then tell them to follow him for the delivery
+class ::Left4Bots.Automation.C1M2ColaDelivery extends ::Left4Bots.Automation.Task
 {
 	constructor()
 	{
 		// 'target' and 'order' are only used for the task identification (GetTaskId), not for the actual orders
-		base.constructor("bots", "HealAndGoto", null, null, null, -1, true, null, false, false);
-		
-		_ordersSent = false;
-	}
-	
-	function Think()
-	{
-		if (!_started)
-			return;
-		
-		_l4b.Logger.Debug("Task thinking " + tostring());
-		
-		if (!_ordersSent)
-		{
-			foreach (bot in _l4b.Bots)
-			{
-				// Heal if needed
-				if (bot.GetHealth() <= 98 && ::Left4Utils.HasMedkit(bot))
-					_l4b.BotOrderAdd(bot, "heal", null, bot, null, null, 0, false);
-				
-				// Go get medkits if needed
-				_l4b.BotOrderAdd(bot, "goto", null, null, goto_pos1);
-				_l4b.BotOrderAdd(bot, "goto", null, null, goto_pos2);
-			}
-			_ordersSent = true;
-			return;
-		}
-		
-		// Make sure the bots completed their previously assigned orders (heal and goto) before continuing
-		foreach (bot in _l4b.Bots)
-		{
-			if (_l4b.BotOrdersCount(bot) > 0)
-				return;
-		}
-		
-		// Task is complete. Remove it from CurrentTasks
-		_l4b.Automation.DeleteTasks(_target, _order, _destEnt, _destPos, _destLookAtPos);
-		_l4b.Logger.Debug("Task complete");
-	}
-	
-	_ordersSent = false;
-	
-	static goto_pos1 = Vector(-5347.480957, -1716.984863, 456.031250);
-	static goto_pos2 = Vector(-5365.701660, -1905.519653, 456.031250);
-}
-
-class ::Left4Bots.Automation.ColaDelivery extends ::Left4Bots.Automation.Task
-{
-	constructor()
-	{
-		// 'target' and 'order' are only used for the task identification (GetTaskId), not for the actual orders
-		base.constructor("bots", "ColaDelivery", null, null, null, -1, true, null, false, false);
+		base.constructor("bots", "C1M2ColaDelivery", null, null, null, 0.0, true, null, false, false);
 		
 		_store_doors = Entities.FindByName(null, "store_doors");
 		if (!_store_doors)
@@ -94,14 +46,14 @@ class ::Left4Bots.Automation.ColaDelivery extends ::Left4Bots.Automation.Task
 				// Order to open has already been sent
 				// Do nothing
 				
-				_l4b.Logger.Debug("ColaDelivery.Think - store_doors closed, open order sent");
+				_l4b.Logger.Debug("C1M2ColaDelivery.Think - store_doors closed, open order sent");
 			}
 			else
 			{
 				// Must send the order to open
 				_scavenge_bot = _l4b.GetNearestMovingBot(_store_doors.GetCenter());
 				
-				_l4b.Logger.Debug("ColaDelivery.Think - scavenge bot is: " + _scavenge_bot.GetPlayerName());
+				_l4b.Logger.Debug("C1M2ColaDelivery.Think - scavenge bot is: " + _scavenge_bot.GetPlayerName());
 				
 				_scavenge_bot.GetScriptScope().BotCancelAll();
 				_l4b.BotOrderAdd(_scavenge_bot, "use", null, _store_doors, open_doors_pos);
@@ -125,7 +77,7 @@ class ::Left4Bots.Automation.ColaDelivery extends ::Left4Bots.Automation.Task
 				cola = Entities.FindByClassname(null, "weapon_cola_bottles");
 			if (!cola || !cola.IsValid())
 			{
-				_l4b.Logger.Debug("ColaDelivery.Think - cola not spwaned yet");
+				_l4b.Logger.Debug("C1M2ColaDelivery.Think - cola not spwaned yet");
 				return;
 			}
 
@@ -134,7 +86,7 @@ class ::Left4Bots.Automation.ColaDelivery extends ::Left4Bots.Automation.Task
 				_l4b.ScavengeUseTarget = Entities.FindByName(null, "cola_delivered");
 				if (!_l4b.ScavengeUseTarget)
 				{
-					_l4b.Logger.Error("ColaDelivery.Think - point_prop_use_target not found!!!");
+					_l4b.Logger.Error("C1M2ColaDelivery.Think - point_prop_use_target not found!!!");
 					return;
 				}
 				
@@ -147,7 +99,7 @@ class ::Left4Bots.Automation.ColaDelivery extends ::Left4Bots.Automation.Task
 				if (!_scavenge_bot || !_scavenge_bot.IsValid() || _scavenge_bot.IsDead() || _scavenge_bot.IsDying())
 				{
 					_scavenge_bot = _l4b.GetNearestMovingBot(cola.GetOrigin());
-					_l4b.Logger.Debug("ColaDelivery.Think - scavenge bot changed: " + _scavenge_bot.GetPlayerName());
+					_l4b.Logger.Debug("C1M2ColaDelivery.Think - scavenge bot changed: " + _scavenge_bot.GetPlayerName());
 					
 					if (_cola_outside)
 					{
@@ -175,7 +127,7 @@ class ::Left4Bots.Automation.ColaDelivery extends ::Left4Bots.Automation.Task
 				if (!_cola_outside)
 					_cola_outside = GetFlowPercentForPosition(cola.GetOrigin(), false) > 78;
 				
-				_l4b.Logger.Debug("ColaDelivery.Think - scavenge in progress; _cola_outside: " + _cola_outside);
+				_l4b.Logger.Debug("C1M2ColaDelivery.Think - scavenge in progress; _cola_outside: " + _cola_outside);
 				
 				if (_cola_outside && !_l4b.BotsHaveOrder("follow", _scavenge_bot))
 				{
@@ -207,6 +159,11 @@ class ::Left4Bots.Automation.ColaDelivery extends ::Left4Bots.Automation.Task
 	switch (concept)
 	{
 		case "SurvivorLeavingInitialCheckpoint":
+			if (::Left4Bots.Automation.step > 1)
+				return; // !!! This also triggers when a survivor is defibbed later in the game !!!
+		
+			// *** TASK 2. Wait for the first survivor to leave the start saferoom, then start leading
+			
 			if (!::Left4Bots.Automation.TaskExists("bots", "lead"))
 			{
 				::Left4Bots.Automation.ResetTasks();
@@ -215,6 +172,8 @@ class ::Left4Bots.Automation.ColaDelivery extends ::Left4Bots.Automation.Task
 			break;
 		
 		case "C1M2InsideGunShop":
+			// *** TASK 3. As soon as entering the gunshop, order one bot to press the button to talk to Whitaker
+			
 			local gunshop_door_button = Entities.FindByName(null, "gunshop_door_button");
 			if (gunshop_door_button && gunshop_door_button.IsValid() && !::Left4Bots.Automation.TaskExists("bot", "use", gunshop_door_button, Vector(-4879.598145, -2066.573975, 456.031250)))
 			{
@@ -224,27 +183,35 @@ class ::Left4Bots.Automation.ColaDelivery extends ::Left4Bots.Automation.Task
 			break;
 			
 		case "C1M2GunRoomDoor":
+			// *** TASK 4. After talking to Whitaker, heal (if needed) and go grab the other medkits in the gunshop
+			
 			if (!::Left4Bots.Automation.TaskExists("bots", "HealAndGoto"))
 			{
 				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddCustomTask(::Left4Bots.Automation.HealAndGoto());
+				::Left4Bots.Automation.AddCustomTask(::Left4Bots.Automation.HealAndGoto([ Vector(-5347.480957, -1716.984863, 456.031250), Vector(-5365.701660, -1905.519653, 456.031250) ]));
 			}
 			break;
 		
 		case "C1M2FirstOutside":
-			if (!::Left4Bots.Automation.TaskExists("bots", "ColaDelivery"))
+			// *** TASK 5. After leaving the gunshop, start the cola delivery process
+			
+			if (!::Left4Bots.Automation.TaskExists("bots", "C1M2ColaDelivery"))
 			{
 				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddCustomTask(::Left4Bots.Automation.ColaDelivery());
+				::Left4Bots.Automation.AddCustomTask(::Left4Bots.Automation.C1M2ColaDelivery());
 			}
 			break;
 		
 		case "C1M2ColaInDoor":
+			// *** TASK 6. Go idle after the cola has been successfully delivered
+			
 			::Left4Bots.Automation.ResetTasks();
 			break;
 		
 		case "c1m2goodluckgettingtothemall":
 		//case "C1M2TankerAttack":
+			// *** TASK 7. Wait for the "Good luck getting to the mall" line from Whitaker, then go back to leading up to the end saferoom
+			
 			if (!::Left4Bots.Automation.TaskExists("bots", "lead"))
 			{
 				::Left4Bots.Automation.ResetTasks();
@@ -253,6 +220,8 @@ class ::Left4Bots.Automation.ColaDelivery extends ::Left4Bots.Automation.Task
 			break;
 		
 		case "SurvivorBotReachedCheckpoint":
+			// *** TASK 8. Saferoom reached. Remove all the task and let the given orders (lead) complete
+		
 			CurrentTasks.clear();
 			break;
 	}
@@ -260,9 +229,20 @@ class ::Left4Bots.Automation.ColaDelivery extends ::Left4Bots.Automation.Task
 
 ::Left4Bots.Automation.OnFlow <- function(prevFlowPercent, curFlowPercent)
 {
+	// Make sure the areas listed in avoidAreas are always DAMAGING so the bots will try to avoid them
+	for (local i = 0; i < ::Left4Bots.Automation.avoidAreas.len(); i++)
+	{
+		local area = NavMesh.GetNavAreaByID(::Left4Bots.Automation.avoidAreas[i])
+		if (area && area.IsValid() && !area.IsDamaging())
+			area.MarkAsDamaging(99999);
+			//area.MarkAsBlocked(2);
+	}
+	
 	switch (::Left4Bots.Automation.step)
 	{
 		case 0:
+			// *** TASK 1. Heal while in the start saferoom
+			
 			if (!::Left4Bots.Automation.TaskExists("bots", "HealInSaferoom"))
 			{
 				::Left4Bots.Automation.ResetTasks();
@@ -273,7 +253,7 @@ class ::Left4Bots.Automation.ColaDelivery extends ::Left4Bots.Automation.Task
 			break;
 	}
 	
-	/*
+	/* not needed
 	// Wait until the nav area in front of the door is unblocked
 	if (NavMesh.GetNavAreaByID(206685).IsBlocked(2, false))
 		return;
