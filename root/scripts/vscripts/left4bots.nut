@@ -1635,7 +1635,7 @@ witch_autocrown = 0";
 		local nearestTank = GetNearestVisibleTankWithin(bot, orig, Settings.tank_throw_range_min, Settings.tank_throw_range_max);
 
 		// Should we throw the molotov at this tank?
-		if (nearestTank && !nearestTank.IsOnFire() && !nearestTank.IsIncapacitated() && nearestTank.GetHealth() >= Settings.tank_throw_min_health && !AreOtherSurvivorsNearby(userid, nearestTank.GetOrigin(), Settings.tank_throw_survivors_mindistance))
+		if (nearestTank && !nearestTank.IsOnFire() && !nearestTank.IsIncapacitated() && nearestTank.GetHealth() >= Settings.tank_throw_min_health && !::Left4Utils.IsPlayerInWater(nearestTank) && !AreOtherSurvivorsNearby(userid, nearestTank.GetOrigin(), Settings.tank_throw_survivors_mindistance))
 		{
 			// Yes, let's do it...
 			return nearestTank;
@@ -1656,7 +1656,7 @@ witch_autocrown = 0";
 			local nearestTank = GetNearestVisibleTankWithin(bot, orig, Settings.tank_throw_range_min, Settings.tank_throw_range_max);
 
 			// Should we throw the bile jar at this tank?
-			if (nearestTank && !nearestTank.IsOnFire() && !nearestTank.IsIncapacitated() && nearestTank.GetHealth() >= Settings.tank_throw_min_health && !AreOtherSurvivorsNearby(userid, nearestTank.GetOrigin(), Settings.tank_throw_survivors_mindistance))
+			if (nearestTank && !nearestTank.IsOnFire() && !nearestTank.IsIncapacitated() && nearestTank.GetHealth() >= Settings.tank_throw_min_health && !::Left4Utils.IsPlayerInWater(nearestTank) && !AreOtherSurvivorsNearby(userid, nearestTank.GetOrigin(), Settings.tank_throw_survivors_mindistance))
 			{
 				// Yes, let's do it...
 				return nearestTank;
@@ -1731,7 +1731,7 @@ witch_autocrown = 0";
 
 		// Is the tank still a valid target?
 		// TODO: add trace check?
-		if (throwTarget.IsValid() && !throwTarget.IsDead() && !throwTarget.IsDying() && !throwTarget.IsIncapacitated() && !throwTarget.IsOnFire() && throwTarget.GetHealth() >= Settings.tank_throw_min_health && !AreOtherSurvivorsNearby(userid, throwTarget.GetOrigin(), Settings.tank_throw_survivors_mindistance))
+		if (throwTarget.IsValid() && !throwTarget.IsDead() && !throwTarget.IsDying() && !throwTarget.IsIncapacitated() && !throwTarget.IsOnFire() && throwTarget.GetHealth() >= Settings.tank_throw_min_health && !::Left4Utils.IsPlayerInWater(throwTarget) && !AreOtherSurvivorsNearby(userid, throwTarget.GetOrigin(), Settings.tank_throw_survivors_mindistance))
 			return true; // Yes
 	}
 	else if (throwType == AI_THROW_TYPE.Horde)

@@ -1,6 +1,6 @@
 Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c2m1_highway automation script...\n");
 
-::Left4Bots.Automation.step <- 1;
+::Left4Bots.Automation.checkpointleft <- false;
 
 ::Left4Bots.Automation.OnConcept <- function(who, subject, concept, query)
 {
@@ -8,18 +8,14 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c2m1_highway automation scri
 	{
 		case "introend":
 		case "SurvivorLeavingInitialCheckpoint":
-			if (::Left4Bots.Automation.step > 1)
-				return; // !!! This also triggers when a survivor is defibbed later in the game !!!
+			// !!! This also triggers when a survivor is defibbed later in the game !!!
+			if (::Left4Bots.Automation.checkpointleft)
+				return;
+			::Left4Bots.Automation.checkpointleft = true;
 		
 			// *** TASK 1. Wait for the intro to finish (or a survivor leaving the safe area) and then start leading up to the saferoom
 			
-			if (!::Left4Bots.Automation.TaskExists("bots", "lead"))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddTask("bots", "lead");
-			}
-			::Left4Bots.Automation.step++;
-			
+			::Left4Bots.Automation.DoLead("bots");
 			break;
 		
 		case "SurvivorBotReachedCheckpoint":

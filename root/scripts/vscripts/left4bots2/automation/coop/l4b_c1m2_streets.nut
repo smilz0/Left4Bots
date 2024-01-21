@@ -1,6 +1,7 @@
 Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m2_streets automation script...\n");
 
 ::Left4Bots.Automation.step <- 0;
+::Left4Bots.Automation.checkpointleft <- false;
 ::Left4Bots.Automation.avoidAreas <- [222122, 233809, 233810];
 
 // Handles the entire cola delivery process.
@@ -159,37 +160,26 @@ class ::Left4Bots.Automation.C1M2ColaDelivery extends ::Left4Bots.Automation.Tas
 	switch (concept)
 	{
 		case "SurvivorLeavingInitialCheckpoint":
-			if (::Left4Bots.Automation.step > 1)
-				return; // !!! This also triggers when a survivor is defibbed later in the game !!!
+			// !!! This also triggers when a survivor is defibbed later in the game !!!
+			if (::Left4Bots.Automation.checkpointleft)
+				return;
+			::Left4Bots.Automation.checkpointleft = true;
 		
 			// *** TASK 2. Wait for the first survivor to leave the start saferoom, then start leading
 			
-			if (!::Left4Bots.Automation.TaskExists("bots", "lead"))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddTask("bots", "lead");
-			}
+			::Left4Bots.Automation.DoLead("bots");
 			break;
 		
 		case "C1M2InsideGunShop":
 			// *** TASK 3. As soon as entering the gunshop, order one bot to press the button to talk to Whitaker
 			
-			local gunshop_door_button = Entities.FindByName(null, "gunshop_door_button");
-			if (gunshop_door_button && gunshop_door_button.IsValid() && !::Left4Bots.Automation.TaskExists("bot", "use", gunshop_door_button, Vector(-4879.598145, -2066.573975, 456.031250)))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddTask("bot", "use", gunshop_door_button, Vector(-4879.598145, -2066.573975, 456.031250));
-			}
+			::Left4Bots.Automation.DoUse("bot", "gunshop_door_button", Vector(-4879.598145, -2066.573975, 456.031250));
 			break;
 			
 		case "C1M2GunRoomDoor":
 			// *** TASK 4. After talking to Whitaker, heal (if needed) and go grab the other medkits in the gunshop
 			
-			if (!::Left4Bots.Automation.TaskExists("bots", "HealAndGoto"))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddCustomTask(::Left4Bots.Automation.HealAndGoto([ Vector(-5347.480957, -1716.984863, 456.031250), Vector(-5365.701660, -1905.519653, 456.031250) ]));
-			}
+			::Left4Bots.Automation.DoHealAndGoto([ Vector(-5347.480957, -1716.984863, 456.031250), Vector(-5365.701660, -1905.519653, 456.031250) ]);
 			break;
 		
 		case "C1M2FirstOutside":
@@ -212,11 +202,7 @@ class ::Left4Bots.Automation.C1M2ColaDelivery extends ::Left4Bots.Automation.Tas
 		//case "C1M2TankerAttack":
 			// *** TASK 7. Wait for the "Good luck getting to the mall" line from Whitaker, then go back to leading up to the end saferoom
 			
-			if (!::Left4Bots.Automation.TaskExists("bots", "lead"))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddTask("bots", "lead");
-			}
+			::Left4Bots.Automation.DoLead("bots");
 			break;
 		
 		case "SurvivorBotReachedCheckpoint":
@@ -243,12 +229,7 @@ class ::Left4Bots.Automation.C1M2ColaDelivery extends ::Left4Bots.Automation.Tas
 		case 0:
 			// *** TASK 1. Heal while in the start saferoom
 			
-			if (!::Left4Bots.Automation.TaskExists("bots", "HealInSaferoom"))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddCustomTask(::Left4Bots.Automation.HealInSaferoom());
-			}
-			
+			::Left4Bots.Automation.DoHealInSaferoom();
 			::Left4Bots.Automation.step++;
 			break;
 	}
@@ -259,3 +240,4 @@ class ::Left4Bots.Automation.C1M2ColaDelivery extends ::Left4Bots.Automation.Tas
 		return;
 	*/
 }
+

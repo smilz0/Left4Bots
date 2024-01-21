@@ -1,6 +1,7 @@
 Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c3m3_shantytown automation script...\n");
 
 ::Left4Bots.Automation.step <- 0;
+::Left4Bots.Automation.checkpointleft <- false;
 
 ::Left4Bots.Automation.OnConcept <- function(who, subject, concept, query)
 {
@@ -9,16 +10,14 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c3m3_shantytown automation s
 	switch (concept)
 	{
 		case "SurvivorLeavingInitialCheckpoint":
-			if (::Left4Bots.Automation.step > 1)
-				return; // !!! This also triggers when a survivor is defibbed later in the game !!!
+			// !!! This also triggers when a survivor is defibbed later in the game !!!
+			if (::Left4Bots.Automation.checkpointleft)
+				return;
+			::Left4Bots.Automation.checkpointleft = true;
 		
 			// *** TASK 2. Wait for the first survivor to leave the start saferoom, then start leading
 			
-			if (!::Left4Bots.Automation.TaskExists("bots", "lead"))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddTask("bots", "lead");
-			}
+			::Left4Bots.Automation.DoLead("bots");
 			break;
 
 		case "C3M3BridgeButton":
@@ -44,27 +43,16 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c3m3_shantytown automation s
 		case 0:
 			// *** TASK 1. Heal while in the start saferoom
 			
-			if (!::Left4Bots.Automation.TaskExists("bots", "HealInSaferoom"))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddCustomTask(::Left4Bots.Automation.HealInSaferoom());
-			}
-			
+			::Left4Bots.Automation.DoHealInSaferoom();
 			::Left4Bots.Automation.step++;
 			break;
 		
 		case 1:
 			// *** TASK 3. Lower the bridge
 			
-			if (curFlowPercent >= 62 && prevFlowPercent < 62)
+			if (curFlowPercent >= 62)
 			{
-				local bridge_button = Entities.FindByName(null, "bridge_button");
-				if (bridge_button && bridge_button.IsValid() && !::Left4Bots.Automation.TaskExists("bot", "use", bridge_button, Vector(-345.778198, -4145.775879, 79.031250)))
-				{
-					::Left4Bots.Automation.ResetTasks();
-					::Left4Bots.Automation.AddTask("bot", "use", bridge_button, Vector(-292.148132, -4237.525391, 3.659943));
-				}
-					
+				::Left4Bots.Automation.DoUse("bot", "bridge_button", Vector(-292.148132, -4237.525391, 3.659943));
 				::Left4Bots.Automation.step++;
 			}
 			break;
@@ -74,12 +62,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c3m3_shantytown automation s
 		case 3:
 			// *** TASK 5. Bridge is down, back to leading up to the saferoom
 			
-			if (!::Left4Bots.Automation.TaskExists("bots", "lead"))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddTask("bots", "lead");
-			}
-			
+			::Left4Bots.Automation.DoLead("bots");
 			::Left4Bots.Automation.step++;
 			
 			break;
@@ -107,7 +90,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c3m3_shantytown automation s
 		}
 	}
 
-	local areastoblock = [46722, 46211, 113157, 46408, 113097, 113162, 113163, 113101, 46351, 46352, 113169, 113170, 46548, 15063, 46552, 46553, 113114, 46363, 46236, 37405, 628706, 113113, 113175, 113194, 46315, 46188, 113177, 46190, 113178, 113179, 113180, 113168, 113161, 113140, 46261, 113142, 113144, 113141, 46266, 46251, 13244, 46216, 46362, 46591];
+	local areastoblock = [46722, 46211, 113157, 46408, 113097, 113162, 113163, 113101, 46351, 46352, 113169, 113170, 46548, 15063, 46552, 46553, 113114, 46363, 46236, 37405, 628706, 113113, 113175, 113194, 46315, 46188, 113177, 46190, 113178, 113179, 113180, 113168, 113161, 113140, 46261, 113142, 113144, 113141, 46266, 46251, 13244, 46216, 46362, 46591, 104749, 13728];
 	for (local i = 0; i < areastoblock.len(); i++)
 	{
 		local area = NavMesh.GetNavAreaByID(areastoblock[i]);
