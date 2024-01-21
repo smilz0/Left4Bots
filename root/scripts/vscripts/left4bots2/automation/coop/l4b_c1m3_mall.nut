@@ -1,6 +1,7 @@
 Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m3_mall automation script...\n");
 
 ::Left4Bots.Automation.step <- 0;
+::Left4Bots.Automation.checkpointleft <- false;
 ::Left4Bots.Automation.minifinale <- 0;
 ::Left4Bots.Automation.avoidAreas <- [1095, 118545, 118546, 4018, 314746]; // Avoid these common stuck spots
 
@@ -46,46 +47,35 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m3_mall automation script.
 	switch (concept)
 	{
 		case "SurvivorLeavingInitialCheckpoint":
-			if (::Left4Bots.Automation.step > 1)
-				return; // !!! This also triggers when a survivor is defibbed later in the game !!!
+			// !!! This also triggers when a survivor is defibbed later in the game !!!
+			if (::Left4Bots.Automation.checkpointleft)
+				return;
+			::Left4Bots.Automation.checkpointleft = true;
 		
 			// *** TASK 2. Wait for the first survivor to leave the start saferoom, then start leading
 			
-			if (!::Left4Bots.Automation.TaskExists("bots", "lead"))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddTask("bots", "lead");
-			}
+			::Left4Bots.Automation.DoLead("bots");
 			break;
 		
 		case "C1M3AlarmDoor":
 		case "C1M3BrokeWindow":
 			// *** TASK 5. Alarm set, go press the stop alarm button on the upper floor
 			
-			::Left4Bots.Automation.step = 3;
-		
 			// For some reason the button has no name but it's the only func_button on the map
 			local stop_alarm_button = Entities.FindByClassname(null, "func_button");
-			if (stop_alarm_button && stop_alarm_button.IsValid())
+			if (stop_alarm_button && stop_alarm_button.IsValid() && !::Left4Bots.Automation.TaskExists("bots", "use", stop_alarm_button))
 			{
-				if (!::Left4Bots.Automation.TaskExists("bots", "use", stop_alarm_button))
-				{
-					::Left4Bots.Automation.ResetTasks();
-					::Left4Bots.Automation.AddTask("bots", "use", stop_alarm_button, Vector(940.319031, -5178.390137, 536.031250));
-				}
+				::Left4Bots.Automation.ResetTasks();
+				::Left4Bots.Automation.AddTask("bots", "use", stop_alarm_button, Vector(940.319031, -5178.390137, 536.031250));
 			}
-			else
-				::Left4Bots.Logger.Error("Automation.OnConcept - stop_alarm_button not found!!!");
+			
+			::Left4Bots.Automation.step = 3;
 			break;
 			
 		case "C1M3AlarmOff":
 			// *** TASK 6. Alarm is off, go back to leading up to the saferoom
 			
-			if (!::Left4Bots.Automation.TaskExists("bots", "lead"))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddTask("bots", "lead");
-			}
+			::Left4Bots.Automation.DoLead("bots");
 			break;
 			
 		case "SurvivorBotReachedCheckpoint":
@@ -111,12 +101,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m3_mall automation script.
 		case 0:
 			// *** TASK 1. Heal while in the start saferoom
 			
-			if (!::Left4Bots.Automation.TaskExists("bots", "HealInSaferoom"))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddCustomTask(::Left4Bots.Automation.HealInSaferoom());
-			}
-			
+			::Left4Bots.Automation.DoHealInSaferoom();
 			::Left4Bots.Automation.step++;
 			break;
 		
@@ -139,36 +124,14 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m3_mall automation script.
 		case 2:
 			// *** TASK 4. Depending on the choosen minifinale, when near the breakable glass/alarm door, break/open it
 			
-			if (::Left4Bots.Automation.minifinale == 1 && curFlowPercent >= 55.8 && prevFlowPercent < 55.8)
+			if (::Left4Bots.Automation.minifinale == 1 && curFlowPercent >= 55.8)
 			{
-				local door_hallway_lower4a = Entities.FindByName(null, "door_hallway_lower4a");
-				if (door_hallway_lower4a && door_hallway_lower4a.IsValid())
-				{
-					if (!::Left4Bots.Automation.TaskExists("bot", "use", door_hallway_lower4a))
-					{
-						::Left4Bots.Automation.ResetTasks();
-						::Left4Bots.Automation.AddTask("bot", "use", door_hallway_lower4a, Vector(967.269592, -2962.729248, 0.031250));
-					}
-				}
-				else
-					Left4Bots.Logger.Error("Automation.Events.OnFlow - door_hallway_lower4a not found!");
-				
+				::Left4Bots.Automation.DoUse("bot", "door_hallway_lower4a", Vector(967.269592, -2962.729248, 0.031250));
 				::Left4Bots.Automation.step++;
 			}
-			else if (::Left4Bots.Automation.minifinale == 2 && curFlowPercent >= 54 && prevFlowPercent < 54)
+			else if (::Left4Bots.Automation.minifinale == 2 && curFlowPercent >= 54)
 			{
-				local breakble_glass_minifinale = Entities.FindByName(null, "breakble_glass_minifinale");
-				if (breakble_glass_minifinale && breakble_glass_minifinale.IsValid())
-				{
-					if (!::Left4Bots.Automation.TaskExists("bot", "destroy", breakble_glass_minifinale))
-					{
-						::Left4Bots.Automation.ResetTasks();
-						::Left4Bots.Automation.AddTask("bot", "destroy", breakble_glass_minifinale, Vector(1188.252319, -2411.302002, 280.031250));
-					}
-				}
-				else
-					Left4Bots.Logger.Error("Automation.Events.OnFlow - breakble_glass_minifinale not found!");
-				
+				::Left4Bots.Automation.DoDestroy("bot", "breakble_glass_minifinale", Vector(1188.252319, -2411.302002, 280.031250));
 				::Left4Bots.Automation.step++;
 			}
 			break;
@@ -212,3 +175,5 @@ local compare_minifinale = Entities.FindByName(null, "compare_minifinale");
 //NetProps.SetPropFloat(compare_minifinale, "m_flInValue", 1); // Force stairwell minifinale
 NetProps.SetPropFloat(compare_minifinale, "m_flInValue", 16); // Force hallway minifinale
 */
+
+

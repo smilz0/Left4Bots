@@ -1,6 +1,7 @@
 Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c3m4_plantation automation script...\n");
 
 ::Left4Bots.Automation.step <- 0;
+::Left4Bots.Automation.checkpointleft <- false;
 ::Left4Bots.Automation.tanksKilled <- 0;
 
 ::Left4Bots.Automation.OnConcept <- function(who, subject, concept, query)
@@ -10,56 +11,47 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c3m4_plantation automation s
 	switch (concept)
 	{
 		case "SurvivorLeavingInitialCheckpoint":
-			if (::Left4Bots.Automation.step > 1)
-				return; // !!! This also triggers when a survivor is defibbed later in the game !!!
+			// !!! This also triggers when a survivor is defibbed later in the game !!!
+			if (::Left4Bots.Automation.checkpointleft)
+				return;
+			::Left4Bots.Automation.checkpointleft = true;
 		
 			// *** TASK 2. Wait for the first survivor to leave the start saferoom, then start leading
 			
-			if (!::Left4Bots.Automation.TaskExists("bots", "lead"))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddTask("bots", "lead");
-			}
+			::Left4Bots.Automation.DoLead("bots");
 			break;
 		
 		case "C3M4Button1":
 			// *** TASK 4. Radio used (1st time)
 			
-			::Left4Bots.Automation.step = 3;
 			::Left4Bots.Automation.ResetTasks();
+			::Left4Bots.Automation.step = 3;
 			break;
 		
 		case "FinaleTriggered":
 			// *** TASK 6. Radio used (2nd time) and finale started, wait near the ammo stack for the entire finale
 			
-			::Left4Bots.Automation.ResetTasks();
-			if (!::Left4Bots.Automation.TaskExists("bots", "wait"))
+			local holdPos = null;
+			local weapon_ammo_spawn = null;
+			while (weapon_ammo_spawn = Entities.FindByClassname(weapon_ammo_spawn, "weapon_ammo_spawn"))
 			{
-				local holdPos = null;
-				local weapon_ammo_spawn = null;
-				while (weapon_ammo_spawn = Entities.FindByClassname(weapon_ammo_spawn, "weapon_ammo_spawn"))
+				if (weapon_ammo_spawn.GetName().find("mansion_resources") != null)
 				{
-					if (weapon_ammo_spawn.GetName().find("mansion_resources") != null)
-					{
-						holdPos = weapon_ammo_spawn.GetOrigin();
-						break;
-					}
-				}
-				
-				if (holdPos)
-				{
-					::Left4Bots.Automation.ResetTasks();
-					::Left4Bots.Automation.AddTask("bots", "wait", null, holdPos);
+					holdPos = weapon_ammo_spawn.GetOrigin();
+					break;
 				}
 			}
+
+			if (holdPos)
+				::Left4Bots.Automation.DoWait("bots", holdPos);
+			
+			::Left4Bots.Automation.step = 4;
 			break;
 		
 		case "c3m4GateExplosion":
 			// *** TASK 8. Gate open, escape fast to the boat
 			
-			::Left4Bots.Automation.ResetTasks();
-			::Left4Bots.Automation.AddCustomTask(::Left4Bots.Automation.GotoAndIdle(Vector(1665.984375, 4428.196289, -18.973595)));
-			
+			::Left4Bots.Automation.DoGotoAndIdle(Vector(1665.984375, 4428.196289, -18.973595));
 			break;
 	}
 }
@@ -73,12 +65,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c3m4_plantation automation s
 		case 0:
 			// *** TASK 1. Heal while in the start saferoom
 			
-			if (!::Left4Bots.Automation.TaskExists("bots", "HealInSaferoom"))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddCustomTask(::Left4Bots.Automation.HealInSaferoom());
-			}
-			
+			::Left4Bots.Automation.DoHealInSaferoom();
 			::Left4Bots.Automation.step++;
 			break;
 		
@@ -86,29 +73,14 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c3m4_plantation automation s
 			// *** TASK 3. Use the radio
 			
 			if (curFlowPercent >= 90)
-			{
-				local escape_gate_button = Entities.FindByName(null, "escape_gate_button");
-				if (escape_gate_button && escape_gate_button.IsValid() && !::Left4Bots.Automation.TaskExists("bot", "use", escape_gate_button, Vector(1519.158936, 1978.451660, 126.953949)))
-				{
-					::Left4Bots.Automation.ResetTasks();
-					::Left4Bots.Automation.AddTask("bot", "use", escape_gate_button, Vector(1519.158936, 1978.451660, 126.953949));
-					
-					::Left4Bots.Automation.step++;
-				}
-			}
+				::Left4Bots.Automation.DoUse("bot", "escape_gate_button", Vector(1519.158936, 1978.451660, 126.953949));
 			break;
 		
 		case 3:
 			// *** TASK 5. Use the radio again
 			
-			local escape_gate_triggerfinale = Entities.FindByName(null, "escape_gate_triggerfinale");
-			if (escape_gate_triggerfinale && escape_gate_triggerfinale.IsValid() && !::Left4Bots.Automation.TaskExists("bot", "use", escape_gate_triggerfinale, Vector(1519.158936, 1978.451660, 126.953949)))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddTask("bot", "use", escape_gate_triggerfinale, Vector(1519.158936, 1978.451660, 126.953949));
-				
+			if (::Left4Bots.Automation.DoUse("bot", "escape_gate_triggerfinale", Vector(1519.158936, 1978.451660, 126.953949)))
 				::Left4Bots.Automation.step++;
-			}
 			break;
 		
 		// case 4: (killing the tanks)
@@ -127,15 +99,11 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c3m4_plantation automation s
 	if (!victim || !victim.IsValid() || NetProps.GetPropInt(victim, "m_iTeamNum") != TEAM_INFECTED || victim.GetZombieType() != Z_TANK)
 		return;
 	
-	::Left4Bots.Automation.tanksKilled++;
-	printl("tanksKilled: " + ::Left4Bots.Automation.tanksKilled); // TODO: remove
-		
-	if (::Left4Bots.Automation.tanksKilled < 2)
+	if (++::Left4Bots.Automation.tanksKilled < 2)
 		return;
 
 	// *** TASK 7. Enough tanks killed, let's go wait near the gate to be closer to the escape
 
-	::Left4Bots.Automation.ResetTasks();
-	::Left4Bots.Automation.AddTask("bots", "wait", null, Vector(1657.824097, 1906.584595, 119.602448));
+	::Left4Bots.Automation.DoWait("bots", Vector(1657.824097, 1906.584595, 119.602448));
 	::Left4Bots.Automation.step++;
 }

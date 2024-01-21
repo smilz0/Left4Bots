@@ -722,6 +722,126 @@ class ::Left4Bots.Automation.GotoAndIdle extends ::Left4Bots.Automation.Task
 	}
 }
 
+::Left4Bots.Automation.DoLead <- function (target)
+{
+	if (TaskExists(target, "lead"))
+		return false;
+	
+	ResetTasks();
+	AddTask(target, "lead");
+	
+	return true;
+}
+
+::Left4Bots.Automation.DoUse <- function (target, entName, usePos)
+{
+	local ent = Entities.FindByName(null, entName);
+	if (!ent || !ent.IsValid() || TaskExists(target, "use", ent))
+		return false;
+
+	ResetTasks();
+	AddTask(target, "use", ent, usePos);
+	
+	return true;
+}
+
+::Left4Bots.Automation.DoDestroy <- function (target, entName, destroyPos)
+{
+	local ent = Entities.FindByName(null, entName);
+	if (!ent || !ent.IsValid() || TaskExists(target, "destroy", ent))
+		return false;
+
+	ResetTasks();
+	AddTask(target, "destroy", ent, destroyPos);
+	
+	return true;
+}
+
+::Left4Bots.Automation.DoWait <- function (target, waitPos)
+{
+	if (TaskExists(target, "wait", null, waitPos))
+		return false;
+
+	ResetTasks();
+	AddTask(target, "wait", null, waitPos);
+		
+	return true;
+}
+
+::Left4Bots.Automation.DoHoldAt <- function (holdPos, holdDuration)
+{
+	if (TaskExists("bots", "HoldAt"))
+		return false;
+	
+	ResetTasks();
+	AddCustomTask(HoldAt(holdPos, holdDuration));
+		
+	return true;
+}
+
+::Left4Bots.Automation.DoRegroupAt <- function (pos)
+{
+	if (TaskExists("bots", "RegroupAt"))
+		return false;
+	
+	ResetTasks();
+	AddCustomTask(RegroupAt(pos));
+		
+	return true;
+}
+
+::Left4Bots.Automation.DoGotoAndIdle <- function (pos)
+{
+	if (TaskExists("bots", "GotoAndIdle"))
+		return false;
+	
+	ResetTasks();
+	AddCustomTask(GotoAndIdle(pos));
+		
+	return true;
+}
+
+::Left4Bots.Automation.DoHealInSaferoom <- function ()
+{
+	if (TaskExists("bots", "HealInSaferoom"))
+		return false;
+	
+	ResetTasks();
+	AddCustomTask(HealInSaferoom());
+		
+	return true;
+}
+
+::Left4Bots.Automation.DoHealAndGoto <- function (posList)
+{
+	if (TaskExists("bots", "HealAndGoto"))
+		return false;
+	
+	ResetTasks();
+	AddCustomTask(HealAndGoto(posList));
+		
+	return true;
+}
+
+::Left4Bots.Automation.DoScavenge <- function (useTargetPos)
+{
+	if (::Left4Bots.Automation.TaskExists("bots", "Scavenge"))
+		return false;
+	
+	::Left4Bots.Automation.ResetTasks();
+	
+	// This is optional, it's just to set a better ScavengeUseTargetPos than the autocalculated one
+	::Left4Bots.ScavengeUseTarget = Entities.FindByClassname(null, "point_prop_use_target");
+	::Left4Bots.ScavengeUseType = NetProps.GetPropInt(::Left4Bots.ScavengeUseTarget, "m_spawnflags");
+	::Left4Bots.ScavengeUseTargetPos = useTargetPos;
+
+	local task = ::Left4Bots.Automation.AddCustomTask(::Left4Bots.Automation.Scavenge());
+	if (::Left4Bots.Settings.scavenge_campaign_autostart)
+		task.Start();
+	
+	return true;
+}
+
 ::Left4Bots.Automation.OnTaskManager <- function (params)
 {
 	local newFlow = GetFlowPercent();

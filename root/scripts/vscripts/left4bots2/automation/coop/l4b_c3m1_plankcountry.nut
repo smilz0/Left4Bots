@@ -1,6 +1,7 @@
 Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c3m1_plankcountry automation script...\n");
 
 ::Left4Bots.Automation.step <- 1;
+::Left4Bots.Automation.checkpointleft <- false;
 
 ::Left4Bots.Automation.OnConcept <- function(who, subject, concept, query)
 {
@@ -11,36 +12,26 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c3m1_plankcountry automation
 		case "introend":
 		case "SurvivorLeavingInitialCheckpoint":
 		case "SurvivorLeavingCheckpoint":
-			if (::Left4Bots.Automation.step > 1)
-				return; // !!! This also triggers when a survivor is defibbed later in the game !!!
+			// !!! This also triggers when a survivor is defibbed later in the game !!!
+			if (::Left4Bots.Automation.checkpointleft)
+				return;
+			::Left4Bots.Automation.checkpointleft = true;
 		
 			// *** TASK 1. Wait for the intro to finish (or a survivor leaving the safe area) and then start leading
 			
-			if (!::Left4Bots.Automation.TaskExists("bots", "lead"))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddTask("bots", "lead");
-			}
+			::Left4Bots.Automation.DoLead("bots");
 			break;
 
 		case "C3M1CallFerry":
 			// *** TASK 5. Ferry button pressed, wait the ferry on the upper floor of the nearest building
 			
-			::Left4Bots.Automation.ResetTasks();
-			if (!::Left4Bots.Automation.TaskExists("bots", "wait", null, Vector(-6337.396973, 6361.096680, 176.031250)))
-				::Left4Bots.Automation.AddTask("bots", "wait", null, Vector(-6337.396973, 6361.096680, 176.031250));
+			::Left4Bots.Automation.DoWait("bots", Vector(-6337.396973, 6361.096680, 176.031250));
 			break;
 
 		case "C3M1FerryLanded":
 			// *** TASK 6. Ferry arrived, all go start it
 			
-			::Left4Bots.Automation.ResetTasks();
-			local ferry_tram_button = Entities.FindByName(null, "ferry_tram_button");
-			if (ferry_tram_button && ferry_tram_button.IsValid() && !::Left4Bots.Automation.TaskExists("bots", "use", ferry_tram_button, Vector(-5248.111328, 5993.679199, 3.531250)))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddTask("bots", "use", ferry_tram_button, Vector(-5248.111328, 5993.679199, 3.531250));
-			}
+			::Left4Bots.Automation.DoUse("bots", "ferry_tram_button", Vector(-5248.111328, 5993.679199, 3.531250));
 			break;
 
 		case "C3M1FerryLaunched":
@@ -52,11 +43,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c3m1_plankcountry automation
 		case "C3M1FerryEnd":
 			// *** TASK 8. Ferry landed, go back to leading up to the saferoom
 			
-			if (!::Left4Bots.Automation.TaskExists("bots", "lead"))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddTask("bots", "lead");
-			}
+			::Left4Bots.Automation.DoLead("bots");
 			break;
 
 		case "SurvivorBotReachedCheckpoint":
@@ -78,12 +65,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c3m1_plankcountry automation
 			{
 				// *** TASK 2. Go grab some stuff in the garage
 				
-				if (!::Left4Bots.Automation.TaskExists("bots", "GotoAndIdle"))
-				{
-					::Left4Bots.Automation.ResetTasks();
-					::Left4Bots.Automation.AddCustomTask(::Left4Bots.Automation.GotoAndIdle(Vector(-10764.463867, 10476.730469, 160.031250)));
-				}
-
+				::Left4Bots.Automation.DoGotoAndIdle(Vector(-10764.463867, 10476.730469, 160.031250));
 				::Left4Bots.Automation.step++;
 			}
 			break;
@@ -91,11 +73,9 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c3m1_plankcountry automation
 		case 2:
 			// *** TASK 3. Wait for the GotoAndIdle to finish and then go back to leading
 			
-			if (!::Left4Bots.Automation.TaskExists("bots", "GotoAndIdle") || (curFlowPercent >= 16 && prevFlowPercent < 16))
+			if (curFlowPercent >= 16 || !::Left4Bots.Automation.TaskExists("bots", "GotoAndIdle"))
 			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddTask("bots", "lead");
-				
+				::Left4Bots.Automation.DoLead("bots");
 				::Left4Bots.Automation.step++;
 			}
 			break;
@@ -103,15 +83,9 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c3m1_plankcountry automation
 		case 3:
 			// *** TASK 4. Press the ferry button
 			
-			if (curFlowPercent >= 42.5 && prevFlowPercent < 42.5)
+			if (curFlowPercent >= 42.5)
 			{
-				local ferry_button = Entities.FindByName(null, "ferry_button");
-				if (ferry_button && ferry_button.IsValid() && !::Left4Bots.Automation.TaskExists("bot", "use", ferry_button, Vector(-5475.400879, 6021.643555, 28.160290)))
-				{
-					::Left4Bots.Automation.ResetTasks();
-					::Left4Bots.Automation.AddTask("bot", "use", ferry_button, Vector(-5475.400879, 6021.643555, 28.160290));
-				}
-				
+				::Left4Bots.Automation.DoUse("bot", "ferry_button", Vector(-5475.400879, 6021.643555, 28.160290));
 				::Left4Bots.Automation.step++;
 			}
 			break;
