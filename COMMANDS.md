@@ -142,7 +142,7 @@ Each line in the file is in the format: <_vocalizer command_> = <_l4b2 command1_
 
 <_l4b2 command1_> is the command that will be used when no bot is selected.
 
-<_l4b2 command2_> is for the command after selecting the bot. Here you can use the keyword `botname` which will replaced with the name of the selected bot.
+<_l4b2 command2_> is for the command after selecting the bot. Here you can use the keyword `botname` which will be replaced by the name of the selected bot.
 
 
 ### Change L4B2 settings on-the-fly
