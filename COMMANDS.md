@@ -118,7 +118,7 @@ bind "KEY" "scripted_user_func l4b,botselect"
 
 ### Default vocalizer bindings
 | Vocalizer line | Vocalizer command | L4B2 command 1 | L4B2 command 2 |
-| :-- | :-- | :-- |
+| :-- | :-- | :-- | :-- |
 Lead | PlayerLeadOn | bots lead | botname lead |
 Wait | PlayerWaitHere | bots wait | botname wait |
 GO | PlayerEmphaticGo | bots goto | botname goto |
