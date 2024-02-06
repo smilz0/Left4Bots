@@ -153,7 +153,7 @@ As Admin you can inspect/change any L4B2 setting directly from the game via `set
 ```
 
 
-If you don't remember the correct name of the settings you can use the `settings` command to list all the setting names matching the given text:
+If you don't remember the correct name of the settings you can use the `findsettings` command to list all the setting names matching the given text:
 ```
 !l4b findsettings dodge
 ```
