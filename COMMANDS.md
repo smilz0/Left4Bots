@@ -174,7 +174,7 @@ If you don't remember the correct name of the settings you can use the `findsett
 
 
 ### Reload weapon preference files
-Preference files in the `weapons` cfg folder are reloaded at the beginning of each round but as admin you can force reload with the `reloadweapons` for one specific bot or all of them:
+Preference files in the `weapons` cfg folder are reloaded at the beginning of each round but as admin you can force a reload with the `reloadweapons` command for one specific bot or all of them:
 ```
 !l4b reloadweapons coach
 !l4b reloadweapons all
