@@ -80,6 +80,20 @@ To cancel all or some of the order use: <_botsource_> **cancel** [_switch_]
 | _all_ (or empty) | The given bot(s) will abort everything (orders, current pick-up, anything) |
 
 
+### Don't remember a command?
+From the game just type:
+```
+!l4b help
+```
+
+to see the list of the allowed commands and:
+```
+!l4b help <command>
+```
+
+For the info on that command.
+
+
 ### Orders queue
 The orders that are added to the bot's queue are automatically executed according to their priorities:
 | Order | Priority |
@@ -159,15 +173,9 @@ If you don't remember the correct name of the settings you can use the `findsett
 ```
 
 
-### Don't remember a command?
-From the game just type:
+### Reload weapon preference files
+Preference files in the `weapons` cfg folder are reloaded at the beginning of each round but as admin you can force reload with the `reloadweapons` for one specific bot or all of them:
 ```
-!l4b help
+!l4b reloadweapons coach
+!l4b reloadweapons all
 ```
-
-to see the list of the allowed commands and:
-```
-!l4b help <command>
-```
-
-For the info on that command.
