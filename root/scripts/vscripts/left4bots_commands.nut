@@ -283,7 +283,7 @@ Msg("Including left4bots_commands...\n");
 		tgtBot = GetFirstAvailableBotForOrder("carry", null, target.GetCenter());
 
 	if (tgtBot)
-		BotOrderAdd(tgtBot, "carry", player, target, null, null, Settings.button_holdtime_tap);
+		BotOrderAdd(tgtBot, "carry", player, target);
 	else
 		Logger.Warning("No available bot for order of type: carry");
 }
@@ -351,7 +351,7 @@ Msg("Including left4bots_commands...\n");
 			tgtBot = GetFirstAvailableBotForOrder("deploy", null, target.GetCenter());
 
 		if (tgtBot)
-			BotOrderAdd(tgtBot, "deploy", player, target, null, null, Settings.button_holdtime_tap);
+			BotOrderAdd(tgtBot, "deploy", player, target);
 		else
 			Logger.Warning("No available bot for order of type: deploy");
 	}
@@ -841,7 +841,7 @@ Msg("Including left4bots_commands...\n");
 			tgtBot = GetFirstAvailableBotForOrder("scavenge", null, target.GetCenter());
 
 		if (tgtBot)
-			BotOrderAdd(tgtBot, "scavenge", player, target, null, null, Settings.button_holdtime_tap);
+			BotOrderAdd(tgtBot, "scavenge", player, target);
 		else
 			Logger.Warning("No available bot for order of type: scavenge");
 	}

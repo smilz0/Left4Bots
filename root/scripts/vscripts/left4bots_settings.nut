@@ -14,9 +14,6 @@
 	// -1 automatically sets the fastest interval possible
 	bot_think_interval = -1
 
-	// How long do the bots hold down a button to do single tap button press (it needs to last at least 2 ticks, so it must be greater than 0.033333 or the weapons firing can fail)
-	button_holdtime_tap = 0.0
-
 	// [1/0] Enable/Disable debug chat messages when the bot picks-up/drops the assigned carry item
 	carry_debug = 0
 
@@ -41,14 +38,17 @@
 	// List of 'hello' lines that can trigger the reply
 	chat_hello_triggers = "hi,hello,hey,hi guys,hi all,hey guys,yo,ciao"
 
-	// [1/0] Should the last bot entering the saferoom close the door immediately?
+	// [1/0] Enable/Disable the close saferoom door procedure
 	close_saferoom_door = 1
 
-	// Chance that all the survivor bots will quickly go close the saferoom door once the last survivor (including humans) entered the saferoom
+	// Chance that all the survivor bots already in the saferoom will quickly go close the saferoom door when a survivor enters the saferoom and no one is behind him (whithin close_saferoom_door_behind_range)
 	// NOTE: This will likely make the bots lock the last surivor out in maps with very bad CHECKPOINT nav areas
 	close_saferoom_door_all_chance = 50
 
-	// When the last bot steps into the saferoom he will start the close door procedure when his distance from the door is > than this
+	// Bots won't close the saferoom door if the distance between the survivor entering the saferoom and any other survivor behind him is <= this. 0 = Only close the door if this is the last survivor entering the saferoom
+	close_saferoom_door_behind_range = 400
+
+	// When the bot steps into the saferoom he will start the close door procedure when his distance from the door is > than this
 	// This is meant to make sure that the bot is actually inside and will not lock himself out
 	// NOTE: Maps with bad navmesh (CHECKPOINT nav areas outside of the actual saferoom) might still make the bots lock themselves out. You can try increasing this in such cases
 	close_saferoom_door_distance = 70
@@ -197,6 +197,9 @@
 	// If >0, when a survivor bot shoots a teammate who is being ridden by a jockey, the damage to the teammate is removed and the jockey receives this amount of damage instead. 0 = disabled
 	jockey_redirect_damage = 40
 
+	// Bots will pause their current 'lead' order if they are at least this distance behind a human survivor. 0 = No pause
+	lead_pause_behind_dist = 180
+
 	// [1/0] Enable/Disable the additional trace check on the ground when calculating the 'lead' path
 	lead_check_ground = 0
 
@@ -221,7 +224,7 @@
 	lead_min_segment = 100
 
 	// Vocalizer commands from vocalizer_lead_start will be played when the bot starts a 'lead' order and resumes it after a pause. This is the minimum interval between each vocalization
-	lead_vocalize_interval = 40
+	lead_vocalize_interval = 50
 
 	// [1/0] Enable/Disable loading the configured 'convars.txt' file
 	load_convars = 1
@@ -303,7 +306,7 @@
 	pause_debug = 0
 
 	// Minimum duration of the pause. When a bot starts a pause (due to infected nearby, teammates need help etc.), the pause cannot end earlier than this, even if the conditions to stop the pause are met
-	pause_min_time = 3.0
+	pause_min_time = 2.0
 
 	// Minimum interval between each pick-up
 	pickups_min_interval = 0.8
@@ -469,8 +472,8 @@
 	// Chance that the bot will throw the molotov at the tank (this check runs multiple times in a second while the tank is in range, so this chance must be pretty low to have an actual chance of no throw)
 	tank_molotov_chance = 25
 
-	// Chance that the bot will throw the bile jar at the tank (this check runs multiple times in a second while the tank is in range, so this chance must be pretty low to have an actual chance of no throw)
-	tank_vomitjar_chance = 1
+	// Force a RETREAT command when aggroed tanks are whithin this radius. 0 = disable
+	tank_retreat_radius = 650
 
 	// Tanks with health lower than this will not become molotov/bile jar targets
 	tank_throw_min_health = 1500
@@ -486,6 +489,9 @@
 
 	// Delta pitch (from his feet) for aiming when throwing molotovs/bile jars at the tank ( <0: higher, >0: lower )
 	tank_throw_deltapitch = 3
+
+	// Chance that the bot will throw the bile jar at the tank (this check runs multiple times in a second while the tank is in range, so this chance must be pretty low to have an actual chance of no throw)
+	tank_vomitjar_chance = 1
 
 	// Max chainsaws in the team
 	team_max_chainsaws = 0
@@ -589,13 +595,13 @@
 	vocalizer_onpause_horde_chance = 30
 
 	// Chance that the bot will vocalize the special infected warning when starting the pause for that reason
-	vocalizer_onpause_special_chance = 80
+	vocalizer_onpause_special_chance = 70
 
 	// Chance that the bot will vocalize the tank warning when starting the pause for that reason
-	vocalizer_onpause_tank_chance = 100
+	vocalizer_onpause_tank_chance = 90
 
 	// Chance that the bot will vocalize the witch warning when starting the pause for that reason
-	vocalizer_onpause_witch_chance = 90
+	vocalizer_onpause_witch_chance = 80
 
 	// Chance that the bot will vocalize "Sorry" after doing friendly fire
 	vocalizer_sorry_chance = 80

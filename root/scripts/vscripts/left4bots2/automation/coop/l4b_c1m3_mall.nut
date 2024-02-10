@@ -62,13 +62,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m3_mall automation script.
 			// *** TASK 5. Alarm set, go press the stop alarm button on the upper floor
 			
 			// For some reason the button has no name but it's the only func_button on the map
-			local stop_alarm_button = Entities.FindByClassname(null, "func_button");
-			if (stop_alarm_button && stop_alarm_button.IsValid() && !::Left4Bots.Automation.TaskExists("bots", "use", stop_alarm_button))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddTask("bots", "use", stop_alarm_button, Vector(940.319031, -5178.390137, 536.031250));
-			}
-			
+			::Left4Bots.Automation.DoUseNoName("bots", "func_button", Vector(940.319031, -5178.390137, 536.031250));
 			::Left4Bots.Automation.step = 3;
 			break;
 			
