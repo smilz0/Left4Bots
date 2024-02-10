@@ -1,13 +1,9 @@
 /* TODO:
 
-- molotov check for area underwater
-- "wait" movetype = 0 check for groundent first
 - "use_nopause" etc.
 - Force ammo replenish while in saferoom
 - Invece di GetScriptScope... DoEntFire("!self", "RunScriptCode", "AutomaticShot()", 0.01, null, bot);  oppure  DoEntFire("!self", "CallScriptFunction", "AutomaticShot", 0.01, null, bot);
 - Weapon/Item spotted -> check dist/... and add as pickup
-- Remove cmdattack su special (bugga i bot)?
-- manual attack headshot
 - Reset should reset pause?
 
 */
@@ -31,15 +27,6 @@ if (!IncludeScript("left4lib_logger"))
 	error("[L4F][ERROR] Failed to include 'left4lib_logger', please make sure the 'Left 4 Lib' addon is installed and enabled!\n");
 
 IncludeScript("left4bots_requirements");
-
-/*
-// Log levels
-const LOG_LEVEL_NONE = 0; // Log always
-const LOG_LEVEL_ERROR = 1;
-const LOG_LEVEL_WARN = 2;
-const LOG_LEVEL_INFO = 3;
-const LOG_LEVEL_DEBUG = 4;
-*/
 
 ::Left4Bots <-
 {
@@ -73,6 +60,7 @@ const LOG_LEVEL_DEBUG = 4;
 	Tanks = {}			// ^
 	Witches = {}		// Guess what? ^
 	L4D1Survivors = {}	// Used to store the extra L4D1 bots when handle_l4d1_survivors = 1
+	SurvivorFlow = {}
 	ModeStarted = false
 	EscapeStarted = false
 	ChatBGLines = []
@@ -410,8 +398,8 @@ witch_autocrown = 0";
 		local defaultValues =
 		[
 			"rifle_ak47,rifle_sg552,rifle_desert,rifle,autoshotgun,shotgun_spas,sniper_military,hunting_rifle,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,smg_mp5,smg_silenced,shotgun_chrome,smg,pumpshotgun",
-			"machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw",
-			"molotov,pipe_bomb,vomitjar",
+			"*,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw",
+			"pipe_bomb,molotov,vomitjar",
 			"first_aid_kit,defibrillator,upgradepack_explosive,upgradepack_incendiary",
 			"pain_pills,adrenaline"
 		];
@@ -428,8 +416,8 @@ witch_autocrown = 0";
 		local defaultValues =
 		[
 			"autoshotgun,shotgun_spas,rifle_ak47,rifle_sg552,rifle_desert,rifle,sniper_military,hunting_rifle,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,shotgun_chrome,smg_mp5,pumpshotgun,smg_silenced,smg",
-			"machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw",
-			"molotov,pipe_bomb,vomitjar",
+			"*,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw",
+			"pipe_bomb,molotov,vomitjar",
 			"first_aid_kit,defibrillator,upgradepack_explosive,upgradepack_incendiary",
 			"pain_pills,adrenaline"
 		];
@@ -445,7 +433,7 @@ witch_autocrown = 0";
 		// using array instead of table to keep the order
 		local defaultValues =
 		[
-			"rifle_ak47,rifle_sg552,rifle_desert,rifle,shotgun_spas,autoshotgun,sniper_military,hunting_rifle,sniper_scout,sniper_awp,rifle_m60,grenade_launcher,smg_mp5,smg_silenced,shotgun_chrome,smg,pumpshotgun",
+			"sniper_military,hunting_rifle,rifle_ak47,rifle_sg552,rifle_desert,rifle,shotgun_spas,autoshotgun,sniper_scout,sniper_awp,rifle_m60,grenade_launcher,smg_mp5,smg_silenced,shotgun_chrome,smg,pumpshotgun",
 			"pistol_magnum,pistol,chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork",
 			"molotov,pipe_bomb,vomitjar",
 			"first_aid_kit,defibrillator,upgradepack_incendiary,upgradepack_explosive",
@@ -467,7 +455,7 @@ witch_autocrown = 0";
 			"machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw",
 			"molotov,pipe_bomb,vomitjar",
 			"first_aid_kit,defibrillator,upgradepack_explosive,upgradepack_incendiary",
-			"pain_pills,adrenaline"
+			"*,pain_pills,adrenaline"
 		];
 
 		Left4Utils.StringListToFile("left4bots2/cfg/weapons/francis.txt", defaultValues, false);
@@ -481,7 +469,7 @@ witch_autocrown = 0";
 		// using array instead of table to keep the order
 		local defaultValues =
 		[
-			"rifle_ak47,rifle_sg552,rifle_desert,rifle,shotgun_spas,autoshotgun,sniper_military,hunting_rifle,sniper_scout,sniper_awp,rifle_m60,grenade_launcher,smg_mp5,smg_silenced,shotgun_chrome,smg,pumpshotgun",
+			"shotgun_spas,autoshotgun,rifle_ak47,rifle_sg552,rifle_desert,rifle,sniper_military,hunting_rifle,sniper_scout,sniper_awp,rifle_m60,grenade_launcher,smg_mp5,smg_silenced,shotgun_chrome,smg,pumpshotgun",
 			"pistol_magnum,pistol,chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork",
 			"molotov,pipe_bomb,vomitjar",
 			"first_aid_kit,defibrillator,upgradepack_incendiary,upgradepack_explosive",
@@ -503,7 +491,7 @@ witch_autocrown = 0";
 			"machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw",
 			"molotov,pipe_bomb,vomitjar",
 			"first_aid_kit,defibrillator,upgradepack_explosive,upgradepack_incendiary",
-			"pain_pills,adrenaline"
+			"*,pain_pills,adrenaline"
 		];
 
 		Left4Utils.StringListToFile("left4bots2/cfg/weapons/nick.txt", defaultValues, false);
@@ -521,7 +509,7 @@ witch_autocrown = 0";
 			"chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol",
 			"molotov,pipe_bomb,vomitjar",
 			"first_aid_kit,defibrillator,upgradepack_incendiary,upgradepack_explosive",
-			"pain_pills,adrenaline"
+			"*,pain_pills,adrenaline"
 		];
 
 		Left4Utils.StringListToFile("left4bots2/cfg/weapons/rochelle.txt", defaultValues, false);
@@ -535,11 +523,11 @@ witch_autocrown = 0";
 		// using array instead of table to keep the order
 		local defaultValues =
 		[
-			"rifle_sg552,rifle_desert,rifle_ak47,rifle,shotgun_spas,autoshotgun,sniper_military,hunting_rifle,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,smg_mp5,smg_silenced,smg,shotgun_chrome,pumpshotgun",
+			"sniper_military,hunting_rifle,rifle_sg552,rifle_desert,rifle_ak47,rifle,shotgun_spas,autoshotgun,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,smg_mp5,smg_silenced,smg,shotgun_chrome,pumpshotgun",
 			"chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol",
 			"molotov,pipe_bomb,vomitjar",
 			"first_aid_kit,defibrillator,upgradepack_incendiary,upgradepack_explosive",
-			"pain_pills,adrenaline"
+			"*,pain_pills,adrenaline"
 		];
 
 		Left4Utils.StringListToFile("left4bots2/cfg/weapons/zoey.txt", defaultValues, false);
@@ -706,6 +694,7 @@ witch_autocrown = 0";
 	Specials.clear();
 	Tanks.clear();
 	Witches.clear();
+	SurvivorFlow.clear();
 }
 
 // Is player a valid survivor? (if player is a bot also checks whether it should be handled by the AI)
@@ -840,15 +829,9 @@ witch_autocrown = 0";
 // - ent: if should start the pause (ent is the entity of the special infected / tank / witch that is the reason to start the pause)
 // - 1: if should start the pause and the reason is because of a common infected horde
 // - true: if should start the pause for any other reason
-::Left4Bots.BotShouldStartPause <- function (bot, userid, orig, isstuck, isHealOrder = false, maxSeparation = 0)
+::Left4Bots.BotShouldStartPause <- function (bot, userid, orig, isstuck, isHealOrder = false, isLeadOrder = false, maxSeparation = 0)
 {
-	//local aw = bot.GetActiveWeapon();
-	//if (maxSeparation)
-	//	return isstuck || bot.IsIT() || (!isHealOrder && aw && aw.GetClassname() == "weapon_first_aid_kit") || /*IsFarFromOtherSurvivors(userid, orig, maxSeparation)*/ IsFarFromHumanSurvivors(userid, orig, maxSeparation) || HasTanksWithin(orig, 800) || BotWillUseMeds(bot) || HasVisibleSpecialInfectedWithin(bot, orig, 400) || HasWitchesWithin(orig, 300, 100) || SurvivorsHeldOrIncapped() || HasAngryCommonsWithin(orig, 4, 160, 100);
-	//else
-	//	return isstuck || bot.IsIT() || (!isHealOrder && aw && aw.GetClassname() == "weapon_first_aid_kit") || HasTanksWithin(orig, 800) || BotWillUseMeds(bot) || HasVisibleSpecialInfectedWithin(bot, orig, 400) || HasWitchesWithin(orig, 300, 100) || SurvivorsHeldOrIncapped() || HasAngryCommonsWithin(orig, 4, 160, 100);
-
-	if (isstuck || bot.IsIT() || (maxSeparation && /*IsFarFromOtherSurvivors(userid, orig, maxSeparation)*/ IsFarFromHumanSurvivors(userid, orig, maxSeparation)) || BotWillUseMeds(bot) || SurvivorsHeldOrIncapped())
+	if (isstuck || bot.IsIT() || (isLeadOrder && Settings.lead_pause_behind_dist && !IsBotAheadOfHumans(userid, Settings.lead_pause_behind_dist)) || CheckSeparation_Orders(userid, maxSeparation) || BotWillUseMeds(bot) || SurvivorsHeldOrIncapped())
 		return true;
 
 	local tmp;
@@ -878,13 +861,13 @@ witch_autocrown = 0";
 }
 
 // Should the bot's AI stop the pause?
-::Left4Bots.BotShouldStopPause <- function (bot, userid, orig, isstuck, isHealOrder = false, maxSeparation = 0)
+::Left4Bots.BotShouldStopPause <- function (bot, userid, orig, isstuck, isHealOrder = false, isLeadOrder = false, maxSeparation = 0)
 {
 	local aw = bot.GetActiveWeapon();
 	if (maxSeparation)
-		return !isstuck && /*!bot.IsIT() &&*/ (isHealOrder || !aw || aw.GetClassname() != "weapon_first_aid_kit") && !bot.IsInCombat() && /*!IsFarFromOtherSurvivors(userid, orig, maxSeparation)*/ !IsFarFromHumanSurvivors(userid, orig, maxSeparation) && !HasTanksWithin(orig, 800) && !BotWillUseMeds(bot) && !HasVisibleSpecialInfectedWithin(bot, orig, 400) && !HasWitchesWithin(orig, 300, 100) && !SurvivorsHeldOrIncapped();
+		return !isstuck && !bot.IsIT() && (!isLeadOrder || Settings.lead_pause_behind_dist == 0 || IsBotAheadOfHumans(userid, Settings.lead_pause_behind_dist)) && (isHealOrder || !aw || aw.GetClassname() != "weapon_first_aid_kit") && !bot.IsInCombat() && !CheckSeparation_Orders(userid, maxSeparation) && !HasTanksWithin(orig, 800) && !BotWillUseMeds(bot) && !HasVisibleSpecialInfectedWithin(bot, orig, 400) && !HasWitchesWithin(orig, 300, 100) && !SurvivorsHeldOrIncapped();
 	else
-		return !isstuck && /*!bot.IsIT() &&*/ (isHealOrder || !aw || aw.GetClassname() != "weapon_first_aid_kit") && !bot.IsInCombat() && !HasTanksWithin(orig, 800) && !BotWillUseMeds(bot) && !HasVisibleSpecialInfectedWithin(bot, orig, 400) && !HasWitchesWithin(orig, 300, 100) && !SurvivorsHeldOrIncapped();
+		return !isstuck && !bot.IsIT() && (!isLeadOrder || Settings.lead_pause_behind_dist == 0 || IsBotAheadOfHumans(userid, Settings.lead_pause_behind_dist)) && (isHealOrder || !aw || aw.GetClassname() != "weapon_first_aid_kit") && !bot.IsInCombat() && !HasTanksWithin(orig, 800) && !BotWillUseMeds(bot) && !HasVisibleSpecialInfectedWithin(bot, orig, 400) && !HasWitchesWithin(orig, 300, 100) && !SurvivorsHeldOrIncapped();
 }
 
 // Will the vanilla AI use meds?
@@ -1094,7 +1077,7 @@ witch_autocrown = 0";
 
 	Logger.Debug("BotShootAtEntity - bot: " + bot.GetPlayerName() + " - entity: " + entity);
 
-	PlayerPressButton(bot, BUTTON_ATTACK, Settings.button_holdtime_tap, entity.GetCenter(), 0, 0, lockLook, unlockLookDelay);
+	PlayerPressButton(bot, BUTTON_ATTACK, 0.0, entity.GetCenter(), 0, 0, lockLook, unlockLookDelay);
 }
 
 // Force the given bot to fire a single bullet with the active weapon at the position of the entity's attachment with the given id
@@ -1113,7 +1096,7 @@ witch_autocrown = 0";
 
 	Logger.Debug("BotShootAtEntityAttachment - bot: " + bot.GetPlayerName() + " - entity: " + entity + " - attachmentid: " + attachmentid);
 
-	PlayerPressButton(bot, BUTTON_ATTACK, Settings.button_holdtime_tap, entity.GetAttachmentOrigin(attachmentid), 0, 0, lockLook, unlockLookDelay);
+	PlayerPressButton(bot, BUTTON_ATTACK, 0.0, entity.GetAttachmentOrigin(attachmentid), 0, 0, lockLook, unlockLookDelay);
 }
 
 // Returns the closest valid enemy for the given bot within the given radius and minimum dot
@@ -1240,30 +1223,46 @@ witch_autocrown = 0";
 	Left4Utils.BotLookAt(bot, door, 0, 0);
 }
 
-// Is the survivor with the given userid (likely a bot) too far from the other human survivors?
-::Left4Bots.IsFarFromHumanSurvivors <- function (userid, orig, range)
+// Returns the flow distance between the survivors with the given user ids
+::Left4Bots.FlowDistance <- function (userid1, userid2)
 {
-	local aliveHumans = GetOtherAliveHumanSurvivors(userid);
-	if (aliveHumans.len() == 0)
-		return false; // Return false if there are no other human survivors alive
+	if (!(userid1 in SurvivorFlow) || !(userid2 in SurvivorFlow))
+		return -1;
+	
+	return abs(SurvivorFlow[userid1].flow - SurvivorFlow[userid2].flow);
+}
 
-	foreach (surv in aliveHumans)
+// Returns whether the bot with the given userid has a separation > maxSeparation (true) or not (false)
+// If any human is in the team the separation is measured from the last human, if no human it is measured from the other bots
+::Left4Bots.CheckSeparation_Orders <- function (userid, maxSeparation)
+{
+	if (maxSeparation <= 0 || SurvivorFlow.len() < 2 || !(userid in SurvivorFlow))
+		return false;
+	
+	local hasHumans = Survivors.len() > Bots.len();
+	local myFlow = SurvivorFlow[userid].flow;
+	
+	foreach (id, f in SurvivorFlow)
 	{
-		if ((orig - surv.GetOrigin()).Length() <= range)
+		if (id != userid && (!hasHumans || !f.isBot) && abs(myFlow - f.flow) <= maxSeparation)
 			return false;
 	}
 	return true;
 }
 
-// Is the survivor with the given userid (likely a bot) too far from the other (any) survivors?
-::Left4Bots.IsFarFromOtherSurvivors <- function (userid, orig, range)
+// Returns whether the bot with the given userid has a separation > pickups_max_separation (true) or not (false)
+// The separation only counts when the bot is behind and, if any human is in the team then it is measured from the last human, if no human then it is measured from the other bots
+::Left4Bots.CheckSeparation_Pickup <- function (userid)
 {
-	if (Survivors.len() == 1)
-		return false; // Return false if the given survivor is the only survivor alive
-
-	foreach (id, surv in Survivors)
+	if (Settings.pickups_max_separation <= 0 || SurvivorFlow.len() < 2 || !(userid in SurvivorFlow))
+		return false;
+	
+	local hasHumans = Survivors.len() > Bots.len();
+	local myFlow = SurvivorFlow[userid].flow;
+	
+	foreach (id, f in SurvivorFlow)
 	{
-		if (id != userid && surv.IsValid() && (orig - surv.GetOrigin()).Length() <= range)
+		if (id != userid && (!hasHumans || !f.isBot) && f.flow < (myFlow + Settings.pickups_max_separation))
 			return false;
 	}
 	return true;
@@ -1298,6 +1297,7 @@ witch_autocrown = 0";
 // Are there survivors (other than the one with the given userid) within 'radius' from 'origin'?
 ::Left4Bots.AreOtherSurvivorsNearby <- function (userid, origin, radius = 150)
 {
+	// TODO: use SurvivorFlow ?
 	foreach (id, surv in Survivors)
 	{
 		if (id != userid && surv.IsValid() && (surv.GetOrigin() - origin).Length() <= radius)
@@ -1635,7 +1635,7 @@ witch_autocrown = 0";
 		local nearestTank = GetNearestVisibleTankWithin(bot, orig, Settings.tank_throw_range_min, Settings.tank_throw_range_max);
 
 		// Should we throw the molotov at this tank?
-		if (nearestTank && !nearestTank.IsOnFire() && !nearestTank.IsIncapacitated() && nearestTank.GetHealth() >= Settings.tank_throw_min_health && !::Left4Utils.IsPlayerInWater(nearestTank) && !AreOtherSurvivorsNearby(userid, nearestTank.GetOrigin(), Settings.tank_throw_survivors_mindistance))
+		if (nearestTank && !nearestTank.IsOnFire() && !nearestTank.IsIncapacitated() && nearestTank.GetHealth() >= Settings.tank_throw_min_health && /*!::Left4Utils.IsPlayerInWater(nearestTank)*/ NetProps.GetPropInt(nearestTank, "m_nWaterLevel") <= 0 && !AreOtherSurvivorsNearby(userid, nearestTank.GetOrigin(), Settings.tank_throw_survivors_mindistance))
 		{
 			// Yes, let's do it...
 			return nearestTank;
@@ -1656,7 +1656,7 @@ witch_autocrown = 0";
 			local nearestTank = GetNearestVisibleTankWithin(bot, orig, Settings.tank_throw_range_min, Settings.tank_throw_range_max);
 
 			// Should we throw the bile jar at this tank?
-			if (nearestTank && !nearestTank.IsOnFire() && !nearestTank.IsIncapacitated() && nearestTank.GetHealth() >= Settings.tank_throw_min_health && !::Left4Utils.IsPlayerInWater(nearestTank) && !AreOtherSurvivorsNearby(userid, nearestTank.GetOrigin(), Settings.tank_throw_survivors_mindistance))
+			if (nearestTank && !nearestTank.IsOnFire() && !nearestTank.IsIncapacitated() && nearestTank.GetHealth() >= Settings.tank_throw_min_health && /*!::Left4Utils.IsPlayerInWater(nearestTank)*/ NetProps.GetPropInt(nearestTank, "m_nWaterLevel") <= 0 && !AreOtherSurvivorsNearby(userid, nearestTank.GetOrigin(), Settings.tank_throw_survivors_mindistance))
 			{
 				// Yes, let's do it...
 				return nearestTank;
@@ -1731,7 +1731,7 @@ witch_autocrown = 0";
 
 		// Is the tank still a valid target?
 		// TODO: add trace check?
-		if (throwTarget.IsValid() && !throwTarget.IsDead() && !throwTarget.IsDying() && !throwTarget.IsIncapacitated() && !throwTarget.IsOnFire() && throwTarget.GetHealth() >= Settings.tank_throw_min_health && !::Left4Utils.IsPlayerInWater(throwTarget) && !AreOtherSurvivorsNearby(userid, throwTarget.GetOrigin(), Settings.tank_throw_survivors_mindistance))
+		if (throwTarget.IsValid() && !throwTarget.IsDead() && !throwTarget.IsDying() && !throwTarget.IsIncapacitated() && !throwTarget.IsOnFire() && throwTarget.GetHealth() >= Settings.tank_throw_min_health && /*!::Left4Utils.IsPlayerInWater(throwTarget)*/ NetProps.GetPropInt(throwTarget, "m_nWaterLevel") <= 0 && !AreOtherSurvivorsNearby(userid, throwTarget.GetOrigin(), Settings.tank_throw_survivors_mindistance))
 			return true; // Yes
 	}
 	else if (throwType == AI_THROW_TYPE.Horde)
@@ -2032,6 +2032,7 @@ witch_autocrown = 0";
 // Are all the other alive survivors (except the one with the given userid) in a checkpoint?
 ::Left4Bots.OtherSurvivorsInCheckpoint <- function (userid)
 {
+	/*
 	foreach (id, surv in Survivors)
 	{
 		if (id != userid && surv.IsValid())
@@ -2045,21 +2046,42 @@ witch_autocrown = 0";
 			}
 		}
 	}
+	*/
+	
+	foreach (id, f in SurvivorFlow)
+	{
+		if (id != userid && !f.inCheckpoint)
+		{
+			Logger.Debug("AllSurvivorsInCheckpoint - " + id + " is not in checkpoint");
+			return false;
+		}
+	}
 	Logger.Debug("AllSurvivorsInCheckpoint - All survivors in checkpoint");
 	return true;
+}
+
+// Is the given survivor in a checkpoint?
+::Left4Bots.IsSurvivorInCheckpoint <- function (survivor)
+{
+	local area = survivor.GetLastKnownArea();
+	return (area && area.IsValid() && area.HasSpawnAttributes(NAVAREA_SPAWNATTR_CHECKPOINT));
 }
 
 // Are there enough spare medkits around for the teammates who need them and for 'me'?
 ::Left4Bots.HasSpareMedkitsAround <- function (me)
 {
 	local requiredMedkits = 1;
+	local haveLowestHP = true;
 	foreach (surv in GetOtherAliveSurvivors(me.GetPlayerUserId()))
 	{
-		if (surv.GetHealth() < 75 || !Left4Utils.HasMedkit(surv))
+		if (surv.GetHealth() < 75 || !::Left4Utils.HasMedkit(surv))
 			requiredMedkits++;
+		
+		if (surv.GetHealth() < me.GetHealth())
+			haveLowestHP = false;
 	}
 
-	Logger.Debug("HasSpareMedkitsAround - me: " + me.GetPlayerName() + " - requiredMedkits: " + requiredMedkits);
+	Logger.Debug("HasSpareMedkitsAround - me: " + me.GetPlayerName() + " - requiredMedkits: " + requiredMedkits + " - haveLowestHP: " + haveLowestHP);
 
 	local count = 0;
 	local ent = null;
@@ -2072,7 +2094,8 @@ witch_autocrown = 0";
 				return true;
 		}
 	}
-	return false;
+	
+	return (haveLowestHP && count > 0);
 }
 
 // Makes the given bot say the given line in chat
@@ -2313,14 +2336,18 @@ witch_autocrown = 0";
 
 // Loads the given survivor weapon preference file and returns an array with 5 elements (one for each inventory slot)
 // Each element is a sub-array with the weapon list from the highest to the lowest priority one for that inventory slot
-::Left4Bots.LoadWeaponPreferences <- function (survivor)
+::Left4Bots.LoadWeaponPreferences <- function (survivor, scope)
 {
-	// Main array has one sub-array for each inventory slot
+	// WeapPref array has one sub-array for each inventory slot
 	// Each sub-array contains the weapons from the highest to the lowest priority one for that inventory slot
-	local ret = [[], [], [], [], []];
+	scope.WeapPref <- [[], [], [], [], []];
+	
+	// WeapNoPref array contains a flag for each inventory slot
+	// The flag indicates whether the priority of the weapons in WeapPref for that slot must be ignored
+	scope.WeapNoPref <- [false, false, false, false, false];
 
-	if (!survivor || !survivor.IsValid())
-		return ret;
+	if (!survivor || !survivor.IsValid() || !scope)
+		return;
 
 	//Logger.Debug("LoadWeaponPreferences - survivor: " + survivor.GetPlayerName());
 
@@ -2331,8 +2358,9 @@ witch_autocrown = 0";
 	filename = Settings.file_weapons_prefix + filename.tolower() + ".txt";
 	local lines = Left4Utils.FileToStringList(filename);
 	if (!lines)
-		return ret;
+		return;
 
+	local c = 0;
 	for (local i = 0; i < lines.len(); i++)
 	{
 		local line = Left4Utils.StripComments(lines[i]);
@@ -2341,19 +2369,25 @@ witch_autocrown = 0";
 			local weaps = split(line, ",");
 			for (local x = 0; x < weaps.len(); x++)
 			{
-				local id = Left4Utils.GetWeaponIdByName(weaps[x]);
+				if (x == 0 && weaps[x] == "*")
+					scope.WeapNoPref[i] = true;
+				else
+				{
+					local id = Left4Utils.GetWeaponIdByName(weaps[x]);
 
-				//Logger.Debug("LoadWeaponPreferences - i: " + i + " - w: " + weaps[x] + " - id: " + id);
+					//Logger.Debug("LoadWeaponPreferences - i: " + i + " - w: " + weaps[x] + " - id: " + id);
 
-				if (id > Left4Utils.WeaponId.none && id != Left4Utils.MeleeWeaponId.none && id != Left4Utils.UpgradeWeaponId.none)
-					ret[i].append(id); // valid weapon
+					if (id > Left4Utils.WeaponId.none && id != Left4Utils.MeleeWeaponId.none && id != Left4Utils.UpgradeWeaponId.none)
+					{
+						scope.WeapPref[i].append(id); // valid weapon
+						c++;
+					}
+				}
 			}
 		}
 	}
 
-	Logger.Debug("LoadWeaponPreferences - Loaded " + ret.len() + " preferences for survivor: " + survivor.GetPlayerName() + " from file: " + filename);
-
-	return ret;
+	Logger.Debug("LoadWeaponPreferences - Loaded " + c + " preferences for survivor: " + survivor.GetPlayerName() + " from file: " + filename);
 }
 
 // Loads the vocalizer-bot command mappings from the given file
@@ -2669,7 +2703,6 @@ witch_autocrown = 0";
 		ScavengeUseType = SCAV_TYPE_GASCAN;
 	}
 
-	// TODO: get it from automation
 	ScavengeUseTargetPos = FindBestUseTargetPos(ScavengeUseTarget, null, null, true, Settings.scavenge_usetarget_debug);
 	if (!ScavengeUseTargetPos)
 	{
@@ -2797,6 +2830,7 @@ witch_autocrown = 0";
 // Is there any human within the given range from 'srcBot' who may need to pick-up ammo?
 ::Left4Bots.HumansNeedAmmo <- function (srcBot, minDist = 250.0, maxDist = 2500.0)
 {
+	// TODO: use SurvivorFlow ?
 	local orig = srcBot.GetOrigin();
 	foreach (surv in Survivors)
 	{
@@ -2813,6 +2847,7 @@ witch_autocrown = 0";
 // Is there any human within the given range from 'srcBot' who may need to pick-up this weapon?
 ::Left4Bots.HumansNeedWeapon <- function (srcBot, weaponId, minDist = 250.0, maxDist = 2500.0)
 {
+	// TODO: use SurvivorFlow ?
 	local tier = Left4Utils.GetWeaponTierById(weaponId);
 
 	Logger.Debug("HumansNeedWeapon - weaponId: " + weaponId + " - tier: " + tier);
@@ -2847,6 +2882,7 @@ witch_autocrown = 0";
 // Is there any human within the given range from 'srcBot' who may need to pick-up a medkit?
 ::Left4Bots.HumansNeedMedkit <- function (srcBot, minDist = 250.0, maxDist = 2500.0)
 {
+	// TODO: use SurvivorFlow ?
 	local orig = srcBot.GetOrigin();
 	foreach (surv in Survivors)
 	{
@@ -2867,6 +2903,7 @@ witch_autocrown = 0";
 // Is there any human within the given range from 'srcBot' who may need to pick-up pills or adrenaline?
 ::Left4Bots.HumansNeedTempMed <- function (srcBot, minDist = 250.0, maxDist = 2500.0)
 {
+	// TODO: use SurvivorFlow ?
 	local orig = srcBot.GetOrigin();
 	foreach (surv in Survivors)
 	{
@@ -2883,6 +2920,7 @@ witch_autocrown = 0";
 // Is there any human within the given range from 'srcBot' who may need to pick-up throwables?
 ::Left4Bots.HumansNeedThrowable <- function (srcBot, minDist = 250.0, maxDist = 2500.0)
 {
+	// TODO: use SurvivorFlow ?
 	local orig = srcBot.GetOrigin();
 	foreach (surv in Survivors)
 	{
@@ -2899,6 +2937,7 @@ witch_autocrown = 0";
 // Is there any human within the given range from 'srcBot' who may need to pick-up explosive or incendiary ammo?
 ::Left4Bots.HumansNeedUpgradeAmmo <- function (srcBot, minDist = 250.0, maxDist = 2500.0)
 {
+	// TODO: use SurvivorFlow ?
 	local orig = srcBot.GetOrigin();
 	foreach (surv in Survivors)
 	{
@@ -2919,6 +2958,7 @@ witch_autocrown = 0";
 // Is there any human within the given range from 'srcBot' who may need to pick-up the laser sight?
 ::Left4Bots.HumansNeedLaserSight <- function (srcBot, minDist = 250.0, maxDist = 2500.0)
 {
+	// TODO: use SurvivorFlow ?
 	local orig = srcBot.GetOrigin();
 	foreach (surv in Survivors)
 	{
@@ -2989,6 +3029,7 @@ witch_autocrown = 0";
 // Returns the number of other survivors alive (and not incapacitated) whithin the given radius
 ::Left4Bots.CountOtherStandingSurvivorsWithin <- function (me, radius)
 {
+	// TODO: use SurvivorFlow ?
 	local ret = 0;
 	foreach (surv in GetOtherAliveSurvivors(me.GetPlayerUserId()))
 	{
@@ -3492,17 +3533,17 @@ witch_autocrown = 0";
 	return ret;
 }
 
-// TODO: Test
-::Left4Bots.GetNearestAggroedTankWithin <- function (player, min = 80, max = 1000)
+// Returns the nearest aggroed tank whithin 'min' and 'max' units from 'origin'
+::Left4Bots.GetNearestAggroedTankWithin <- function (origin, min = 80, max = 1000)
 {
 	local ret = null;
-	local minDist = 1000000;
+	local minDist = max;
 	foreach (id, tank in ::Left4Bots.Tanks)
 	{
-		if (NetProps.GetPropInt(player, "m_lookatPlayer") >= 0)
+		if (tank && tank.IsValid() && !tank.IsDead() && !tank.IsDying() && !tank.IsIncapacitated() && NetProps.GetPropInt(tank, "m_lookatPlayer") >= 0)
 		{
-			local dist = (player.GetOrigin() - tank.GetOrigin()).Length();
-			if (dist >= min && dist <= max && dist < minDist)
+			local dist = (origin - tank.GetOrigin()).Length();
+			if (dist >= min && dist < minDist)
 			{
 				ret = tank;
 				minDist = dist;
@@ -3551,6 +3592,49 @@ witch_autocrown = 0";
 ::Left4Bots.IsInfectedAngry <- function (Infected)
 {
 	return InfectedCalmAct.find(Infected.GetSequenceActivityName(Infected.GetSequence())) == null;
+}
+
+// Is the bot with the given userid ahead (on the flow) of human survivors?
+::Left4Bots.IsBotAheadOfHumans <- function (userid, threshold = 120)
+{
+	if (!(userid in SurvivorFlow))
+		return true;
+	
+	local myFlow = SurvivorFlow[userid].flow + threshold;
+	foreach (id, f in SurvivorFlow)
+	{
+		if (id != userid && !f.isBot && f.flow >= myFlow)
+			return false;
+	}
+	return true;
+}
+
+// Returns whether the bots should close the saferoom door after the survivor with the given userid entered
+::Left4Bots.ShouldCloseSaferoomDoor <- function (userid, range = 0)
+{
+	Logger.Debug("ShouldCloseSaferoomDoor - userid: " + userid);
+	
+	if (range == 0)
+		return OtherSurvivorsInCheckpoint(userid);
+	
+	if (!(userid in SurvivorFlow))
+	{
+		Logger.Debug("ShouldCloseSaferoomDoor - userid: " + userid + " - FALSE");
+		return false;
+	}
+	
+	local myFlow = SurvivorFlow[userid].flow;
+	foreach (id, f in SurvivorFlow)
+	{
+		if (id != userid && !f.inCheckpoint && f.flow < myFlow && f.flow >= (myFlow - range))
+		{
+			Logger.Debug("ShouldCloseSaferoomDoor - userid: " + userid + " - myFlow: " + myFlow + " - f.flow: " + f.flow);
+			return false;
+		}
+	}
+	
+	Logger.Debug("ShouldCloseSaferoomDoor - userid: " + userid + " - TRUE");
+	return true;
 }
 
 // Helps update the COMMANDS.md file on the github repo

@@ -236,6 +236,9 @@ Msg("Including left4bots_events...\n");
 		if (victimUserId in ::Left4Bots.Survivors)
 			delete ::Left4Bots.Survivors[victimUserId];
 
+		if (victimUserId in ::Left4Bots.SurvivorFlow)
+			delete ::Left4Bots.SurvivorFlow[victimUserId];
+
 		if (IsPlayerABot(victim))
 		{
 			if (victimUserId in ::Left4Bots.Bots)
@@ -265,6 +268,9 @@ Msg("Including left4bots_events...\n");
 		if (victimUserId in ::Left4Bots.L4D1Survivors)
 			delete ::Left4Bots.L4D1Survivors[victimUserId];
 
+		if (victimUserId in ::Left4Bots.SurvivorFlow)
+			delete ::Left4Bots.SurvivorFlow[victimUserId];
+
 		Left4Bots.RemoveBotThink(victim);
 	}
 }
@@ -283,6 +289,9 @@ Msg("Including left4bots_events...\n");
 
 		if (userid in ::Left4Bots.Survivors)
 			delete ::Left4Bots.Survivors[userid];
+
+		if (userid in ::Left4Bots.SurvivorFlow)
+			delete ::Left4Bots.SurvivorFlow[userid];
 	}
 }
 
@@ -291,10 +300,22 @@ Msg("Including left4bots_events...\n");
 	local player = g_MapScript.GetPlayerFromUserID(params["player"]);
 	local bot = g_MapScript.GetPlayerFromUserID(params["bot"]);
 
+	if (!player || !bot || !player.IsValid() || !bot.IsValid())
+	{
+		Left4Bots.Logger.Error("OnGameEvent_player_bot_replace - player: " + player + " - bot: " + bot);
+		return;
+	}
+
+	if (!::Left4Bots.IsValidSurvivor(bot))
+		return;
+
 	Left4Bots.Logger.Debug("OnGameEvent_player_bot_replace - bot: " + bot.GetPlayerName() + " replaced player: " + player.GetPlayerName());
 
 	if (player.GetPlayerUserId() in ::Left4Bots.Survivors)
 		delete ::Left4Bots.Survivors[player.GetPlayerUserId()];
+
+	if (player.GetPlayerUserId() in ::Left4Bots.SurvivorFlow)
+		delete ::Left4Bots.SurvivorFlow[player.GetPlayerUserId()];
 
 	if (Left4Bots.IsValidSurvivor(bot))
 	{
@@ -312,6 +333,15 @@ Msg("Including left4bots_events...\n");
 	local player = g_MapScript.GetPlayerFromUserID(params["player"]);
 	local bot = g_MapScript.GetPlayerFromUserID(params["bot"]);
 
+	if (!player || !bot || !player.IsValid() || !bot.IsValid())
+	{
+		Left4Bots.Logger.Error("OnGameEvent_bot_player_replace - player: " + player + " - bot: " + bot);
+		return;
+	}
+
+	if (!::Left4Bots.IsValidSurvivor(player))
+		return;
+
 	Left4Bots.Logger.Debug("OnGameEvent_bot_player_replace - player: " + player.GetPlayerName() + " replaced bot: " + bot.GetPlayerName());
 
 	if (bot.GetPlayerUserId() in ::Left4Bots.Survivors)
@@ -319,6 +349,9 @@ Msg("Including left4bots_events...\n");
 
 	if (bot.GetPlayerUserId() in ::Left4Bots.Bots)
 		delete ::Left4Bots.Bots[bot.GetPlayerUserId()];
+
+	if (bot.GetPlayerUserId() in ::Left4Bots.SurvivorFlow)
+		delete ::Left4Bots.SurvivorFlow[bot.GetPlayerUserId()];
 
 	Left4Bots.RemoveBotThink(bot);
 
@@ -343,7 +376,7 @@ Msg("Including left4bots_events...\n");
 	Left4Bots.Logger.Debug("OnGameEvent_item_pickup - player: " + player.GetPlayerName() + " picked up: " + item);
 
 	// This is meant to prevent the bot from accidentally using the pills/adrenaline you give them while they are shooting the infected
-	if (item == "pain_pills" || item == "adrenaline")
+	if ((item == "pain_pills" || item == "adrenaline") && Left4Bots.IsHandledBot(player)) // Added IsHandledBot to fix https://github.com/smilz0/Left4Bots/issues/83
 		Left4Timers.AddTimer(null, 1, @(params) ::Left4Bots.CheckBotPickup.bindenv(::Left4Bots)(params.bot, params.item), { bot = player, item = "weapon_" + item });
 
 	// Update the inventory items
@@ -546,10 +579,8 @@ Msg("Including left4bots_events...\n");
 	if (d > 700) // Too far to be a threat
 		return;
 
-	//lxc apply changes
 	if (d <= 150)
 	{
-		//::Left4Bots.PlayerPressButton(victim, BUTTON_SHOVE, Left4Bots.Settings.button_holdtime_tap, player, Left4Bots.Settings.shove_deadstop_deltapitch, 0, false);
 		victim.GetScriptScope().BotSetAim(AI_AIM_TYPE.Shove, player, 0.233);
 		::Left4Bots.PlayerPressButton(victim, BUTTON_SHOVE);
 	}
@@ -590,13 +621,9 @@ Msg("Including left4bots_events...\n");
 	if ("door" in params)
 		door = EntIndexToHScript(params["door"]);
 
-	//local doorname = null;
-	//if ("doorname" in params)
-	//	doorname = params["doorname"];
-
 	local allBots = RandomInt(1, 100) <= Left4Bots.Settings.close_saferoom_door_all_chance;
 
-	if (Left4Bots.Settings.close_saferoom_door && door && door.IsValid() && (allBots || Left4Bots.IsHandledBot(player)) && Left4Bots.OtherSurvivorsInCheckpoint(player.GetPlayerUserId()))
+	if (Left4Bots.Settings.close_saferoom_door && door && door.IsValid() && (allBots || Left4Bots.IsHandledBot(player)) && ::Left4Bots.ShouldCloseSaferoomDoor(player.GetPlayerUserId(), ::Left4Bots.Settings.close_saferoom_door_behind_range))
 	{
 		local state = NetProps.GetPropInt(door, "m_eDoorState"); // 0 = closed - 1 = opening - 2 = open - 3 = closing
 		if (state != 0 && state != 3)
@@ -621,10 +648,13 @@ Msg("Including left4bots_events...\n");
 			{
 				foreach (bot in Left4Bots.Bots)
 				{
-					local scope = bot.GetScriptScope();
-					scope.DoorAct = AI_DOOR_ACTION.Saferoom;
-					scope.DoorEnt = door; // This tells the bot to close the door. From now on, the bot will start looking for the best moment to close the door without locking himself out (will try at least)
-					scope.DoorZ = doorZ;
+					if (::Left4Bots.IsSurvivorInCheckpoint(bot))
+					{
+						local scope = bot.GetScriptScope();
+						scope.DoorAct = AI_DOOR_ACTION.Saferoom;
+						scope.DoorEnt = door; // This tells the bot to close the door. From now on, the bot will start looking for the best moment to close the door without locking himself out (will try at least)
+						scope.DoorZ = doorZ;
+					}
 				}
 			}
 			else
@@ -1452,6 +1482,16 @@ Msg("Including left4bots_events...\n");
 		}
 	}
 
+	// Survivor flow
+	foreach (id, v in SurvivorFlow)
+	{
+		if (!(id in Survivors) && !(id in L4D1Survivors))
+		{
+			delete SurvivorFlow[id];
+			Logger.Debug("Removed an invalid survivor from SurvivorFlow");
+		}
+	}
+
 	// Vocalizer bot selections
 	foreach (id, sel in VocalizerBotSelection)
 	{
@@ -1461,7 +1501,6 @@ Msg("Including left4bots_events...\n");
 			Logger.Debug("Removed an invalid vocalizer bot selection from VocalizerBotSelection");
 		}
 	}
-
 }
 
 // Tells the bots which items to pick up based on the current team situation
@@ -1538,23 +1577,29 @@ Msg("Including left4bots_events...\n");
 	// Listen for human survivors BUTTON_SHOVE press
 	foreach (surv in Survivors)
 	{
-		if (surv.IsValid() && !IsPlayerABot(surv))
+		if (surv.IsValid())
 		{
-			if ((surv.GetButtonMask() & BUTTON_SHOVE) != 0 || (NetProps.GetPropInt(surv, "m_afButtonPressed") & BUTTON_SHOVE) != 0) // <- With med items (pills and adrenaline) the shove button is disabled when looking at teammates and GetButtonMask never sees the button down but m_afButtonPressed still does
+			local userid = surv.GetPlayerUserId();
+			
+			SurvivorFlow[userid] <- { isBot = IsPlayerABot(surv), flow = GetCurrentFlowDistanceForPlayer(surv), inCheckpoint = IsSurvivorInCheckpoint(surv) };
+			
+			if (!SurvivorFlow[userid].isBot)
 			{
-				local userid = surv.GetPlayerUserId();
-				if (!(userid in BtnStatus_Shove) || !BtnStatus_Shove[userid])
+				if ((surv.GetButtonMask() & BUTTON_SHOVE) != 0 || (NetProps.GetPropInt(surv, "m_afButtonPressed") & BUTTON_SHOVE) != 0) // <- With med items (pills and adrenaline) the shove button is disabled when looking at teammates and GetButtonMask never sees the button down but m_afButtonPressed still does
 				{
-					Logger.Debug(surv.GetPlayerName() + " BUTTON_SHOVE");
+					if (!(userid in BtnStatus_Shove) || !BtnStatus_Shove[userid])
+					{
+						Logger.Debug(surv.GetPlayerName() + " BUTTON_SHOVE");
 
-					BtnStatus_Shove[userid] <- true;
+						BtnStatus_Shove[userid] <- true;
 
-					if (Settings.give_humans_nades || Settings.give_humans_meds)
-						Left4Timers.AddTimer(null, 0.0, ::Left4Bots.OnShovePressed.bindenv(::Left4Bots), { player = surv });
+						if (Settings.give_humans_nades || Settings.give_humans_meds)
+							Left4Timers.AddTimer(null, 0.0, ::Left4Bots.OnShovePressed.bindenv(::Left4Bots), { player = surv });
+					}
 				}
+				else
+					BtnStatus_Shove[surv.GetPlayerUserId()] <- false;
 			}
-			else
-				BtnStatus_Shove[surv.GetPlayerUserId()] <- false;
 		}
 	}
 
@@ -1594,7 +1639,7 @@ Msg("Including left4bots_events...\n");
 	if (!player || !player.IsValid() || IsPlayerABot(player) || Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) < Settings.userlevel_orders)
 		return;
 
-	if (cmd != "botselect" && cmd != "settings" && cmd != "findsettings" && cmd != "help" && args.len() < 3) // Normal bot commands have at least 2 arguments (excluding 'l4b')
+	if (cmd != "botselect" && cmd != "settings" && cmd != "findsettings" && cmd != "help" && cmd != "reloadweapons" && args.len() < 3) // Normal bot commands have at least 2 arguments (excluding 'l4b')
 		return;
 
 	local arg2 = null;
@@ -1845,6 +1890,32 @@ settings
 				ClientPrint(player, 3, PRINTCOLOR_NORMAL + "Type: '" + PRINTCOLOR_GREEN + "!l4b help " + PRINTCOLOR_CYAN + "command" + PRINTCOLOR_NORMAL + "' for more info on a specific command");
 			}
 			
+			break;
+		
+		case "reloadweapons":
+			if (Left4Users.GetOnlineUserLevel(player.GetPlayerUserId()) < L4U_LEVEL.Admin)
+				return false; // Only admins can use this command
+
+			local sw = (arg2 && arg2 != "") ? arg2.tolower() : "all";
+			local c = 0;
+			foreach (bot in Bots)
+			{
+				if (sw == "all" || bot.GetPlayerName().tolower() == sw)
+				{
+					LoadWeaponPreferences(bot, bot.GetScriptScope());
+					c++;
+				}
+			}
+			foreach (bot in L4D1Survivors)
+			{
+				if (sw == "all" || bot.GetPlayerName().tolower() == sw)
+				{
+					LoadWeaponPreferences(bot, bot.GetScriptScope());
+					c++;
+				}
+			}
+			ClientPrint(player, 3, PRINTCOLOR_GREEN + "Weapons reloaded for " + c + " bot(s)");
+		
 			break;
 		
 		default:
@@ -2158,10 +2229,10 @@ settings
 			
 			break;
 		
+		/* TODO: reimplement this?
 		case "SurvivorBotHelpOverwhelmed":
-			// TODO: reimplement this?
-			
 			break;
+		*/
 		
 		/* TODO
 		case "PlayerPourFinished":

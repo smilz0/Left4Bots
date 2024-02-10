@@ -176,7 +176,7 @@ class ::Left4Bots.Automation.Task
 		
 		if (!bot)
 		{
-			_l4b.Logger.Warning("No available bot for task: " + tostring());
+			_l4b.Logger.Debug("No available bot for task: " + tostring());
 			return;
 		}
 		
@@ -226,7 +226,7 @@ class ::Left4Bots.Automation.HealInSaferoom extends ::Left4Bots.Automation.Task
 			foreach (bot in _l4b.Bots)
 			{
 				// Heal if needed
-				if (bot.GetHealth() <= 98 && ::Left4Utils.HasMedkit(bot))
+				if (bot.GetHealth() < 98 /* _l4b.Settings.heal_interrupt_minhealth */ && ::Left4Utils.HasMedkit(bot) && _l4b.HasSpareMedkitsAround(bot))
 					_l4b.BotOrderAdd(bot, "heal", null, bot, null, null, 0, false);
 			}
 			_ordersSent = true;
@@ -733,37 +733,55 @@ class ::Left4Bots.Automation.GotoAndIdle extends ::Left4Bots.Automation.Task
 	return true;
 }
 
-::Left4Bots.Automation.DoUse <- function (target, entName, usePos)
+::Left4Bots.Automation.DoUse <- function (target, entName, usePos, canPause = true, holdTime = 0.0)
 {
 	local ent = Entities.FindByName(null, entName);
 	if (!ent || !ent.IsValid() || TaskExists(target, "use", ent))
 		return false;
 
 	ResetTasks();
-	AddTask(target, "use", ent, usePos);
+	AddTask(target, "use", ent, usePos, null, holdTime, canPause);
 	
 	return true;
 }
 
-::Left4Bots.Automation.DoDestroy <- function (target, entName, destroyPos)
+::Left4Bots.Automation.DoUseNoName <- function (target, entClass, usePos, canPause = true)
+{
+	local ent = Entities.FindByClassnameNearest(entClass, usePos, 500);
+	if (!ent || !ent.IsValid())
+	{
+		::Left4Bots.Logger.Error("Automation.DoUseNoName - " + entClass + " not found near " + usePos);
+		return false;
+	}
+	
+	if (TaskExists(target, "use", ent))
+		return false;
+	
+	ResetTasks();
+	AddTask(target, "use", ent, usePos, null, 0.0, canPause);
+	
+	return true;
+}
+
+::Left4Bots.Automation.DoDestroy <- function (target, entName, destroyPos, canPause = true)
 {
 	local ent = Entities.FindByName(null, entName);
 	if (!ent || !ent.IsValid() || TaskExists(target, "destroy", ent))
 		return false;
 
 	ResetTasks();
-	AddTask(target, "destroy", ent, destroyPos);
+	AddTask(target, "destroy", ent, destroyPos, null, 0.0, canPause);
 	
 	return true;
 }
 
-::Left4Bots.Automation.DoWait <- function (target, waitPos)
+::Left4Bots.Automation.DoWait <- function (target, waitPos, canPause = true)
 {
 	if (TaskExists(target, "wait", null, waitPos))
 		return false;
 
 	ResetTasks();
-	AddTask(target, "wait", null, waitPos);
+	AddTask(target, "wait", null, waitPos, null, 0.0, canPause);
 		
 	return true;
 }
@@ -823,17 +841,27 @@ class ::Left4Bots.Automation.GotoAndIdle extends ::Left4Bots.Automation.Task
 	return true;
 }
 
-::Left4Bots.Automation.DoScavenge <- function (useTargetPos)
+::Left4Bots.Automation.DoScavenge <- function (useTargetPos = null)
 {
 	if (::Left4Bots.Automation.TaskExists("bots", "Scavenge"))
 		return false;
 	
 	::Left4Bots.Automation.ResetTasks();
 	
-	// This is optional, it's just to set a better ScavengeUseTargetPos than the autocalculated one
-	::Left4Bots.ScavengeUseTarget = Entities.FindByClassname(null, "point_prop_use_target");
-	::Left4Bots.ScavengeUseType = NetProps.GetPropInt(::Left4Bots.ScavengeUseTarget, "m_spawnflags");
-	::Left4Bots.ScavengeUseTargetPos = useTargetPos;
+	if (useTargetPos)
+	{
+		// This is optional, it's just to set a better ScavengeUseTargetPos than the autocalculated one
+		::Left4Bots.ScavengeUseTarget = Entities.FindByClassname(null, "point_prop_use_target");
+		::Left4Bots.ScavengeUseType = NetProps.GetPropInt(::Left4Bots.ScavengeUseTarget, "m_spawnflags");
+		::Left4Bots.ScavengeUseTargetPos = useTargetPos;
+	}
+	else
+	{
+		// Use the autocalculated ScavengeUseTargetPos
+		::Left4Bots.ScavengeUseTarget = null;
+		::Left4Bots.ScavengeUseType = 0;
+		::Left4Bots.ScavengeUseTargetPos = null;
+	}
 
 	local task = ::Left4Bots.Automation.AddCustomTask(::Left4Bots.Automation.Scavenge());
 	if (::Left4Bots.Settings.scavenge_campaign_autostart)

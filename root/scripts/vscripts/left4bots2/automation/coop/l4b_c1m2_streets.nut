@@ -53,21 +53,24 @@ class ::Left4Bots.Automation.C1M2ColaDelivery extends ::Left4Bots.Automation.Tas
 			{
 				// Must send the order to open
 				_scavenge_bot = _l4b.GetNearestMovingBot(_store_doors.GetCenter());
-				
-				_l4b.Logger.Debug("C1M2ColaDelivery.Think - scavenge bot is: " + _scavenge_bot.GetPlayerName());
-				
-				_scavenge_bot.GetScriptScope().BotCancelAll();
-				_l4b.BotOrderAdd(_scavenge_bot, "use", null, _store_doors, open_doors_pos);
-				
-				// Tell the remaining bots to wait outside
-				foreach (id, bot in _l4b.Bots)
+				if (_scavenge_bot)
 				{
-					if (id != _scavenge_bot.GetPlayerUserId())
+					_l4b.Logger.Debug("C1M2ColaDelivery.Think - scavenge bot is: " + _scavenge_bot.GetPlayerName());
+					
+					_scavenge_bot.GetScriptScope().BotCancelAll();
+					_l4b.BotOrderAdd(_scavenge_bot, "use", null, _store_doors, open_doors_pos);
+					
+					// Tell the remaining bots to wait outside
+					foreach (id, bot in _l4b.Bots)
 					{
-						if (!Left4Bots.BotHasOrderOfType(bot, "wait"))
-							_l4b.BotOrderAdd(bot, "wait", null, null, wait_pos);
+						if (id != _scavenge_bot.GetPlayerUserId())
+						{
+							if (!Left4Bots.BotHasOrderOfType(bot, "wait"))
+								_l4b.BotOrderAdd(bot, "wait", null, null, wait_pos);
+						}
 					}
 				}
+				// else no bot available for scavenge
 			}
 		}
 		else 
@@ -78,7 +81,7 @@ class ::Left4Bots.Automation.C1M2ColaDelivery extends ::Left4Bots.Automation.Tas
 				cola = Entities.FindByClassname(null, "weapon_cola_bottles");
 			if (!cola || !cola.IsValid())
 			{
-				_l4b.Logger.Debug("C1M2ColaDelivery.Think - cola not spwaned yet");
+				_l4b.Logger.Debug("C1M2ColaDelivery.Think - cola not spawned yet");
 				return;
 			}
 
@@ -100,30 +103,34 @@ class ::Left4Bots.Automation.C1M2ColaDelivery extends ::Left4Bots.Automation.Tas
 				if (!_scavenge_bot || !_scavenge_bot.IsValid() || _scavenge_bot.IsDead() || _scavenge_bot.IsDying())
 				{
 					_scavenge_bot = _l4b.GetNearestMovingBot(cola.GetOrigin());
-					_l4b.Logger.Debug("C1M2ColaDelivery.Think - scavenge bot changed: " + _scavenge_bot.GetPlayerName());
-					
-					if (_cola_outside)
+					if (_scavenge_bot)
 					{
-						// Remaining bots must follow the new scavenge bot
-						foreach (id, bot in _l4b.Bots)
+						_l4b.Logger.Debug("C1M2ColaDelivery.Think - scavenge bot changed: " + _scavenge_bot.GetPlayerName());
+						
+						if (_cola_outside)
 						{
-							if (id != _scavenge_bot.GetPlayerUserId())
+							// Remaining bots must follow the new scavenge bot
+							foreach (id, bot in _l4b.Bots)
 							{
-								bot.GetScriptScope().BotCancelAll();
-								_l4b.BotOrderAdd(bot, "follow", null, _scavenge_bot);
+								if (id != _scavenge_bot.GetPlayerUserId())
+								{
+									bot.GetScriptScope().BotCancelAll();
+									_l4b.BotOrderAdd(bot, "follow", null, _scavenge_bot);
+								}
 							}
 						}
 					}
+					// else no bot available for scavenge
 				}
 				
 				// Check if the cola is already in the bot's hands, otherwise we might interrupt the pouring (scavenge order is already gone while pouring)
-				if (cola.GetMoveParent() == null)
+				if (_scavenge_bot && cola.GetMoveParent() == null)
 				{
 					_scavenge_bot.GetScriptScope().BotCancelAll();
 					_l4b.BotOrderAdd(_scavenge_bot, "scavenge", null, cola);
 				}
 			}
-			else
+			else if (_scavenge_bot)
 			{
 				if (!_cola_outside)
 					_cola_outside = GetFlowPercentForPosition(cola.GetOrigin(), false) > 78;
