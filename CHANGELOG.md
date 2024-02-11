@@ -1,5 +1,36 @@
 # Changelog
 
+## [v2.0.0](https://github.com/smilz0/Left4Bots/tree/v2.0.0) (2024-02-10)
+
+[Full Changelog](https://github.com/smilz0/Left4Bots/compare/v0.4.0-alpha...v2.0.0)
+
+**Implemented enhancements:**
+
+- Automation scripts for Swamp Fever official campaign [\#79](https://github.com/smilz0/Left4Bots/issues/79)
+- Automation scripts for Dark Carnival official campaign [\#74](https://github.com/smilz0/Left4Bots/issues/74)
+- Automation scripts for Dead Center official campaign [\#73](https://github.com/smilz0/Left4Bots/issues/73)
+- Automation system [\#72](https://github.com/smilz0/Left4Bots/issues/72)
+- Aiming function adjust [\#71](https://github.com/smilz0/Left4Bots/issues/71)
+- Improve: bots can dodge spitter's death acid pool [\#68](https://github.com/smilz0/Left4Bots/issues/68)
+- Auto pause the 'lead' order if behind humans [\#62](https://github.com/smilz0/Left4Bots/issues/62)
+- Auto follow for scavenge [\#60](https://github.com/smilz0/Left4Bots/issues/60)
+- Aiming and other improvements + new setting: "manual\_attack\_always" [\#55](https://github.com/smilz0/Left4Bots/issues/55)
+- Bots close saferoom door [\#82](https://github.com/smilz0/Left4Bots/issues/82)
+- \[Improvement\] Manual Attack Adjustments [\#76](https://github.com/smilz0/Left4Bots/issues/76)
+
+**Fixed bugs:**
+
+- Fix vocalizer issues with "VScript Survivor Manager" again [\#69](https://github.com/smilz0/Left4Bots/issues/69)
+- Fix bots take more items from spawn ent [\#67](https://github.com/smilz0/Left4Bots/issues/67)
+- Player survivors getting force-swapped away from pills/adrenaline after pickup [\#83](https://github.com/smilz0/Left4Bots/issues/83)
+- Bots get stuck replenishing ammo with "t3\_ammo\_bots = 0" [\#70](https://github.com/smilz0/Left4Bots/issues/70)
+
+**Closed issues:**
+
+- hey can u add a feature where when playing with friends they can also control the bots? it sucks when only 2 person can control them [\#78](https://github.com/smilz0/Left4Bots/issues/78)
+- The full version of left 4 bots 2 works on second restart by either vote to restart or failing the chapter while the alpha version works fine with this mod [\#77](https://github.com/smilz0/Left4Bots/issues/77)
+- u can add a new feature where in custom maps when u have to turn all generators \(when commanded\) and other stuff the bots will start to scavenge for the thinks [\#75](https://github.com/smilz0/Left4Bots/issues/75)
+
 ## [v0.4.0-alpha](https://github.com/smilz0/Left4Bots/tree/v0.4.0-alpha) (2023-11-12)
 
 [Full Changelog](https://github.com/smilz0/Left4Bots/compare/v0.3.0-alpha...v0.4.0-alpha)
