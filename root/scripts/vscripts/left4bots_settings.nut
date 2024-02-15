@@ -493,29 +493,29 @@
 	// Chance that the bot will throw the bile jar at the tank (this check runs multiple times in a second while the tank is in range, so this chance must be pretty low to have an actual chance of no throw)
 	tank_vomitjar_chance = 1
 
-	// Max chainsaws in the team
+	// Bots will try to keep this maximum number of chainsaws in the entire survivor team, regardless their weapon preference
 	team_max_chainsaws = 0
 
-	// Max melee weapons in the team
+	// Bots will try to keep this maximum number of melee weapons in the entire survivor team, regardless their weapon preference
 	team_max_melee = 2
 
-	// Minimum defibrillators in the team
+	// Bots will try to keep this minimum number of defibrillators in the entire survivor team, regardless their weapon preference
 	team_min_defibs = 0
 
-	// Minimum medkits in the team
+	// Bots will try to keep this minimum number of medkits in the entire survivor team, regardless their weapon preference
 	team_min_medkits = 2
 
-	// Minimum molotovs in the team
+	// Bots will try to keep this minimum number of molotovs in the entire survivor team, regardless their weapon preference
 	team_min_molotovs = 1
 
-	// Minimum pipe bombs in the team
+	// Bots will try to keep this minimum number of pipe bombs in the entire survivor team, regardless their weapon preference
 	team_min_pipebombs = 1
 
-	// Minimum shotguns in the team
-	// NOTE: This will override the weapon preferences and it also means that this amount of bots will prefer keeping their tier1 shotguns instead of taking tier2 guns if no tier2 shotgun is found
+	// Bots will try to keep this minimum number of shotguns in the entire survivor team, regardless their weapon preference
+	// NOTE: This also means that this amount of bots will prefer keeping their tier1 shotguns instead of taking tier2 guns if no tier2 shotgun is found
 	team_min_shotguns = 1
 
-	// Minimum vomit jars in the team
+	// Bots will try to keep this minimum number of bile jars in the entire survivor team, regardless their weapon preference
 	team_min_vomitjars = 0
 
 	// Interval of the think functions of the various thinkers
