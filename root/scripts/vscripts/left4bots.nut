@@ -1128,7 +1128,8 @@ witch_autocrown = 0";
 	{
 		foreach (witch in Witches)
 		{
-			if (witch.IsValid() && (witch.GetOrigin() - orig).Length() <= 800 && NetProps.GetPropFloat(witch, "m_rage") && Left4Utils.CanTraceTo(bot, witch, tracemask_others))
+			// fix for https://github.com/smilz0/Left4Bots/issues/84
+			if (witch.IsValid() && (witch.GetOrigin() - orig).Length() <= 800 && NetProps.GetPropFloat(witch, "m_rage") >= 1.0 && Left4Utils.CanTraceTo(bot, witch, tracemask_others))
 				return witch;
 		}
 	}
