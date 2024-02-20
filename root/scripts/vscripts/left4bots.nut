@@ -398,7 +398,7 @@ witch_autocrown = 0";
 		local defaultValues =
 		[
 			"rifle_ak47,rifle_sg552,rifle_desert,rifle,autoshotgun,shotgun_spas,sniper_military,hunting_rifle,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,smg_mp5,smg_silenced,shotgun_chrome,smg,pumpshotgun",
-			"*,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw",
+			"*,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,riotshield,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw",
 			"pipe_bomb,molotov,vomitjar",
 			"first_aid_kit,defibrillator,upgradepack_explosive,upgradepack_incendiary",
 			"pain_pills,adrenaline"
@@ -416,7 +416,7 @@ witch_autocrown = 0";
 		local defaultValues =
 		[
 			"autoshotgun,shotgun_spas,rifle_ak47,rifle_sg552,rifle_desert,rifle,sniper_military,hunting_rifle,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,shotgun_chrome,smg_mp5,pumpshotgun,smg_silenced,smg",
-			"*,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw",
+			"*,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw,riotshield",
 			"pipe_bomb,molotov,vomitjar",
 			"first_aid_kit,defibrillator,upgradepack_explosive,upgradepack_incendiary",
 			"pain_pills,adrenaline"
@@ -434,7 +434,7 @@ witch_autocrown = 0";
 		local defaultValues =
 		[
 			"sniper_military,hunting_rifle,rifle_ak47,rifle_sg552,rifle_desert,rifle,shotgun_spas,autoshotgun,sniper_scout,sniper_awp,rifle_m60,grenade_launcher,smg_mp5,smg_silenced,shotgun_chrome,smg,pumpshotgun",
-			"pistol_magnum,pistol,chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork",
+			"pistol_magnum,pistol,chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,riotshield",
 			"molotov,pipe_bomb,vomitjar",
 			"first_aid_kit,defibrillator,upgradepack_incendiary,upgradepack_explosive",
 			"pain_pills,adrenaline"
@@ -452,7 +452,7 @@ witch_autocrown = 0";
 		local defaultValues =
 		[
 			"autoshotgun,shotgun_spas,rifle_ak47,rifle_sg552,rifle_desert,rifle,sniper_military,hunting_rifle,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,shotgun_chrome,smg_mp5,pumpshotgun,smg_silenced,smg",
-			"machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw",
+			"riotshield,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw",
 			"molotov,pipe_bomb,vomitjar",
 			"first_aid_kit,defibrillator,upgradepack_explosive,upgradepack_incendiary",
 			"*,pain_pills,adrenaline"
@@ -470,7 +470,7 @@ witch_autocrown = 0";
 		local defaultValues =
 		[
 			"shotgun_spas,autoshotgun,rifle_ak47,rifle_sg552,rifle_desert,rifle,sniper_military,hunting_rifle,sniper_scout,sniper_awp,rifle_m60,grenade_launcher,smg_mp5,smg_silenced,shotgun_chrome,smg,pumpshotgun",
-			"pistol_magnum,pistol,chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork",
+			"pistol_magnum,pistol,chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,riotshield",
 			"molotov,pipe_bomb,vomitjar",
 			"first_aid_kit,defibrillator,upgradepack_incendiary,upgradepack_explosive",
 			"pain_pills,adrenaline"
@@ -488,7 +488,7 @@ witch_autocrown = 0";
 		local defaultValues =
 		[
 			"rifle_ak47,rifle_sg552,rifle_desert,rifle,autoshotgun,shotgun_spas,sniper_military,hunting_rifle,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,smg_mp5,smg_silenced,shotgun_chrome,smg,pumpshotgun",
-			"machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw",
+			"machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,riotshield,pistol_magnum,pistol,chainsaw",
 			"molotov,pipe_bomb,vomitjar",
 			"first_aid_kit,defibrillator,upgradepack_explosive,upgradepack_incendiary",
 			"*,pain_pills,adrenaline"
@@ -506,7 +506,7 @@ witch_autocrown = 0";
 		local defaultValues =
 		[
 			"rifle_sg552,rifle_desert,rifle_ak47,rifle,shotgun_spas,autoshotgun,sniper_military,hunting_rifle,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,smg_mp5,smg_silenced,smg,shotgun_chrome,pumpshotgun",
-			"chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol",
+			"chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,riotshield,pistol_magnum,pistol",
 			"molotov,pipe_bomb,vomitjar",
 			"first_aid_kit,defibrillator,upgradepack_incendiary,upgradepack_explosive",
 			"*,pain_pills,adrenaline"
@@ -524,7 +524,7 @@ witch_autocrown = 0";
 		local defaultValues =
 		[
 			"sniper_military,hunting_rifle,rifle_sg552,rifle_desert,rifle_ak47,rifle,shotgun_spas,autoshotgun,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,smg_mp5,smg_silenced,smg,shotgun_chrome,pumpshotgun",
-			"chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol",
+			"chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,riotshield,pistol_magnum,pistol",
 			"molotov,pipe_bomb,vomitjar",
 			"first_aid_kit,defibrillator,upgradepack_incendiary,upgradepack_explosive",
 			"*,pain_pills,adrenaline"
