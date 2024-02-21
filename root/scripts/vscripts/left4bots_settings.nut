@@ -4,7 +4,7 @@
 	anti_pipebomb_bug = 1
 
 	// [1/0] Enable/Disable the autostart of the automation tasks when humans are in the team
-	automation_autostart = 1
+	automation_autostart = 0
 
 	// [1/0] Enable/Disable the automation debug text overlay (only visible to the host)
 	automation_debug = 0
