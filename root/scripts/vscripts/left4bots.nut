@@ -2370,13 +2370,16 @@ witch_autocrown = 0";
 			local weaps = split(line, ",");
 			for (local x = 0; x < weaps.len(); x++)
 			{
-				if (x == 0 && weaps[x] == "*")
+				//delete space characters which cause bug
+				local wp = strip(weaps[x]);
+				
+				if (x == 0 && wp == "*")
 					scope.WeapNoPref[i] = true;
 				else
 				{
-					local id = Left4Utils.GetWeaponIdByName(weaps[x]);
+					local id = Left4Utils.GetWeaponIdByName(wp);
 
-					//Logger.Debug("LoadWeaponPreferences - i: " + i + " - w: " + weaps[x] + " - id: " + id);
+					//Logger.Debug("LoadWeaponPreferences - i: " + i + " - w: " + wp + " - id: " + id);
 
 					if (id > Left4Utils.WeaponId.none && id != Left4Utils.MeleeWeaponId.none && id != Left4Utils.UpgradeWeaponId.none)
 					{
