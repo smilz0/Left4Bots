@@ -1,0 +1,5 @@
+ 
+ 
+*,pipe_bomb,molotov,vomitjar
+first_aid_kit,defibrillator,upgradepack_explosive,upgradepack_incendiary
+*,pain_pills,adrenaline 

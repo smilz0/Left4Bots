@@ -1,0 +1,4 @@
+weapon_sniper_awp
+weapon_sniper_scout
+weapon_sniper_military
+weapon_hunting_rifle
