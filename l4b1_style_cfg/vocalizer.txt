@@ -1,0 +1,13 @@
+PlayerLeadOn = bots automation all,botname lead
+PlayerWaitHere = bots wait,botname wait
+PlayerEmphaticGo = bot use,botname use
+PlayerWarnWitch = bot witch,botname witch
+PlayerHelp = bots cancel,botname cancel
+PlayerMoveOn = bots cancel,botname cancel
+PlayerStayTogether = bots cancel,botname cancel
+PlayerFollowMe = bots cancel,botname cancel
+iMT_PlayerSuggestHealth = bots heal,botname heal
+PlayerHurryUp = bots hurry,botname hurry
+AskForHealth2 = bot heal me,botname heal me
+PlayerAnswerLostCall = bot give,botname give
+iMT_PlayerHello = bot swap,botname swap
