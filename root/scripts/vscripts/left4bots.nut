@@ -957,7 +957,7 @@ witch_autocrown = 0";
 {
 	foreach (ent in Tanks)
 	{
-		if (ent.IsValid() && (ent.GetOrigin() - orig).Length() <= radius && !ent.IsGhost())
+		if (ent.IsValid() && !ent.IsGhost() && (ent.GetOrigin() - orig).Length() <= radius)
 			return ent;
 	}
 	return null;
