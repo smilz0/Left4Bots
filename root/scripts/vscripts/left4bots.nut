@@ -1390,7 +1390,7 @@ witch_autocrown = 0";
 			local player1UserId = player1.GetPlayerUserId();
 			foreach (surv in Survivors)
 			{
-				if (surv.IsValid() && !IsPlayerABot(surv) && id != player1UserId)
+				if (surv.IsValid() && !IsPlayerABot(surv) && surv.GetPlayerUserId() != player1UserId)
 					EmitSoundOnClient("Hint.LittleReward", surv);
 			}
 		}
