@@ -1401,17 +1401,20 @@ witch_autocrown = 0";
 ::Left4Bots.ItemSwapped <- function (params)
 {
 	local player1 = params["player1"];
-	local player2 = params["player2"];
 	local item1 = params["item1"];
-	local item2 = params["item2"];
 
 	//if (item1 && item1.IsValid())
 	//	DoEntFire("!self", "Kill", "", 0, null, item1);
-	//if (item2 && item2.IsValid())
-	//	DoEntFire("!self", "Kill", "", 0, null, item2);
-	
+
 	if (item1 && player1 && item1.IsValid() && player1.IsValid())
 		DoEntFire("!self", "Use", "", 0, player1, item1);
+
+	local player2 = params["player2"];
+	local item2 = params["item2"];
+
+	//if (item2 && item2.IsValid())
+	//	DoEntFire("!self", "Kill", "", 0, null, item2);
+
 	if (item2 && player2 && item2.IsValid() && player2.IsValid())
 		DoEntFire("!self", "Use", "", 0, player2, item2);
 
