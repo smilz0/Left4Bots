@@ -53,12 +53,12 @@ IncludeScript("left4bots_requirements");
 	}
 
 	Events = {}
-	Survivors = {}		// Used for performance reasons, instead of doing (very slow) Entities search every time
+	Survivors = []		// Used for performance reasons, instead of doing (very slow) Entities search every time
 	Bots = {}			// Same as above ^
 	Deads = {}			// Same ^
-	Specials = {}		// Idem ^
-	Tanks = {}			// ^
-	Witches = {}		// Guess what? ^
+	Specials = []		// Idem ^
+	Tanks = []			// ^
+	Witches = []		// Guess what? ^
 	L4D1Survivors = {}	// Used to store the extra L4D1 bots when handle_l4d1_survivors = 1
 	SurvivorFlow = {}
 	ModeStarted = false
@@ -695,6 +695,7 @@ witch_autocrown = 0";
 	Tanks.clear();
 	Witches.clear();
 	SurvivorFlow.clear();
+	L4D1Survivors.clear();
 }
 
 // Is player a valid survivor? (if player is a bot also checks whether it should be handled by the AI)
@@ -723,28 +724,19 @@ witch_autocrown = 0";
 // Is survivor an handled survivor? (basically is survivor in Survivors?)
 ::Left4Bots.IsHandledSurvivor <- function (survivor)
 {
-	if (!survivor || !survivor.IsValid())
-		return false;
-
-	return (survivor.GetPlayerUserId() in Survivors);
+	return survivor && survivor.IsValid() && Survivors.find(survivor) != null;
 }
 
 // Is bot an AI handled survivor bot? (basically is bot in Bots?)
 ::Left4Bots.IsHandledBot <- function (bot)
 {
-	if (!bot || !bot.IsValid())
-		return false;
-
-	return (bot.GetPlayerUserId() in Bots);
+	return bot && bot.IsValid() && (bot.GetPlayerUserId() in Bots);
 }
 
 // Is bot an AI handled extra L4D1 survivor bot? (basically is bot in L4D1Survivors?)
 ::Left4Bots.IsHandledL4D1Bot <- function (bot)
 {
-	if (!bot || !bot.IsValid())
-		return false;
-
-	return (bot.GetPlayerUserId() in L4D1Survivors);
+	return bot && bot.IsValid() && (bot.GetPlayerUserId() in L4D1Survivors);
 }
 
 ::Left4Bots.PrintSurvivorsCount <- function ()
@@ -892,7 +884,7 @@ witch_autocrown = 0";
 	local a = orig.z;
 	while (ent = Entities.FindByClassnameWithin(ent, "infected", orig, radius))
 	{
-		if (ent.IsValid() && abs(a - ent.GetOrigin().z) <= maxAltDiff && NetProps.GetPropInt(ent, "m_lifeState") == 0 && (NetProps.GetPropInt(ent, "m_mobRush") || NetProps.GetPropInt(ent, "m_clientLookatTarget"))) // <- still alive and angry
+		if (ent.IsValid() && NetProps.GetPropInt(ent, "m_lifeState") == 0 && (NetProps.GetPropInt(ent, "m_mobRush") || NetProps.GetPropInt(ent, "m_clientLookatTarget")) /* still alive and angry */ && abs(a - ent.GetOrigin().z) <= maxAltDiff)
 		{
 			if (++n >= num)
 				return true;
@@ -942,7 +934,7 @@ witch_autocrown = 0";
 	local tracemask_others = Settings.tracemask_others;
 	foreach (ent in Specials)
 	{
-		if (ent.IsValid() && (ent.GetOrigin() - orig).Length() <= radius && !ent.IsGhost() && Left4Utils.CanTraceTo(player, ent, tracemask_others))
+		if (ent.IsValid() && !ent.IsGhost() && (ent.GetOrigin() - orig).Length() <= radius && Left4Utils.CanTraceTo(player, ent, tracemask_others))
 			return ent;
 	}
 	return null;
@@ -953,7 +945,7 @@ witch_autocrown = 0";
 {
 	foreach (ent in Specials)
 	{
-		if (ent.IsValid() && (ent.GetOrigin() - orig).Length() <= radius && !ent.IsGhost())
+		if (ent.IsValid() && !ent.IsGhost() && (ent.GetOrigin() - orig).Length() <= radius)
 			return true;
 	}
 	return false;
@@ -977,7 +969,7 @@ witch_autocrown = 0";
 {
 	foreach (witch in Witches)
 	{
-		if (witch.IsValid() && abs(orig.z - witch.GetOrigin().z) <= maxAltDiff && (witch.GetOrigin() - orig).Length() <= radius && NetProps.GetPropInt(witch, "m_lifeState") == 0 && !NetProps.GetPropInt(witch, "m_bIsBurning"))
+		if (witch.IsValid() && NetProps.GetPropInt(witch, "m_lifeState") == 0 && !NetProps.GetPropInt(witch, "m_bIsBurning") && abs(orig.z - witch.GetOrigin().z) <= maxAltDiff && (witch.GetOrigin() - orig).Length() <= radius)
 			return witch;
 	}
 	return null;
@@ -1012,7 +1004,7 @@ witch_autocrown = 0";
 	local shove_specials_radius = Settings.shove_specials_radius;
 	foreach (ent in Specials)
 	{
-		if (ent.IsValid() && (ent.GetOrigin() - orig).Length() <= shove_specials_radius && !ent.IsGhost())
+		if (ent.IsValid() && !ent.IsGhost() && (ent.GetOrigin() - orig).Length() <= shove_specials_radius)
 		{
 			local zType = ent.GetZombieType();
 			if (zType == Z_SMOKER || zType == Z_HUNTER || zType == Z_SPITTER || zType == Z_JOCKEY)
@@ -1028,7 +1020,7 @@ witch_autocrown = 0";
 	local ret = null;
 	local minDist = 1000000;
 	local tracemask_others = Settings.tracemask_others;
-	foreach (id, tank in Tanks)
+	foreach (tank in Tanks)
 	{
 		if (tank.IsValid())
 		{
@@ -1109,12 +1101,12 @@ witch_autocrown = 0";
 	local tracemask_others = Settings.tracemask_others;
 	foreach (ent in Specials)
 	{
-		if (ent.IsValid())
+		if (ent.IsValid() && !ent.IsGhost())
 		{
 			local toEnt = ent.GetOrigin() - orig;
 			local dist = toEnt.Length();
 			toEnt.Norm();
-			if (dist < minDist && botFacing.Dot(toEnt) >= minDot && !ent.IsGhost() && Left4Utils.CanTraceTo(bot, ent, tracemask_others))
+			if (dist < minDist && botFacing.Dot(toEnt) >= minDot && Left4Utils.CanTraceTo(bot, ent, tracemask_others))
 			{
 				ret = ent;
 				minDist = dist;
@@ -1124,26 +1116,24 @@ witch_autocrown = 0";
 	// TODO: Just return the special if it's within a certain range?
 	
 	//lxc kill raged Witch if no Specials nearby
-	if (!ret)
+	for (local witchIdx = 0; !ret && witchIdx < Witches.len(); witchIdx++)
 	{
-		foreach (witch in Witches)
-		{
-			// fix for https://github.com/smilz0/Left4Bots/issues/84
-			if (witch.IsValid() && (witch.GetOrigin() - orig).Length() <= 800 && NetProps.GetPropFloat(witch, "m_rage") >= 1.0 && Left4Utils.CanTraceTo(bot, witch, tracemask_others))
-				return witch;
-		}
+		// fix for https://github.com/smilz0/Left4Bots/issues/84
+		local witch = Witches[witchIdx];
+		if (witch.IsValid() && NetProps.GetPropFloat(witch, "m_rage") >= 1.0 && (witch.GetOrigin() - orig).Length() <= 800 && Left4Utils.CanTraceTo(bot, witch, tracemask_others))
+			return witch;
 	}
 	
 	local ent = null;
 	while (ent = Entities.FindByClassnameWithin(ent, "infected", orig, minDist)) // If only we had a infected_spawned event for the commons...
 	{
-		if (ent.IsValid())
+		if (ent.IsValid() && NetProps.GetPropInt(ent, "m_lifeState") == 0)
 		{
 			local toEnt = ent.GetOrigin() - orig;
 			local dist = toEnt.Length();
 			toEnt.Norm();
-																													//lxc ignore wandering infected
-			if (dist < minDist && botFacing.Dot(toEnt) >= minDot && NetProps.GetPropInt(ent, "m_lifeState") == 0 && (Settings.manual_attack_skill >= 3 || IsInfectedAngry(ent)) && Left4Utils.CanTraceTo(bot, ent, tracemask_others))
+																	//lxc ignore wandering infected
+			if (dist < minDist && botFacing.Dot(toEnt) >= minDot && (Settings.manual_attack_skill >= 3 || IsInfectedAngry(ent)) && Left4Utils.CanTraceTo(bot, ent, tracemask_others))
 			{
 				ret = ent;
 				minDist = dist;
@@ -1272,36 +1262,30 @@ witch_autocrown = 0";
 // Returns the list of survivors alive (excluding the one with the given userid)
 ::Left4Bots.GetOtherAliveSurvivors <- function (userid)
 {
-	local t = {};
-	local i = -1;
 	foreach (surv in Survivors)
 	{
 		if (surv.IsValid() && surv.GetPlayerUserId() != userid)
-			t[++i] <- surv;
+			yield surv;
 	}
-	return t;
 }
 
 // Returns the list of alive human survivors (excluding the one with the given userid)
 ::Left4Bots.GetOtherAliveHumanSurvivors <- function (userid)
 {
-	local t = {};
-	local i = -1;
-	foreach (id, surv in Survivors)
+	foreach (surv in Survivors)
 	{
-		if (id != userid && surv.IsValid() && !IsPlayerABot(surv))
-			t[++i] <- surv;
+		if (surv.IsValid() && surv.GetPlayerUserId() != userid && !IsPlayerABot(surv))
+			yield surv;
 	}
-	return t;
 }
 
 // Are there survivors (other than the one with the given userid) within 'radius' from 'origin'?
 ::Left4Bots.AreOtherSurvivorsNearby <- function (userid, origin, radius = 150)
 {
 	// TODO: use SurvivorFlow ?
-	foreach (id, surv in Survivors)
+	foreach (surv in Survivors)
 	{
-		if (id != userid && surv.IsValid() && (surv.GetOrigin() - origin).Length() <= radius)
+		if (surv.IsValid() && surv.GetPlayerUserId() != userid && (surv.GetOrigin() - origin).Length() <= radius)
 			return true;
 	}
 	return false;
@@ -1310,9 +1294,9 @@ witch_autocrown = 0";
 // Is there any other survivor (other than the one with the given userid) currently holding a weapon of class 'weaponClass'?
 ::Left4Bots.IsSomeoneElseHolding <- function (userid, weaponClass)
 {
-	foreach (id, surv in Survivors)
+	foreach (surv in Survivors)
 	{
-		if (id != userid && surv.IsValid())
+		if (surv.IsValid() && surv.GetPlayerUserId() != userid)
 		{
 			local holding = surv.GetActiveWeapon();
 			if (holding && holding.IsValid() && holding.GetClassname() == weaponClass)
@@ -1403,9 +1387,10 @@ witch_autocrown = 0";
 			if (!IsPlayerABot(player1))
 				EmitSoundOnClient("Hint.BigReward", player1);
 
-			foreach (id, surv in Survivors)
+			local player1UserId = player1.GetPlayerUserId();
+			foreach (surv in Survivors)
 			{
-				if (surv.IsValid() && !IsPlayerABot(surv) && id != player1.GetPlayerUserId())
+				if (surv.IsValid() && !IsPlayerABot(surv) && id != player1UserId)
 					EmitSoundOnClient("Hint.LittleReward", surv);
 			}
 		}
@@ -1442,10 +1427,16 @@ witch_autocrown = 0";
 			if (!IsPlayerABot(player2))
 				EmitSoundOnClient("Hint.BigReward", player2);
 
-			foreach (id, surv in Survivors)
+			local player1UserId = player1.GetPlayerUserId();
+			local player2UserId = player2.GetPlayerUserId();
+			foreach (surv in Survivors)
 			{
-				if (surv.IsValid() && !IsPlayerABot(surv) && id != player1.GetPlayerUserId() && id != player2.GetPlayerUserId())
-					EmitSoundOnClient("Hint.LittleReward", surv);
+				if (surv.IsValid() && !IsPlayerABot(surv))
+				{
+					local userId = surv.GetPlayerUserId();
+					if (userId != player1UserId && userId != player2UserId)
+						EmitSoundOnClient("Hint.LittleReward", surv);
+				}
 			}
 		}
 	}
@@ -1941,10 +1932,10 @@ witch_autocrown = 0";
 	local bestDot = threshold;
 	local bestEnt = null;
 	local tracemask_others = Settings.tracemask_others;
-	foreach (id, surv in Survivors)
+	foreach (surv in Survivors)
 	{
 		local toEnt = surv.GetOrigin() - orig;
-		if (id != userid && toEnt.Length() <= radius)
+		if (surv.GetPlayerUserId() != userid && toEnt.Length() <= radius)
 		{
 			toEnt.Norm();
 			local dot = facing.Dot(toEnt);
@@ -2307,8 +2298,8 @@ witch_autocrown = 0";
 				*/
 
 				// a must be between -dodge_rock_diffangle and dodge_rock_diffangle. a > 0 -> the bot should run to the rock's left. a < 0 -> the bot should run to the rock's right
-				if (!(id in DodgingBots) && l4b.Settings.dodge_rock && a >= -l4b.Settings.dodge_rock_diffangle && a <= l4b.Settings.dodge_rock_diffangle && l4b.TryDodge(bot, lft, a > 0, l4b.Settings.dodge_rock_mindistance, l4b.Settings.dodge_rock_maxdistance))
-					DodgingBots[id] <- 1;
+				if (DodgingBots.find(id) == null && l4b.Settings.dodge_rock && a >= -l4b.Settings.dodge_rock_diffangle && a <= l4b.Settings.dodge_rock_diffangle && l4b.TryDodge(bot, lft, a > 0, l4b.Settings.dodge_rock_mindistance, l4b.Settings.dodge_rock_maxdistance))
+					DodgingBots.append(id);
 				//lxc now we can move and shoot in same time, rock can be destroyed if health > 0, don't waste bullets
 				if (l4b.Settings.shoot_rock && self.GetHealth() > 0 && a >= -l4b.Settings.shoot_rock_diffangle && a <= l4b.Settings.shoot_rock_diffangle)
 				{
@@ -3036,10 +3027,7 @@ witch_autocrown = 0";
 	// TODO: use SurvivorFlow ?
 	local ret = 0;
 	foreach (surv in GetOtherAliveSurvivors(me.GetPlayerUserId()))
-	{
-		if (!surv.IsIncapacitated() && (surv.GetOrigin() - me.GetOrigin()).Length() <= radius)
-			ret++;
-	}
+		ret += (!surv.IsIncapacitated() && (surv.GetOrigin() - me.GetOrigin()).Length() <= radius).tointeger();
 	return ret;
 }
 
