@@ -85,7 +85,7 @@ Msg("Including left4bots_events...\n");
 	if (!player || !player.IsValid())
 		return;
 
-	Left4Timers.AddTimer(null, 0.01, @(params) ::Left4Bots.OnPostPlayerSpawn.bindenv(::Left4Bots)(params.player), { player = player });
+	Left4Timers.AddTimer(null, 0.01, @(params) ::Left4Bots.OnPostPlayerSpawn.bindenv(::Left4Bots)(params.player, params.userid), { player = player, userid = params["userid"].tointeger() });
 }
 
 ::Left4Bots.Events.OnGameEvent_witch_spawn <- function (params)
@@ -99,24 +99,39 @@ Msg("Including left4bots_events...\n");
 
 	Left4Bots.Logger.Debug("OnGameEvent_witch_spawn - witch spawned");
 
-	::Left4Bots.Witches[witch.GetEntityIndex()] <- witch;
+	::Left4Bots.Witches.append(witch);
 
 	Left4Bots.Logger.Debug("Active witches: " + ::Left4Bots.Witches.len());
 }
 
+::Left4Bots.PlayerDeathDebug <- function (victimName, attackerName, params)
+{
+	local weapon = null;
+	if ("weapon" in params)
+		weapon = params["weapon"];
+
+	local abort = null;
+	if ("abort" in params)
+		abort = params["abort"];
+
+	local type = null;
+	if ("type" in params)
+		type = params["type"];
+	
+	Left4Bots.Logger.Debug("OnGameEvent_player_death - victim: " + victimName + " - attacker: " + attackerName + " - weapon: " + weapon + " - abort: " + abort + " - type: " + type);
+}
+
 ::Left4Bots.Events.OnGameEvent_player_death <- function (params)
 {
+	local victimUserId = null;
 	local victim = null;
 	local victimIsPlayer = false;
-	local victimUserId = null;
 
 	if ("userid" in params)
-		victim = g_MapScript.GetPlayerFromUserID(params["userid"]);
-
-	if (victim && victim.IsValid())
 	{
-		victimIsPlayer = true;
-		victimUserId = victim.GetPlayerUserId();
+		victimUserId = params["userid"].tointeger();
+		victim = g_MapScript.GetPlayerFromUserID(params["userid"]);
+		victimIsPlayer = victim && victim.IsValid();
 	}
 	else if ("entityid" in params)
 		victim = EntIndexToHScript(params["entityid"]);
@@ -124,38 +139,22 @@ Msg("Including left4bots_events...\n");
 	if (!victim || !victim.IsValid())
 		return;
 
+	local victimName = "?";
+	if (victimIsPlayer)
+		victimName = victim.GetPlayerName();
+	else
+		victimName = victim.GetClassname(); // It's called victimName but it's the class name in case it's not a player
+
 	local attacker = null;
 	local attackerIsPlayer = false;
 
 	if ("attacker" in params)
+	{
 		attacker = g_MapScript.GetPlayerFromUserID(params["attacker"]);
-
-	if (attacker && attacker.IsValid())
-		attackerIsPlayer = true;
+		attackerIsPlayer = attacker && attacker.IsValid();
+	}
 	else if ("attackerentid" in params)
 		attacker = EntIndexToHScript(params["attackerentid"]);
-
-	local weapon = null;
-	local abort = null;
-	local type = null;
-
-	if ("weapon" in params)
-		weapon = params["weapon"];
-
-	if ("abort" in params)
-		abort = params["abort"];
-
-	if ("type" in params)
-		type = params["type"];
-
-	local victimName = "?";
-	if (victim)
-	{
-		if (victimIsPlayer)
-			victimName = victim.GetPlayerName();
-		else
-			victimName = victim.GetClassname(); // It's called victimName but it's the class name in case it's not a player
-	}
 
 	local attackerName = "?";
 	if (attacker)
@@ -166,18 +165,20 @@ Msg("Including left4bots_events...\n");
 			attackerName = attacker.GetClassname(); // It's called attackerName but it's the class name in case it's not a player
 	}
 
-	Left4Bots.Logger.Debug("OnGameEvent_player_death - victim: " + victimName + " - attacker: " + attackerName + " - weapon: " + weapon + " - abort: " + abort + " - type: " + type);
+	if (::Left4Bots.Logger._logLevel >= LOG_LEVEL_DEBUG)
+		::Left4Bots.PlayerDeathDebug(victimName, attackerName, params);
 
 	local victimTeam = NetProps.GetPropInt(victim, "m_iTeamNum");
-	if (victimTeam == TEAM_INFECTED)
+	if (victimIsPlayer)
 	{
-		if (victimIsPlayer)
+		if (victimTeam == TEAM_INFECTED)
 		{
-			if  (victim.GetZombieType() == Z_TANK)
+			if (victim.GetZombieType() == Z_TANK)
 			{
-				if (victimUserId in ::Left4Bots.Tanks)
+				local tankIdx = ::Left4Bots.Tanks.find(victim);
+				if (tankIdx != null)
 				{
-					delete ::Left4Bots.Tanks[victimUserId];
+					::Left4Bots.Tanks.remove(tankIdx);
 
 					if (Left4Bots.Tanks.len() == 0) // All the tanks are dead
 						::Left4Bots.OnTankGone.bindenv(::Left4Bots)();
@@ -189,9 +190,10 @@ Msg("Including left4bots_events...\n");
 			}
 			else
 			{
-				if (victimUserId in ::Left4Bots.Specials)
+				local specialIdx = ::Left4Bots.Specials.find(victim);
+				if (specialIdx != null)
 				{
-					delete ::Left4Bots.Specials[victimUserId];
+					::Left4Bots.Specials.remove(specialIdx);
 
 					Left4Bots.Logger.Debug("Active specials: " + ::Left4Bots.Specials.len());
 				}
@@ -205,73 +207,75 @@ Msg("Including left4bots_events...\n");
 				Left4Bots.NiceShootTime = Time();
 			}
 		}
-		else
+		else if (victimTeam == TEAM_SURVIVORS)
 		{
-			if (victimName == "infected")
-			{
-				// Common infected
-			}
-			else if (victimName == "witch")
-			{
-				// Witch
-				if (victim.GetEntityIndex() in ::Left4Bots.Witches)
-				{
-					delete ::Left4Bots.Witches[victim.GetEntityIndex()];
-
-					Left4Bots.Logger.Debug("Active witches: " + ::Left4Bots.Witches.len());
-				}
-				else
-					Left4Bots.Logger.Error("Dead witch was not in Left4Bots.Witches");
-
-				if (attacker && attackerIsPlayer && Left4Bots.IsHandledBot(attacker))
-				{
-					Left4Bots.NiceShootSurv = attacker;
-					Left4Bots.NiceShootTime = Time();
-				}
-			}
-		}
-	}
-	else if (victimTeam == TEAM_SURVIVORS && victimIsPlayer)
-	{
-		if (victimUserId in ::Left4Bots.Survivors)
-			delete ::Left4Bots.Survivors[victimUserId];
-
-		if (victimUserId in ::Left4Bots.SurvivorFlow)
+			//if (victimUserId in ::Left4Bots.SurvivorFlow)
 			delete ::Left4Bots.SurvivorFlow[victimUserId];
 
-		if (IsPlayerABot(victim))
-		{
-			if (victimUserId in ::Left4Bots.Bots)
+			local victimIdx = ::Left4Bots.Survivors.find(victim);
+			if (victimIdx != null)
+				::Left4Bots.Survivors.remove(victimIdx);
+
+			if (IsPlayerABot(victim))
+			{
+				//if (victimUserId in ::Left4Bots.Bots)
 				delete ::Left4Bots.Bots[victimUserId];
+
+				Left4Bots.RemoveBotThink(victim);
+			}
+
+			Left4Bots.PrintSurvivorsCount();
+
+			//
+
+			local chr = NetProps.GetPropInt(victim, "m_survivorCharacter");
+			local sdm = Left4Utils.GetSurvivorDeathModelByChar(chr);
+			if (sdm)
+			{
+				if (attacker && !attackerIsPlayer && attackerName == "trigger_hurt" /*&& (Left4Utils.DamageContains(type, DMG_DROWN) || Left4Utils.DamageContains(type, DMG_CRUSH))*/)
+					Left4Bots.Logger.Info("Ignored possible unreachable survivor_death_model for dead survivor: " + victim.GetPlayerName());
+				else
+					Left4Bots.Deads[chr] <- { dmodel = sdm, player = victim };
+			}
+			else
+				Left4Bots.Logger.Warning("Couldn't find a survivor_death_model for the dead survivor: " + victim.GetPlayerName() + "!!!");
+		}
+		else if (victimTeam == TEAM_L4D1_SURVIVORS)
+		{
+			//if (victimUserId in ::Left4Bots.SurvivorFlow)
+			delete ::Left4Bots.SurvivorFlow[victimUserId];
+
+			//if (victimUserId in ::Left4Bots.L4D1Survivors)
+			delete ::Left4Bots.L4D1Survivors[victimUserId];
 
 			Left4Bots.RemoveBotThink(victim);
 		}
-
-		Left4Bots.PrintSurvivorsCount();
-
-		//
-
-		local chr = NetProps.GetPropInt(victim, "m_survivorCharacter");
-		local sdm = Left4Utils.GetSurvivorDeathModelByChar(chr);
-		if (sdm)
-		{
-			if (attacker && !attackerIsPlayer && attackerName == "trigger_hurt" /*&& (Left4Utils.DamageContains(type, DMG_DROWN) || Left4Utils.DamageContains(type, DMG_CRUSH))*/)
-				Left4Bots.Logger.Info("Ignored possible unreachable survivor_death_model for dead survivor: " + victim.GetPlayerName());
-			else
-				Left4Bots.Deads[chr] <- { dmodel = sdm, player = victim };
-		}
-		else
-			Left4Bots.Logger.Warning("Couldn't find a survivor_death_model for the dead survivor: " + victim.GetPlayerName() + "!!!");
 	}
-	else if (victimTeam == TEAM_L4D1_SURVIVORS && victimIsPlayer)
+	else if (victimTeam == TEAM_INFECTED)
 	{
-		if (victimUserId in ::Left4Bots.L4D1Survivors)
-			delete ::Left4Bots.L4D1Survivors[victimUserId];
+		if (victimName == "infected")
+		{
+			// Common infected
+		}
+		else if (victimName == "witch")
+		{
+			// Witch
+			local witchIdx = ::Left4Bots.Witches.find(victim);
+			if (witchIdx != null)
+			{
+				::Left4Bots.Witches.remove(witchIdx);
 
-		if (victimUserId in ::Left4Bots.SurvivorFlow)
-			delete ::Left4Bots.SurvivorFlow[victimUserId];
+				Left4Bots.Logger.Debug("Active witches: " + ::Left4Bots.Witches.len());
+			}
+			else
+				Left4Bots.Logger.Error("Dead witch was not in Left4Bots.Witches");
 
-		Left4Bots.RemoveBotThink(victim);
+			if (attacker && attackerIsPlayer && Left4Bots.IsHandledBot(attacker))
+			{
+				Left4Bots.NiceShootSurv = attacker;
+				Left4Bots.NiceShootTime = Time();
+			}
+		}
 	}
 }
 
@@ -286,12 +290,12 @@ Msg("Including left4bots_events...\n");
 			return;
 
 		//Left4Bots.Logger.Debug("OnGameEvent_player_disconnect - player: " + player.GetPlayerName());
+		local victimIdx = ::Left4Bots.Survivors.find(victim);
+		if (victimIdx != null)
+			::Left4Bots.Survivors.remove(victimIdx);
 
-		if (userid in ::Left4Bots.Survivors)
-			delete ::Left4Bots.Survivors[userid];
-
-		if (userid in ::Left4Bots.SurvivorFlow)
-			delete ::Left4Bots.SurvivorFlow[userid];
+		//if (userid in ::Left4Bots.SurvivorFlow)
+		delete ::Left4Bots.SurvivorFlow[userid];
 	}
 }
 
@@ -311,16 +315,21 @@ Msg("Including left4bots_events...\n");
 
 	Left4Bots.Logger.Debug("OnGameEvent_player_bot_replace - bot: " + bot.GetPlayerName() + " replaced player: " + player.GetPlayerName());
 
-	if (player.GetPlayerUserId() in ::Left4Bots.Survivors)
-		delete ::Left4Bots.Survivors[player.GetPlayerUserId()];
+	local playerIdx = ::Left4Bots.Survivors.find(player);
+	if (playerIdx != null)
+		::Left4Bots.Survivors.remove(playerIdx);
 
-	if (player.GetPlayerUserId() in ::Left4Bots.SurvivorFlow)
-		delete ::Left4Bots.SurvivorFlow[player.GetPlayerUserId()];
+	//local playerUserID = params["player"].tointeger();
+	//if (playerUserID in ::Left4Bots.SurvivorFlow)
+	delete ::Left4Bots.SurvivorFlow[params["player"].tointeger()];
 
 	if (Left4Bots.IsValidSurvivor(bot))
 	{
-		::Left4Bots.Survivors[bot.GetPlayerUserId()] <- bot;
-		::Left4Bots.Bots[bot.GetPlayerUserId()] <- bot;
+		::Left4Bots.Survivors.append(bot);
+		
+		local botUserID = params["bot"].tointeger();
+		::Left4Bots.Bots[botUserID] <- bot;
+		::Left4Bots.SurvivorFlow[botUserID] <- { isBot = true, inCheckpoint = IsSurvivorInCheckpoint(bot), flow = GetCurrentFlowDistanceForPlayer(bot) };
 
 		Left4Bots.AddBotThink(bot);
 	}
@@ -344,14 +353,16 @@ Msg("Including left4bots_events...\n");
 
 	Left4Bots.Logger.Debug("OnGameEvent_bot_player_replace - player: " + player.GetPlayerName() + " replaced bot: " + bot.GetPlayerName());
 
-	if (bot.GetPlayerUserId() in ::Left4Bots.Survivors)
-		delete ::Left4Bots.Survivors[bot.GetPlayerUserId()];
+	local botIdx = ::Left4Bots.Survivors.find(bot);
+	if (botIdx != null)
+		::Left4Bots.Survivors.remove(botIdx);
 
-	if (bot.GetPlayerUserId() in ::Left4Bots.Bots)
-		delete ::Left4Bots.Bots[bot.GetPlayerUserId()];
+	local botUserID = params["bot"].tointeger();
+	//if (botUserID in ::Left4Bots.Bots)
+	delete ::Left4Bots.Bots[botUserID];
 
-	if (bot.GetPlayerUserId() in ::Left4Bots.SurvivorFlow)
-		delete ::Left4Bots.SurvivorFlow[bot.GetPlayerUserId()];
+	//if (botUserID in ::Left4Bots.SurvivorFlow)
+	delete ::Left4Bots.SurvivorFlow[botUserID];
 
 	Left4Bots.RemoveBotThink(bot);
 
@@ -360,7 +371,10 @@ Msg("Including left4bots_events...\n");
 	Left4Bots.PlayerResetAll(bot);
 
 	if (Left4Bots.IsValidSurvivor(player))
-		::Left4Bots.Survivors[player.GetPlayerUserId()] <- player;
+	{
+		::Left4Bots.Survivors.append(player);
+		::Left4Bots.SurvivorFlow[params["player"].tointeger()] <- { isBot = false,  inCheckpoint = IsSurvivorInCheckpoint(player), flow = GetCurrentFlowDistanceForPlayer(player) };
+	}
 
 	Left4Bots.PrintSurvivorsCount();
 }
@@ -1084,22 +1098,24 @@ Msg("Including left4bots_events...\n");
 
 // -----
 
-::Left4Bots.OnPostPlayerSpawn <- function (player)
+::Left4Bots.OnPostPlayerSpawn <- function (player, userid)
 {
 	if (!player || !player.IsValid())
 		return;
 
 	Logger.Debug("OnPostPlayerSpawn - player: " + player.GetPlayerName());
 
-	player.SetContext("userid", player.GetPlayerUserId().tostring(), -1);
+	player.SetContext("userid", userid.tostring(), -1);
 
 	if (IsValidSurvivor(player))
 	{
-		Survivors[player.GetPlayerUserId()] <- player;
+		Survivors.append(player);
+		SurvivorFlow[userid] <- { isBot = false, inCheckpoint = IsSurvivorInCheckpoint(player), flow = GetCurrentFlowDistanceForPlayer(player) };
 
 		if (IsPlayerABot(player))
 		{
-			Bots[player.GetPlayerUserId()] <- player;
+			Bots[userid] <- player;
+			SurvivorFlow[userid].isBot = true;
 
 			AddBotThink(player);
 		}
@@ -1112,35 +1128,31 @@ Msg("Including left4bots_events...\n");
 		}
 
 		PrintSurvivorsCount();
+		return;
 	}
-	else
+	
+	local team = NetProps.GetPropInt(player, "m_iTeamNum");
+	if (team == TEAM_INFECTED)
 	{
-		local team = NetProps.GetPropInt(player, "m_iTeamNum");
-		if (team == TEAM_INFECTED)
+		if (player.GetZombieType() == Z_TANK)
 		{
-			if (player.GetZombieType() == Z_TANK)
-			{
-				Tanks[player.GetPlayerUserId()] <- player;
+			Tanks.append(player);
 
-				if (Tanks.len() == 1) // At least 1 tank has spawned
-					OnTankActive();
+			if (Tanks.len() == 1) // At least 1 tank has spawned
+				OnTankActive();
 
-				Logger.Debug("Active tanks: " + Tanks.len());
-			}
-			else
-			{
-				Specials[player.GetPlayerUserId()] <- player;
-
-				Logger.Debug("Active specials: " + Specials.len());
-			}
+			Logger.Debug("Active tanks: " + Tanks.len());
+			return;
 		}
-		else if (team == TEAM_L4D1_SURVIVORS && Settings.handle_l4d1_survivors == 1)
-		{
-			L4D1Survivors[player.GetPlayerUserId()] <- player;
-			AddL4D1BotThink(player);
+		Specials.append(player);
+		Logger.Debug("Active specials: " + Specials.len());
+	}
+	else if (team == TEAM_L4D1_SURVIVORS && Settings.handle_l4d1_survivors == 1)
+	{
+		L4D1Survivors[userid] <- player;
+		AddL4D1BotThink(player);
 
-			PrintL4D1SurvivorsCount();
-		}
+		PrintL4D1SurvivorsCount();
 	}
 }
 
@@ -1410,11 +1422,12 @@ Msg("Including left4bots_events...\n");
 ::Left4Bots.OnCleaner <- function (params)
 {
 	// Survivors
-	foreach (id, surv in Survivors)
+	for (local survIdx = 0; survIdx < Survivors.len(); survIdx++)
 	{
-		if (!surv || !surv.IsValid())
+		local survivor = Survivors[survIdx];
+		if (!survivor || !survivor.IsValid())
 		{
-			delete Survivors[id];
+			Survivors.remove(survIdx);
 			Logger.Debug("Removed an invalid survivor from Survivors");
 		}
 	}
@@ -1440,21 +1453,22 @@ Msg("Including left4bots_events...\n");
 	}
 
 	// Specials
-	foreach (id, special in Specials)
+	for (local specialIdx = 0; specialIdx < Specials.len(); specialIdx++)
 	{
+		local special = Specials[specialIdx];
 		if (!special || !special.IsValid())
 		{
-			delete Specials[id];
+			Specials.remove(survIdx);
 			Logger.Debug("Removed an invalid special from Specials");
 		}
 	}
 
 	// Tanks
-	foreach (id, tank in Tanks)
+	for (local tankIdx = 0; tankIdx < Tanks.len(); tankIdx++)
 	{
-		if (!tank || !tank.IsValid())
+		if (!Tanks[tankIdx] || !Tanks[tankIdx].IsValid())
 		{
-			delete Tanks[id];
+			Tanks.remove(tankIdx);
 			Logger.Debug("Removed an invalid tank from Tanks");
 
 			if (Tanks.len() == 0)
@@ -1463,11 +1477,11 @@ Msg("Including left4bots_events...\n");
 	}
 
 	// Witches
-	foreach (id, witch in Witches)
+	for (local witchIdx = 0; witchIdx < Witches.len(); witchIdx++)
 	{
-		if (!witch || !witch.IsValid())
+		if (!Witches[witchIdx] || !Witches[witchIdx].IsValid())
 		{
-			delete Witches[id];
+			Witches.remove(witchIdx);
 			Logger.Debug("Removed an invalid witch from Witches");
 		}
 	}
@@ -1485,7 +1499,7 @@ Msg("Including left4bots_events...\n");
 	// Survivor flow
 	foreach (id, v in SurvivorFlow)
 	{
-		if (!(id in Survivors) && !(id in L4D1Survivors))
+		if (Survivors.find(GetPlayerFromUserID(id)) == null && !(id in L4D1Survivors))
 		{
 			delete SurvivorFlow[id];
 			Logger.Debug("Removed an invalid survivor from SurvivorFlow");
@@ -1581,25 +1595,26 @@ Msg("Including left4bots_events...\n");
 		{
 			local userid = surv.GetPlayerUserId();
 			
-			SurvivorFlow[userid] <- { isBot = IsPlayerABot(surv), flow = GetCurrentFlowDistanceForPlayer(surv), inCheckpoint = IsSurvivorInCheckpoint(surv) };
+			SurvivorFlow[userid].inCheckpoint = IsSurvivorInCheckpoint(surv);
+			SurvivorFlow[userid].flow = GetCurrentFlowDistanceForPlayer(surv);
 			
 			if (!SurvivorFlow[userid].isBot)
+				continue;
+			
+			if ((surv.GetButtonMask() & BUTTON_SHOVE) != 0 || (NetProps.GetPropInt(surv, "m_afButtonPressed") & BUTTON_SHOVE) != 0) // <- With med items (pills and adrenaline) the shove button is disabled when looking at teammates and GetButtonMask never sees the button down but m_afButtonPressed still does
 			{
-				if ((surv.GetButtonMask() & BUTTON_SHOVE) != 0 || (NetProps.GetPropInt(surv, "m_afButtonPressed") & BUTTON_SHOVE) != 0) // <- With med items (pills and adrenaline) the shove button is disabled when looking at teammates and GetButtonMask never sees the button down but m_afButtonPressed still does
+				if (!(userid in BtnStatus_Shove) || !BtnStatus_Shove[userid])
 				{
-					if (!(userid in BtnStatus_Shove) || !BtnStatus_Shove[userid])
-					{
-						Logger.Debug(surv.GetPlayerName() + " BUTTON_SHOVE");
+					Logger.Debug(surv.GetPlayerName() + " BUTTON_SHOVE");
 
-						BtnStatus_Shove[userid] <- true;
+					BtnStatus_Shove[userid] <- true;
 
-						if (Settings.give_humans_nades || Settings.give_humans_meds)
-							Left4Timers.AddTimer(null, 0.0, ::Left4Bots.OnShovePressed.bindenv(::Left4Bots), { player = surv });
-					}
+					if (Settings.give_humans_nades || Settings.give_humans_meds)
+						Left4Timers.AddTimer(null, 0.0, ::Left4Bots.OnShovePressed.bindenv(::Left4Bots), { player = surv });
 				}
-				else
-					BtnStatus_Shove[surv.GetPlayerUserId()] <- false;
+				continue;
 			}
+			BtnStatus_Shove[userid] <- false;
 		}
 	}
 
@@ -1615,7 +1630,7 @@ Msg("Including left4bots_events...\n");
 				local scope = ent.GetScriptScope();
 				if (!("L4B_RockThink" in scope))
 				{
-					scope.DodgingBots <- {};
+					scope.DodgingBots <- [];
 					scope["L4B_RockThink"] <- L4B_RockThink;
 					AddThinkToEnt(ent, "L4B_RockThink");
 
