@@ -1226,7 +1226,7 @@ Msg("Including left4bots_events...\n");
 
 		//Left4Utils.GiveItemWithSkin(victim, attackerItemClass, attackerItemSkin);
 
-		Left4Timers.AddTimer(null, 0.3, ::Left4Bots.ItemGiven.bindenv(::Left4Bots), { player1 = attacker, player2 = victim, item = attackerItem });
+		Left4Timers.AddTimer(null, 0.3, ::Left4Bots.ItemGiven.bindenv(::Left4Bots), { player1 = attacker, item = attackerItem, player2 = victim });
 
 		if (IsPlayerABot(victim))
 			LastGiveItemTime = Time();
@@ -1255,7 +1255,7 @@ Msg("Including left4bots_events...\n");
 				//Left4Utils.GiveItemWithSkin(attacker, victimItemClass, victimItemSkin);
 				//Left4Utils.GiveItemWithSkin(victim, attackerItemClass, attackerItemSkin);
 
-				Left4Timers.AddTimer(null, 0.3, ::Left4Bots.ItemSwapped.bindenv(::Left4Bots), { player1 = attacker, item1 = victimItem, player2 = victim, item2 = attackerItem });
+				Left4Timers.AddTimer(null, 0.3, ::Left4Bots.ItemSwapped.bindenv(::Left4Bots), { item1 = victimItem, player1 = attacker, item2 = attackerItem, player2 = victim, });
 			}
 		}
 	}
@@ -1458,7 +1458,7 @@ Msg("Including left4bots_events...\n");
 		local special = Specials[specialIdx];
 		if (!special || !special.IsValid())
 		{
-			Specials.remove(survIdx);
+			Specials.remove(specialIdx);
 			Logger.Debug("Removed an invalid special from Specials");
 		}
 	}
