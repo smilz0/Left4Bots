@@ -684,17 +684,26 @@ witch_autocrown = 0";
 	// Stop any pending automation task
 	Automation.ResetTasks();
 
-	// Remove all the bots think functions
-	ClearBotThink();
 
 	// Clear the lists
 	Survivors.clear();
+
+	// Remove all the bots think functions
+	ClearBotThink();
 	Bots.clear();
+
 	Deads.clear();
 	Specials.clear();
 	Tanks.clear();
 	Witches.clear();
 	SurvivorFlow.clear();
+
+	// Remove all the L4D1 bots think functions
+	foreach (id, bot in L4D1Survivors)
+	{
+		if (bot.IsValid())
+			AddThinkToEnt(bot, null);
+	}
 	L4D1Survivors.clear();
 }
 
@@ -1356,7 +1365,7 @@ witch_autocrown = 0";
 
 	//Left4Utils.GiveItemWithSkin(survDest, itemClass, itemSkin);
 
-	Left4Timers.AddTimer(null, 0.3, ::Left4Bots.ItemGiven.bindenv(::Left4Bots), { player1 = bot, player2 = survDest, item = item });
+	Left4Timers.AddTimer(null, 0.3, ::Left4Bots.ItemGiven.bindenv(::Left4Bots), { player1 = bot, item = item, player2 = survDest });
 
 	DoEntFire("!self", "SpeakResponseConcept", "PlayerAlertGiveItem", 0, null, bot);
 
@@ -1368,13 +1377,12 @@ witch_autocrown = 0";
 // Finalize the give item process
 ::Left4Bots.ItemGiven <- function (params)
 {
-	local player1 = params["player1"];
-	local player2 = params["player2"];
 	local item = params["item"];
+	local player2 = params["player2"];
 
 	//if (item && item.IsValid())
 	//	DoEntFire("!self", "Kill", "", 0, null, item);
-	
+
 	if (item && player2 && item.IsValid() && player2.IsValid())
 		DoEntFire("!self", "Use", "", 0, player2, item);
 
@@ -1382,6 +1390,7 @@ witch_autocrown = 0";
 
 	if (Settings.play_sounds)
 	{
+		local player1 = params["player1"];
 		if (player1 && player1.IsValid())
 		{
 			if (!IsPlayerABot(player1))
@@ -1400,8 +1409,8 @@ witch_autocrown = 0";
 // Finalize the swap item process
 ::Left4Bots.ItemSwapped <- function (params)
 {
-	local player1 = params["player1"];
 	local item1 = params["item1"];
+	local player1 = params["player1"];
 
 	//if (item1 && item1.IsValid())
 	//	DoEntFire("!self", "Kill", "", 0, null, item1);
@@ -1409,8 +1418,8 @@ witch_autocrown = 0";
 	if (item1 && player1 && item1.IsValid() && player1.IsValid())
 		DoEntFire("!self", "Use", "", 0, player1, item1);
 
-	local player2 = params["player2"];
 	local item2 = params["item2"];
+	local player2 = params["player2"];
 
 	//if (item2 && item2.IsValid())
 	//	DoEntFire("!self", "Kill", "", 0, null, item2);
