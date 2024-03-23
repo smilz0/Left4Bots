@@ -1278,7 +1278,7 @@ if (activator && isWorthPickingUp)
 {
 	foreach (id, surv in Survivors)
 	{
-		if (surv.IsValid() && id != userid)
+		if (id != userid && surv.IsValid())
 			yield surv;
 	}
 }
@@ -1288,7 +1288,7 @@ if (activator && isWorthPickingUp)
 {
 	foreach (id, surv in Survivors)
 	{
-		if (surv.IsValid() && id != userid && !IsPlayerABot(surv))
+		if (id != userid && surv.IsValid() && !IsPlayerABot(surv))
 			yield surv;
 	}
 }
@@ -1299,7 +1299,7 @@ if (activator && isWorthPickingUp)
 	// TODO: use SurvivorFlow ?
 	foreach (id, surv in Survivors)
 	{
-		if (surv.IsValid() && id != userid && (surv.GetOrigin() - origin).Length() <= radius)
+		if (id != userid && surv.IsValid() && (surv.GetOrigin() - origin).Length() <= radius)
 			return true;
 	}
 	return false;
@@ -1310,7 +1310,7 @@ if (activator && isWorthPickingUp)
 {
 	foreach (id, surv in Survivors)
 	{
-		if (surv.IsValid() && id != userid)
+		if (id != userid && surv.IsValid())
 		{
 			local holding = surv.GetActiveWeapon();
 			if (holding && holding.IsValid() && holding.GetClassname() == weaponClass)
@@ -1404,7 +1404,7 @@ if (activator && isWorthPickingUp)
 			local player1UserId = player1.GetPlayerUserId();
 			foreach (id, surv in Survivors)
 			{
-				if (surv.IsValid() && !IsPlayerABot(surv) && id != player1UserId)
+				if (id != player1UserId && surv.IsValid() && !IsPlayerABot(surv))
 					EmitSoundOnClient("Hint.LittleReward", surv);
 			}
 		}
@@ -1448,7 +1448,7 @@ if (activator && isWorthPickingUp)
 			local player2UserId = player2.GetPlayerUserId();
 			foreach (id, surv in Survivors)
 			{
-				if (surv.IsValid() && !IsPlayerABot(surv) && id != player1UserId && id != player2UserId)
+				if (id != player1UserId && id != player2UserId && surv.IsValid() && !IsPlayerABot(surv))
 					EmitSoundOnClient("Hint.LittleReward", surv);
 			}
 		}
