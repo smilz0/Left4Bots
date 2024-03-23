@@ -173,21 +173,7 @@ Msg("Including left4bots_events...\n");
 	{
 		if (victimTeam == TEAM_INFECTED)
 		{
-			if (victim.GetZombieType() == Z_TANK)
-			{
-				if (victimUserId in ::Left4Bots.Tanks)
-				{
-					delete ::Left4Bots.Tanks[victimUserId];
-
-					if (Left4Bots.Tanks.len() == 0) // All the tanks are dead
-						::Left4Bots.OnTankGone.bindenv(::Left4Bots)();
-
-					Left4Bots.Logger.Debug("Active tanks: " + ::Left4Bots.Tanks.len());
-				}
-				else
-					Left4Bots.Logger.Warning("Dead tank was not in Left4Bots.Tanks");
-			}
-			else if (victimUserId in ::Left4Bots.Specials)
+			if (victim.GetZombieType() != Z_TANK && victimUserId in ::Left4Bots.Specials)
 			{
 				delete ::Left4Bots.Specials[victimUserId];
 
@@ -196,7 +182,7 @@ Msg("Including left4bots_events...\n");
 			else
 				Left4Bots.Logger.Warning("Dead special was not in Left4Bots.Specials");
 
-			if (attacker && attackerIsPlayer && Left4Bots.IsHandledBot(attacker))
+			if (attackerIsPlayer && Left4Bots.IsHandledBot(attacker)) // Validity check is handled there.
 			{
 				Left4Bots.NiceShootSurv = attacker;
 				Left4Bots.NiceShootTime = Time();
@@ -245,32 +231,61 @@ Msg("Including left4bots_events...\n");
 			Left4Bots.RemoveBotThink(victim);
 		}
 	}
-	else if (victimTeam == TEAM_INFECTED)
+	/*else if (victimTeam == TEAM_INFECTED)
 	{
 		if (victimName == "infected")
 		{
 			// Common infected
 		}
-		else if (victimName == "witch")
-		{
-			// Witch
-			local witchIdx = params["attackerentid"].tointeger();
-			if (witchIdx in ::Left4Bots.Witches)
-			{
-				delete ::Left4Bots.Witches[witchIdx];
+	}*/
+}
 
-				Left4Bots.Logger.Debug("Active witches: " + ::Left4Bots.Witches.len());
-			}
-			else
-				Left4Bots.Logger.Error("Dead witch was not in Left4Bots.Witches");
+::Left4Bots.Events.OnGameEvent_witch_killed <- function (params)
+{
+	if (!("witchid" in params))
+		return;
 
-			if (attacker && attackerIsPlayer && Left4Bots.IsHandledBot(attacker))
-			{
-				Left4Bots.NiceShootSurv = attacker;
-				Left4Bots.NiceShootTime = Time();
-			}
-		}
+	local witchid = params["witchid"].tointeger();
+
+	// Witch
+	if (witchid in ::Left4Bots.Witches)
+	{
+		delete ::Left4Bots.Witches[witchid];
+
+		Left4Bots.Logger.Debug("Active witches: " + ::Left4Bots.Witches.len());
 	}
+	else
+		Left4Bots.Logger.Error("Dead witch was not in Left4Bots.Witches");
+
+	if (!("userid" in params))
+		return;
+
+	local attacker = g_MapScript.GetPlayerFromUserID(params["userid"]);
+	if (Left4Bots.IsHandledBot(attacker))
+	{
+		Left4Bots.NiceShootSurv = attacker;
+		Left4Bots.NiceShootTime = Time();
+	}
+}
+
+::Left4Bots.Events.OnGameEvent_tank_killed <- function (params)
+{
+	if (!("userid" in params))
+		return;
+
+	local tankId = params["userid"].tointeger();
+
+	if (tankId in ::Left4Bots.Tanks)
+	{
+		delete ::Left4Bots.Tanks[tankId];
+
+		if (Left4Bots.Tanks.len() == 0) // All the tanks are dead
+			::Left4Bots.OnTankGone.bindenv(::Left4Bots)();
+
+		Left4Bots.Logger.Debug("Active tanks: " + ::Left4Bots.Tanks.len());
+	}
+	else
+		Left4Bots.Logger.Warning("Dead tank was not in Left4Bots.Tanks");
 }
 
 ::Left4Bots.Events.OnGameEvent_player_disconnect <- function (params)
@@ -280,15 +295,40 @@ Msg("Including left4bots_events...\n");
 		local userid = params["userid"].tointeger();
 		local player = g_MapScript.GetPlayerFromUserID(userid);
 
-		if (player && player.IsValid() && IsPlayerABot(player))
+		if (!player && !player.IsValid())
 			return;
 
 		//Left4Bots.Logger.Debug("OnGameEvent_player_disconnect - player: " + player.GetPlayerName());
-		if (userid in ::Left4Bots.Survivors)
-			delete ::Left4Bots.Survivors[userid];
 
-		if (userid in ::Left4Bots.SurvivorFlow)
-			delete ::Left4Bots.SurvivorFlow[userid];
+		if (player.GetZombieType() != 9) // Account for Special Infected that get kicked/deleted for whatever reason.
+		{
+			if (userid in ::Left4Bots.Specials)
+				delete ::Left4Bots.Specials[userid];
+
+			if (userid in ::Left4Bots.Tanks)
+			{
+				delete ::Left4Bots.Tanks[userid];
+
+				if (Left4Bots.Tanks.len() == 0) // All the tanks are gone
+					::Left4Bots.OnTankGone.bindenv(::Left4Bots)();
+			}
+		}
+		else if (NetProps.GetPropInt(player, "m_iTeamNum") == TEAM_L4D1_SURVIVORS) // Also account for L4D1 survivors that *also* get kicked/deleted. Perhaps the admin(s) hate them?
+		{
+			if (userid in ::Left4Bots.L4D1Survivors)
+				delete ::Left4Bots.L4D1Survivors[userid];
+
+			if (userid in ::Left4Bots.SurvivorFlow)
+				delete ::Left4Bots.SurvivorFlow[userid];
+		}
+		else if (!IsPlayerABot(player))
+		{
+			if (userid in ::Left4Bots.Survivors)
+				delete ::Left4Bots.Survivors[userid];
+
+			if (userid in ::Left4Bots.SurvivorFlow)
+				delete ::Left4Bots.SurvivorFlow[userid];
+		}
 	}
 }
 
@@ -1104,7 +1144,7 @@ Msg("Including left4bots_events...\n");
 
 	if (IsValidSurvivor(player))
 	{
-		Survivors.append(player);
+		Survivors[userid] <- player;
 		SurvivorFlow[userid] <- { isBot = false, inCheckpoint = IsSurvivorInCheckpoint(player), flow = GetCurrentFlowDistanceForPlayer(player) };
 
 		if (IsPlayerABot(player))

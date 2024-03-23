@@ -745,7 +745,7 @@ witch_autocrown = 0";
 // Is bot an AI handled extra L4D1 survivor bot? (basically is bot in L4D1Survivors?)
 ::Left4Bots.IsHandledL4D1Bot <- function (bot)
 {
-	return bot && bot.IsValid() && (bot.GetPlayerUserId() in L4D1Survivors);
+	return bot && bot.IsValid() && bot.GetPlayerUserId() in L4D1Survivors;
 }
 
 ::Left4Bots.PrintSurvivorsCount <- function ()
@@ -1122,17 +1122,15 @@ witch_autocrown = 0";
 			}
 		}
 	}
-	// TODO: Just return the special if it's within a certain range?
-	
+	if (ret) // TODO: Just return the special if it's within a certain range?
+		return ret;
+
 	//lxc kill raged Witch if no Specials nearby
-	if (!ret)
+	foreach (witch in Witches)
 	{
-		foreach (witch in Witches)
-		{
-			// fix for https://github.com/smilz0/Left4Bots/issues/84
-			if (witch.IsValid() && NetProps.GetPropFloat(witch, "m_rage") >= 1.0 && (witch.GetOrigin() - orig).Length() <= 800 && Left4Utils.CanTraceTo(bot, witch, tracemask_others))
-				return witch;
-		}
+		// fix for https://github.com/smilz0/Left4Bots/issues/84
+		if (witch.IsValid() && NetProps.GetPropFloat(witch, "m_rage") >= 1.0 && (witch.GetOrigin() - orig).Length() <= 800 && Left4Utils.CanTraceTo(bot, witch, tracemask_others))
+			return witch;
 	}
 	
 	local ent = null;
@@ -3527,7 +3525,7 @@ if (activator && isWorthPickingUp)
 ::Left4Bots.GetFlowPercent <- function ()
 {
 	local ret = 0;
-	foreach (id, surv in ::Left4Bots.Survivors)
+	foreach (id, surv in Survivors)
 	{
 		if (surv && surv.IsValid())
 		{
@@ -3544,9 +3542,9 @@ if (activator && isWorthPickingUp)
 {
 	local ret = null;
 	local minDist = max;
-	foreach (tank in ::Left4Bots.Tanks)
+	foreach (tank in Tanks)
 	{
-		if (tank && tank.IsValid() && NetProps.GetPropInt(ent, "m_lifeState") == 0 /* is alive? */ && !tank.IsIncapacitated() && NetProps.GetPropInt(tank, "m_lookatPlayer") >= 0)
+		if (tank && tank.IsValid() && NetProps.GetPropInt(tank, "m_lifeState") == 0 /* is alive? */ && !tank.IsIncapacitated() && NetProps.GetPropInt(tank, "m_lookatPlayer") >= 0)
 		{
 			local dist = (origin - tank.GetOrigin()).Length();
 			if (dist >= min && dist < minDist)
