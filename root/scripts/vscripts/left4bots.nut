@@ -3525,7 +3525,7 @@ if (activator && isWorthPickingUp)
 ::Left4Bots.GetFlowPercent <- function ()
 {
 	local ret = 0;
-	foreach (id, surv in Survivors)
+	foreach (surv in Survivors)
 	{
 		if (surv && surv.IsValid())
 		{
