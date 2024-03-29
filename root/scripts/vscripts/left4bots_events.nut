@@ -173,13 +173,13 @@ Msg("Including left4bots_events...\n");
 	{
 		if (victimTeam == TEAM_INFECTED)
 		{
-			if (victim.GetZombieType() != Z_TANK && victimUserId in ::Left4Bots.Specials)
+			if (victimUserId in ::Left4Bots.Specials)
 			{
 				delete ::Left4Bots.Specials[victimUserId];
 
 				Left4Bots.Logger.Debug("Active specials: " + ::Left4Bots.Specials.len());
 			}
-			else
+			else if (victim.GetZombieType() != Z_TANK)
 				Left4Bots.Logger.Warning("Dead special was not in Left4Bots.Specials");
 
 			if (attackerIsPlayer && Left4Bots.IsHandledBot(attacker)) // Validity check is handled there.
@@ -918,13 +918,19 @@ Msg("Including left4bots_events...\n");
 
 	Left4Bots.Logger.Debug("OnGameEvent_ammo_pile_weapon_cant_use_ammo - player: " + player.GetPlayerName() + " - weapon: " + cWeapon);
 
-	if ((cWeapon == "weapon_grenade_launcher" || cWeapon == "weapon_rifle_m60") && (IsPlayerABot(player) && Left4Bots.Settings.t3_ammo_bots) || (!IsPlayerABot(player) && Left4Bots.Settings.t3_ammo_human))
+	local isPlayerABot = IsPlayerABot(player);
+	if ((cWeapon == "weapon_grenade_launcher" || cWeapon == "weapon_rifle_m60") && (isPlayerABot ? Left4Bots.Settings.t3_ammo_bots : Left4Bots.Settings.t3_ammo_human))
 	{
 		local ammoType = NetProps.GetPropInt(pWeapon, "m_iPrimaryAmmoType");
 		local maxAmmo = Left4Utils.GetMaxAmmo(ammoType);
-		NetProps.SetPropIntArray(player, "m_iAmmo", maxAmmo + (pWeapon.GetMaxClip1() - pWeapon.Clip1()), ammoType);
 
-		if (!IsPlayerABot(player))
+		local upAmmo = 0;
+		if (NetProps.GetPropInt(pWeapon, "m_upgradeBitVec") & (1 | 2)) //INCENDIARY_AMMO = 1; EXPLOSIVE_AMMO = 2;
+			upAmmo = NetProps.GetPropInt(pWeapon, "m_nUpgradedPrimaryAmmoLoaded");
+
+		NetProps.SetPropIntArray(player, "m_iAmmo", maxAmmo + (pWeapon.GetMaxClip1() - (pWeapon.Clip1() - upAmmo)), ammoType);
+
+		if (!isPlayerABot)
 			EmitSoundOnClient("BaseCombatCharacter.AmmoPickup", player);
 
 		Left4Bots.Logger.Info("Player: " + player.GetPlayerName() + " replenished ammo for T3 weapon " + cWeapon);
