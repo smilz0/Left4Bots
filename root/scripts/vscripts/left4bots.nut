@@ -1129,10 +1129,10 @@ witch_autocrown = 0";
 	foreach (witch in Witches)
 	{
 		// fix for https://github.com/smilz0/Left4Bots/issues/84
-		if (witch.IsValid() && NetProps.GetPropFloat(witch, "m_rage") >= 1.0 && (witch.GetOrigin() - orig).Length() <= 800 && Left4Utils.CanTraceTo(bot, witch, tracemask_others))
+		if (witch.IsValid() && NetProps.GetPropFloat(witch, "m_rage") >= 1.0 && (witch.GetOrigin() - orig).Length() <= radius && Left4Utils.CanTraceTo(bot, witch, tracemask_others))
 			return witch;
 	}
-	
+
 	local ent = null;
 	while (ent = Entities.FindByClassnameWithin(ent, "infected", orig, minDist)) // If only we had a infected_spawned event for the commons...
 	{
@@ -1423,6 +1423,8 @@ if (activator && isWorthPickingUp)
 	if (item1 && player1 && item1.IsValid() && player1.IsValid())
 		DoEntFire("!self", "Use", "", 0, player1, item1);
 
+	GiveItemIndex1 = 0;
+
 	local item2 = params["item2"];
 	local player2 = params["player2"];
 
@@ -1432,7 +1434,6 @@ if (activator && isWorthPickingUp)
 	if (item2 && player2 && item2.IsValid() && player2.IsValid())
 		DoEntFire("!self", "Use", "", 0, player2, item2);
 
-	GiveItemIndex1 = 0;
 	GiveItemIndex2 = 0;
 
 	if (Settings.play_sounds)
