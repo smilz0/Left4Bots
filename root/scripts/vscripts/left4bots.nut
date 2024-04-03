@@ -684,17 +684,27 @@ witch_autocrown = 0";
 	// Stop any pending automation task
 	Automation.ResetTasks();
 
-	// Remove all the bots think functions
-	ClearBotThink();
 
 	// Clear the lists
 	Survivors.clear();
+
+	// Remove all the bots think functions
+	ClearBotThink();
 	Bots.clear();
+
 	Deads.clear();
 	Specials.clear();
 	Tanks.clear();
 	Witches.clear();
 	SurvivorFlow.clear();
+
+	// Remove all the L4D1 bots think functions
+	foreach (id, bot in L4D1Survivors)
+	{
+		if (bot.IsValid())
+			AddThinkToEnt(bot, null);
+	}
+	L4D1Survivors.clear();
 }
 
 // Is player a valid survivor? (if player is a bot also checks whether it should be handled by the AI)
@@ -723,28 +733,19 @@ witch_autocrown = 0";
 // Is survivor an handled survivor? (basically is survivor in Survivors?)
 ::Left4Bots.IsHandledSurvivor <- function (survivor)
 {
-	if (!survivor || !survivor.IsValid())
-		return false;
-
-	return (survivor.GetPlayerUserId() in Survivors);
+	return survivor && survivor.IsValid() && survivor.GetPlayerUserId() in Survivors;
 }
 
 // Is bot an AI handled survivor bot? (basically is bot in Bots?)
 ::Left4Bots.IsHandledBot <- function (bot)
 {
-	if (!bot || !bot.IsValid())
-		return false;
-
-	return (bot.GetPlayerUserId() in Bots);
+	return bot && bot.IsValid() && bot.GetPlayerUserId() in Bots;
 }
 
 // Is bot an AI handled extra L4D1 survivor bot? (basically is bot in L4D1Survivors?)
 ::Left4Bots.IsHandledL4D1Bot <- function (bot)
 {
-	if (!bot || !bot.IsValid())
-		return false;
-
-	return (bot.GetPlayerUserId() in L4D1Survivors);
+	return bot && bot.IsValid() && bot.GetPlayerUserId() in L4D1Survivors;
 }
 
 ::Left4Bots.PrintSurvivorsCount <- function ()
@@ -892,7 +893,7 @@ witch_autocrown = 0";
 	local a = orig.z;
 	while (ent = Entities.FindByClassnameWithin(ent, "infected", orig, radius))
 	{
-		if (ent.IsValid() && abs(a - ent.GetOrigin().z) <= maxAltDiff && NetProps.GetPropInt(ent, "m_lifeState") == 0 && (NetProps.GetPropInt(ent, "m_mobRush") || NetProps.GetPropInt(ent, "m_clientLookatTarget"))) // <- still alive and angry
+		if (ent.IsValid() && NetProps.GetPropInt(ent, "m_lifeState") == 0 && (NetProps.GetPropInt(ent, "m_mobRush") || NetProps.GetPropInt(ent, "m_clientLookatTarget")) /* still alive and angry */ && abs(a - ent.GetOrigin().z) <= maxAltDiff)
 		{
 			if (++n >= num)
 				return true;
@@ -942,7 +943,7 @@ witch_autocrown = 0";
 	local tracemask_others = Settings.tracemask_others;
 	foreach (ent in Specials)
 	{
-		if (ent.IsValid() && (ent.GetOrigin() - orig).Length() <= radius && !ent.IsGhost() && Left4Utils.CanTraceTo(player, ent, tracemask_others))
+		if (ent.IsValid() && !ent.IsGhost() && (ent.GetOrigin() - orig).Length() <= radius && Left4Utils.CanTraceTo(player, ent, tracemask_others))
 			return ent;
 	}
 	return null;
@@ -953,7 +954,7 @@ witch_autocrown = 0";
 {
 	foreach (ent in Specials)
 	{
-		if (ent.IsValid() && (ent.GetOrigin() - orig).Length() <= radius && !ent.IsGhost())
+		if (ent.IsValid() && !ent.IsGhost() && (ent.GetOrigin() - orig).Length() <= radius)
 			return true;
 	}
 	return false;
@@ -965,7 +966,7 @@ witch_autocrown = 0";
 {
 	foreach (ent in Tanks)
 	{
-		if (ent.IsValid() && (ent.GetOrigin() - orig).Length() <= radius && !ent.IsGhost())
+		if (ent.IsValid() && !ent.IsGhost() && (ent.GetOrigin() - orig).Length() <= radius)
 			return ent;
 	}
 	return null;
@@ -977,7 +978,7 @@ witch_autocrown = 0";
 {
 	foreach (witch in Witches)
 	{
-		if (witch.IsValid() && abs(orig.z - witch.GetOrigin().z) <= maxAltDiff && (witch.GetOrigin() - orig).Length() <= radius && NetProps.GetPropInt(witch, "m_lifeState") == 0 && !NetProps.GetPropInt(witch, "m_bIsBurning"))
+		if (witch.IsValid() && NetProps.GetPropInt(witch, "m_lifeState") == 0 && !NetProps.GetPropInt(witch, "m_bIsBurning") && abs(orig.z - witch.GetOrigin().z) <= maxAltDiff && (witch.GetOrigin() - orig).Length() <= radius)
 			return witch;
 	}
 	return null;
@@ -1000,7 +1001,7 @@ witch_autocrown = 0";
 	local shove_tonguevictim_radius = Settings.shove_tonguevictim_radius;
 	foreach (surv in GetOtherAliveSurvivors(player.GetPlayerUserId()))
 	{
-		if ((surv.GetOrigin() - orig).Length() <= shove_tonguevictim_radius && NetProps.GetPropInt(surv, "m_tongueOwner") > 0)
+		if (NetProps.GetPropInt(surv, "m_tongueOwner") > 0 && (surv.GetOrigin() - orig).Length() <= shove_tonguevictim_radius)
 			return surv;
 	}
 	return null;
@@ -1012,7 +1013,7 @@ witch_autocrown = 0";
 	local shove_specials_radius = Settings.shove_specials_radius;
 	foreach (ent in Specials)
 	{
-		if (ent.IsValid() && (ent.GetOrigin() - orig).Length() <= shove_specials_radius && !ent.IsGhost())
+		if (ent.IsValid() && !ent.IsGhost() && (ent.GetOrigin() - orig).Length() <= shove_specials_radius)
 		{
 			local zType = ent.GetZombieType();
 			if (zType == Z_SMOKER || zType == Z_HUNTER || zType == Z_SPITTER || zType == Z_JOCKEY)
@@ -1028,7 +1029,7 @@ witch_autocrown = 0";
 	local ret = null;
 	local minDist = 1000000;
 	local tracemask_others = Settings.tracemask_others;
-	foreach (id, tank in Tanks)
+	foreach (tank in Tanks)
 	{
 		if (tank.IsValid())
 		{
@@ -1109,41 +1110,39 @@ witch_autocrown = 0";
 	local tracemask_others = Settings.tracemask_others;
 	foreach (ent in Specials)
 	{
-		if (ent.IsValid())
+		if (ent.IsValid() && !ent.IsGhost())
 		{
 			local toEnt = ent.GetOrigin() - orig;
 			local dist = toEnt.Length();
 			toEnt.Norm();
-			if (dist < minDist && botFacing.Dot(toEnt) >= minDot && !ent.IsGhost() && Left4Utils.CanTraceTo(bot, ent, tracemask_others))
+			if (dist < minDist && botFacing.Dot(toEnt) >= minDot && Left4Utils.CanTraceTo(bot, ent, tracemask_others))
 			{
 				ret = ent;
 				minDist = dist;
 			}
 		}
 	}
-	// TODO: Just return the special if it's within a certain range?
-	
+	if (ret) // TODO: Just return the special if it's within a certain range?
+		return ret;
+
 	//lxc kill raged Witch if no Specials nearby
-	if (!ret)
+	foreach (witch in Witches)
 	{
-		foreach (witch in Witches)
-		{
-			// fix for https://github.com/smilz0/Left4Bots/issues/84
-			if (witch.IsValid() && (witch.GetOrigin() - orig).Length() <= 800 && NetProps.GetPropFloat(witch, "m_rage") >= 1.0 && Left4Utils.CanTraceTo(bot, witch, tracemask_others))
-				return witch;
-		}
+		// fix for https://github.com/smilz0/Left4Bots/issues/84
+		if (witch.IsValid() && NetProps.GetPropFloat(witch, "m_rage") >= 1.0 && (witch.GetOrigin() - orig).Length() <= radius && Left4Utils.CanTraceTo(bot, witch, tracemask_others))
+			return witch;
 	}
-	
+
 	local ent = null;
 	while (ent = Entities.FindByClassnameWithin(ent, "infected", orig, minDist)) // If only we had a infected_spawned event for the commons...
 	{
-		if (ent.IsValid())
+		if (ent.IsValid() && NetProps.GetPropInt(ent, "m_lifeState") == 0)
 		{
 			local toEnt = ent.GetOrigin() - orig;
 			local dist = toEnt.Length();
 			toEnt.Norm();
-																													//lxc ignore wandering infected
-			if (dist < minDist && botFacing.Dot(toEnt) >= minDot && NetProps.GetPropInt(ent, "m_lifeState") == 0 && (Settings.manual_attack_skill >= 3 || IsInfectedAngry(ent)) && Left4Utils.CanTraceTo(bot, ent, tracemask_others))
+																	//lxc ignore wandering infected
+			if (dist < minDist && botFacing.Dot(toEnt) >= minDot && (Settings.manual_attack_skill >= 3 || IsInfectedAngry(ent)) && Left4Utils.CanTraceTo(bot, ent, tracemask_others))
 			{
 				ret = ent;
 				minDist = dist;
@@ -1156,6 +1155,22 @@ witch_autocrown = 0";
 // Called when the bot's pick-up algorithm decides to pick the item up
 // Checks if the pick-up via button press worked and the item went into the bot's inventory. if it didn't it will force it via USE input on the item
 // It is meant to prevent the bot getting stuck in a loop if the button press, for some reason, didn't pick the item up
+::Left4Bots.PickupFailsafeVerbatimCode <- @"
+local isWorthPickingUp = !self.GetMoveParent();
+if (self.GetClassname().find(""_spawn""))
+	isWorthPickingUp = NetProps.GetPropInt(self, ""m_itemCount"") > 0;
+if (activator && isWorthPickingUp)
+{
+	local weaponid = Left4Utils.GetWeaponId(self);
+	if (Left4Utils.HasWeaponId(activator, weaponid, Left4Utils.GetAmmoPercent(self)))
+		return;
+
+	Left4Bots.Logger.Debug(""PickupFailsafe - "" + activator.GetPlayerName() + "" -> "" + self + "" ("" + weaponid + "")"");
+
+	DoEntFire(""!self"", ""Use"", """", -1, activator, self);
+	Left4Bots.OnPlayerUse(activator, self, 1);
+}";
+
 ::Left4Bots.PickupFailsafe <- function (bot, item)
 {
 	//lxc if use this method, will set context to ent, so other bots will ignore it until context deleted
@@ -1168,18 +1183,7 @@ witch_autocrown = 0";
 	//By Inputs "Use" to pickup weapon, weapons in the list above never fire "item_pickup" or "player_use" event, the remaining weapons and all spawn ent only fire "item_pickup" event.
 	
 	//lxc if "PlayerPressButton" succeed, "item_pickup" or "player_use" event will always fire before 'DoEntFire()', so use -1 delay is safe.
-	DoEntFire("!self", "RunScriptCode", @"
-	if (activator && (self.GetClassname().find(""_spawn"") ? NetProps.GetPropInt(self, ""m_itemCount"") > 0 : !self.GetMoveParent()))
-	{
-		local weaponid = Left4Utils.GetWeaponId(self);
-		if (Left4Utils.HasWeaponId(activator, weaponid, Left4Utils.GetAmmoPercent(self)))
-			return;
-		
-		Left4Bots.Logger.Debug(""PickupFailsafe - "" + activator.GetPlayerName() + "" -> "" + self + "" ("" + weaponid + "")"");
-		
-		DoEntFire(""!self"", ""Use"", """", -1, activator, self);
-		Left4Bots.OnPlayerUse(activator, self, 1);
-	}", -1, bot, item);
+	DoEntFire("!self", "RunScriptCode", PickupFailsafeVerbatimCode, -1, bot, item);
 	
 	/*
 	if (!bot || !bot.IsValid() || !IsValidPickup(item))
@@ -1272,27 +1276,21 @@ witch_autocrown = 0";
 // Returns the list of survivors alive (excluding the one with the given userid)
 ::Left4Bots.GetOtherAliveSurvivors <- function (userid)
 {
-	local t = {};
-	local i = -1;
-	foreach (surv in Survivors)
+	foreach (id, surv in Survivors)
 	{
-		if (surv.IsValid() && surv.GetPlayerUserId() != userid)
-			t[++i] <- surv;
+		if (id != userid && surv.IsValid())
+			yield surv;
 	}
-	return t;
 }
 
 // Returns the list of alive human survivors (excluding the one with the given userid)
 ::Left4Bots.GetOtherAliveHumanSurvivors <- function (userid)
 {
-	local t = {};
-	local i = -1;
 	foreach (id, surv in Survivors)
 	{
 		if (id != userid && surv.IsValid() && !IsPlayerABot(surv))
-			t[++i] <- surv;
+			yield surv;
 	}
-	return t;
 }
 
 // Are there survivors (other than the one with the given userid) within 'radius' from 'origin'?
@@ -1372,7 +1370,7 @@ witch_autocrown = 0";
 
 	//Left4Utils.GiveItemWithSkin(survDest, itemClass, itemSkin);
 
-	Left4Timers.AddTimer(null, 0.3, ::Left4Bots.ItemGiven.bindenv(::Left4Bots), { player1 = bot, player2 = survDest, item = item });
+	Left4Timers.AddTimer(null, 0.3, ::Left4Bots.ItemGiven.bindenv(::Left4Bots), { player1 = bot, item = item, player2 = survDest });
 
 	DoEntFire("!self", "SpeakResponseConcept", "PlayerAlertGiveItem", 0, null, bot);
 
@@ -1384,13 +1382,12 @@ witch_autocrown = 0";
 // Finalize the give item process
 ::Left4Bots.ItemGiven <- function (params)
 {
-	local player1 = params["player1"];
-	local player2 = params["player2"];
 	local item = params["item"];
+	local player2 = params["player2"];
 
 	//if (item && item.IsValid())
 	//	DoEntFire("!self", "Kill", "", 0, null, item);
-	
+
 	if (item && player2 && item.IsValid() && player2.IsValid())
 		DoEntFire("!self", "Use", "", 0, player2, item);
 
@@ -1398,14 +1395,16 @@ witch_autocrown = 0";
 
 	if (Settings.play_sounds)
 	{
+		local player1 = params["player1"];
 		if (player1 && player1.IsValid())
 		{
 			if (!IsPlayerABot(player1))
 				EmitSoundOnClient("Hint.BigReward", player1);
 
+			local player1UserId = player1.GetPlayerUserId();
 			foreach (id, surv in Survivors)
 			{
-				if (surv.IsValid() && !IsPlayerABot(surv) && id != player1.GetPlayerUserId())
+				if (id != player1UserId && surv.IsValid() && !IsPlayerABot(surv))
 					EmitSoundOnClient("Hint.LittleReward", surv);
 			}
 		}
@@ -1415,22 +1414,26 @@ witch_autocrown = 0";
 // Finalize the swap item process
 ::Left4Bots.ItemSwapped <- function (params)
 {
-	local player1 = params["player1"];
-	local player2 = params["player2"];
 	local item1 = params["item1"];
-	local item2 = params["item2"];
+	local player1 = params["player1"];
 
 	//if (item1 && item1.IsValid())
 	//	DoEntFire("!self", "Kill", "", 0, null, item1);
-	//if (item2 && item2.IsValid())
-	//	DoEntFire("!self", "Kill", "", 0, null, item2);
-	
+
 	if (item1 && player1 && item1.IsValid() && player1.IsValid())
 		DoEntFire("!self", "Use", "", 0, player1, item1);
+
+	GiveItemIndex1 = 0;
+
+	local item2 = params["item2"];
+	local player2 = params["player2"];
+
+	//if (item2 && item2.IsValid())
+	//	DoEntFire("!self", "Kill", "", 0, null, item2);
+
 	if (item2 && player2 && item2.IsValid() && player2.IsValid())
 		DoEntFire("!self", "Use", "", 0, player2, item2);
 
-	GiveItemIndex1 = 0;
 	GiveItemIndex2 = 0;
 
 	if (Settings.play_sounds)
@@ -1442,9 +1445,11 @@ witch_autocrown = 0";
 			if (!IsPlayerABot(player2))
 				EmitSoundOnClient("Hint.BigReward", player2);
 
+			local player1UserId = player1.GetPlayerUserId();
+			local player2UserId = player2.GetPlayerUserId();
 			foreach (id, surv in Survivors)
 			{
-				if (surv.IsValid() && !IsPlayerABot(surv) && id != player1.GetPlayerUserId() && id != player2.GetPlayerUserId())
+				if (id != player1UserId && id != player2UserId && surv.IsValid() && !IsPlayerABot(surv))
 					EmitSoundOnClient("Hint.LittleReward", surv);
 			}
 		}
@@ -2467,11 +2472,9 @@ witch_autocrown = 0";
 		// It's a spawner, we just check if the item count is still > 0
 		return (NetProps.GetPropInt(ent, "m_itemCount") > 0);
 	}
-	else
-	{
-		// It's the item itself, let's check if someone already picked it up
-		return (ent.GetMoveParent() == null /*&& NetProps.GetPropInt(ent, "m_iState") != 1*/); // The melee has this to 1 while it's replaced by the pistol when you are incapped but "in theory" this shouldn't be needed because moveparent doesn't change
-	}
+
+	// It's the item itself, let's check if someone already picked it up
+	return (ent.GetMoveParent() == null /*&& NetProps.GetPropInt(ent, "m_iState") != 1*/); // The melee has this to 1 while it's replaced by the pistol when you are incapped but "in theory" this shouldn't be needed because moveparent doesn't change
 }
 
 // Is the entity a valid use item?
@@ -2980,9 +2983,10 @@ witch_autocrown = 0";
 ::Left4Bots.GetOtherMedkitSpawn <- function (srcSpawn, radius = 100.0)
 {
 	local ent = null;
+	local srcSpawnIndex = srcSpawn.GetEntityIndex();
 	while (ent = Entities.FindByClassnameWithin(ent, "weapon_first_aid_kit_spawn", srcSpawn.GetOrigin(), radius))
 	{
-		if (ent.IsValid() && ent.GetEntityIndex() != srcSpawn.GetEntityIndex() && SpawnerHasItems(ent))
+		if (ent.IsValid() && ent.GetEntityIndex() != srcSpawnIndex && SpawnerHasItems(ent))
 			return ent;
 	}
 	return null;
@@ -3036,10 +3040,7 @@ witch_autocrown = 0";
 	// TODO: use SurvivorFlow ?
 	local ret = 0;
 	foreach (surv in GetOtherAliveSurvivors(me.GetPlayerUserId()))
-	{
-		if (!surv.IsIncapacitated() && (surv.GetOrigin() - me.GetOrigin()).Length() <= radius)
-			ret++;
-	}
+		ret += (!surv.IsIncapacitated() && (surv.GetOrigin() - me.GetOrigin()).Length() <= radius).tointeger();
 	return ret;
 }
 
@@ -3525,7 +3526,7 @@ witch_autocrown = 0";
 ::Left4Bots.GetFlowPercent <- function ()
 {
 	local ret = 0;
-	foreach (id, surv in ::Left4Bots.Survivors)
+	foreach (surv in Survivors)
 	{
 		if (surv && surv.IsValid())
 		{
@@ -3542,9 +3543,9 @@ witch_autocrown = 0";
 {
 	local ret = null;
 	local minDist = max;
-	foreach (id, tank in ::Left4Bots.Tanks)
+	foreach (tank in Tanks)
 	{
-		if (tank && tank.IsValid() && !tank.IsDead() && !tank.IsDying() && !tank.IsIncapacitated() && NetProps.GetPropInt(tank, "m_lookatPlayer") >= 0)
+		if (tank && tank.IsValid() && NetProps.GetPropInt(tank, "m_lifeState") == 0 /* is alive? */ && !tank.IsIncapacitated() && NetProps.GetPropInt(tank, "m_lookatPlayer") >= 0)
 		{
 			local dist = (origin - tank.GetOrigin()).Length();
 			if (dist >= min && dist < minDist)
