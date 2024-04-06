@@ -88,8 +88,6 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c7m1_docks automation script
 	if (!player || !player.IsValid() || NetProps.GetPropInt(player, "m_iTeamNum") != TEAM_INFECTED || player.GetZombieType() != Z_TANK)
 		return;
 	
-	printl("Tank Spawned"); // TODO: remove
-	
 	// *** TASK 4. Tank Spawned, go idle and kill the tank
 	
 	::Left4Bots.Automation.ResetTasks();
@@ -107,8 +105,6 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c7m1_docks automation script
 	if (!victim || !victim.IsValid() || NetProps.GetPropInt(victim, "m_iTeamNum") != TEAM_INFECTED || victim.GetZombieType() != Z_TANK)
 		return;
 	
-	printl("Tank Killed"); // TODO: remove
-		
 	// *** TASK 5. Tank killed, open the 2nd train door
 
 	::Left4Bots.Automation.DoUse("bot", "tankdoorout_button", Vector(6939.248047, 680.642822, 167.189667));

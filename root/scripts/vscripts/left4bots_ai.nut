@@ -1771,7 +1771,8 @@ enum AI_AIM_TYPE {
 {
 	if (!L4B.FinalVehicleArrived && L4B.Settings.tank_retreat_radius > 0)
 	{
-		local nearestTank = L4B.GetNearestAggroedTankWithin(Origin, 0, L4B.Settings.tank_retreat_radius);
+		//local nearestTank = L4B.GetNearestAggroedTankWithin(Origin, 0, L4B.Settings.tank_retreat_radius);
+		local nearestTank = L4B.GetNearestAggroedVisibleTankWithin(self, Origin, 0, L4B.Settings.tank_retreat_radius);
 		if (nearestTank)
 			Left4Utils.BotCmdRetreat(self, nearestTank);
 	}

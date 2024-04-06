@@ -909,8 +909,11 @@ Msg("Including left4bots_commands...\n");
 	GiveItemIndex1 = held.GetEntityIndex();
 	GiveItemIndex2 = botItem.GetEntityIndex();
 
-	player.DropItem(heldClass);
-	tgtBot.DropItem(botItemClass);
+	// https://github.com/smilz0/Left4Bots/issues/86
+	//player.DropItem(heldClass);
+	//tgtBot.DropItem(botItemClass);
+	DropItem(player, held, heldClass);
+	DropItem(tgtBot, botItem, botItemClass);
 
 	//Left4Utils.GiveItemWithSkin(player, botItemClass, botItemSkin);
 	//Left4Utils.GiveItemWithSkin(tgtBot, heldClass, heldSkin);

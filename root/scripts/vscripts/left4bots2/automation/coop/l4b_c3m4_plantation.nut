@@ -43,7 +43,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c3m4_plantation automation s
 			}
 
 			if (holdPos)
-				::Left4Bots.Automation.DoWait("bots", holdPos);
+				::Left4Bots.Automation.DoHoldAt(holdPos, Vector(1669.465210, 865.504456, 128.106689));
 			
 			::Left4Bots.Automation.step = 4;
 			break;

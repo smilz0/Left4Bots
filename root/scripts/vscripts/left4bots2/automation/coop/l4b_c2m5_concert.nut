@@ -32,7 +32,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c2m5_concert automation scri
 				ammo = Entities.FindByName(null, "item_spawn_set2_ammo");
 			
 			if (ammo && ammo.IsValid())
-				::Left4Bots.Automation.DoWait("bots", ammo.GetOrigin());
+				::Left4Bots.Automation.DoHoldAt(ammo.GetOrigin(), Vector(-2117.853760, 2938.497314, -255.968750));
 			break;
 		
 		case "FinalVehicleSpotted":

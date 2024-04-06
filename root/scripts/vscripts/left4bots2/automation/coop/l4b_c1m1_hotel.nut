@@ -36,7 +36,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m1_hotel automation script
 		case "c1m1_elevator_door_open":
 			// *** TASK 5. When the elevator doors open, order the bots to hold in front of it for 10 seconds
 			
-			if (::Left4Bots.Automation.DoHoldAt(Vector(2184.934570, 5546.779297, 1184.031250), 10))
+			if (::Left4Bots.Automation.DoHoldAt(Vector(2184.934570, 5546.779297, 1184.031250), null, 10))
 				::Left4Bots.Automation.step = 3;
 			break;
 			
