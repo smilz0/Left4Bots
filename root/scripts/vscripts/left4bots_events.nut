@@ -295,7 +295,7 @@ Msg("Including left4bots_events...\n");
 		local userid = params["userid"].tointeger();
 		local player = g_MapScript.GetPlayerFromUserID(userid);
 
-		if (!player && !player.IsValid())
+		if (!player || !player.IsValid())
 			return;
 
 		//Left4Bots.Logger.Debug("OnGameEvent_player_disconnect - player: " + player.GetPlayerName());
@@ -1637,7 +1637,7 @@ Msg("Including left4bots_events...\n");
 			SurvivorFlow[userid].inCheckpoint = IsSurvivorInCheckpoint(surv);
 			SurvivorFlow[userid].flow = GetCurrentFlowDistanceForPlayer(surv);
 			
-			if (!SurvivorFlow[userid].isBot)
+			if (SurvivorFlow[userid].isBot)
 				continue;
 			
 			if ((surv.GetButtonMask() & BUTTON_SHOVE) != 0 || (NetProps.GetPropInt(surv, "m_afButtonPressed") & BUTTON_SHOVE) != 0) // <- With med items (pills and adrenaline) the shove button is disabled when looking at teammates and GetButtonMask never sees the button down but m_afButtonPressed still does
