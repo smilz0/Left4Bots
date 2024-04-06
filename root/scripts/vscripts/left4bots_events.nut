@@ -360,7 +360,7 @@ Msg("Including left4bots_events...\n");
 		local botUserID = params["bot"].tointeger();
 		::Left4Bots.Survivors[botUserID] <- bot;
 		::Left4Bots.Bots[botUserID] <- bot;
-		::Left4Bots.SurvivorFlow[botUserID] <- { isBot = true, inCheckpoint = IsSurvivorInCheckpoint(bot), flow = GetCurrentFlowDistanceForPlayer(bot) };
+		::Left4Bots.SurvivorFlow[botUserID] <- { isBot = true, inCheckpoint = ::Left4Bots.IsSurvivorInCheckpoint(bot), flow = GetCurrentFlowDistanceForPlayer(bot) };
 
 		Left4Bots.AddBotThink(bot);
 	}
@@ -404,7 +404,7 @@ Msg("Including left4bots_events...\n");
 	{
 		local userid = params["player"].tointeger();
 		::Left4Bots.Survivors[userid] <- player;
-		::Left4Bots.SurvivorFlow[userid] <- { isBot = false,  inCheckpoint = IsSurvivorInCheckpoint(player), flow = GetCurrentFlowDistanceForPlayer(player) };
+		::Left4Bots.SurvivorFlow[userid] <- { isBot = false,  inCheckpoint = ::Left4Bots.IsSurvivorInCheckpoint(player), flow = GetCurrentFlowDistanceForPlayer(player) };
 	}
 
 	Left4Bots.PrintSurvivorsCount();

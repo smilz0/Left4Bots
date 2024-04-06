@@ -356,6 +356,15 @@
 	// If 'scavenge_pour' is '0' the bots will drop gascans and cola bottles within this radius from the pour target
 	scavenge_drop_radius = 200
 
+	// [1/0] 1 = Collect items by farthest to nearest ones. 0 = Nearest to farthest
+	scavenge_items_farthest_first = 0
+
+	// [1/0] 1 = Calculate the nearest/farthest item using the flow distance. 0 = Using the linear distance
+	scavenge_items_flow_distance = 1
+
+	// [1/0] 1 = Calculate the nearest/farthest item from the pour target. 0 = From the current bot's position
+	scavenge_items_from_pourtarget = 0
+
 	// Interval of the logic that coordinates the scavenge process
 	scavenge_manager_interval = 1
 

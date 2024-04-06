@@ -278,264 +278,6 @@ IncludeScript("left4bots_settings");
 	}
 }
 
-::Left4Bots.DefaultConfigFiles <- function ()
-{
-	// Default settings overrides for 'Advanced' difficulty
-	if (!Left4Utils.FileExists("left4bots2/cfg/settings_hard.txt"))
-	{
-		local defaultText = @"close_saferoom_door_highres = 1
-heal_interrupt_minhealth = 40
-horde_nades_chance = 35
-jockey_redirect_damage = 45
-manual_attack_mindot = 0.90
-manual_attack_skill = 2
-shove_deadstop_chance = 100
-spit_block_nav = 1
-tank_molotov_chance = 50
-tank_throw_survivors_mindistance = 250";
-
-		Left4Utils.StringToFileCRLF("left4bots2/cfg/settings_hard.txt", defaultText);
-		Logger.Info("Settings override file for 'Advanced' difficulty was not found and has been recreated");
-	}
-
-	// Default settings overrides for 'Expert' difficulty
-	if (!Left4Utils.FileExists("left4bots2/cfg/settings_impossible.txt"))
-	{
-		local defaultText = @"automation_autostart = 0
-close_saferoom_door_all_chance = 0
-close_saferoom_door_highres = 1
-heal_interrupt_minhealth = 30
-horde_nades_chance = 35
-jockey_redirect_damage = 50
-manual_attack_always = 1
-manual_attack_mindot = 0.90
-manual_attack_skill = 3
-scavenge_max_bots = 1
-shove_deadstop_chance = 100
-signal_chat = 1
-spit_block_nav = 1
-tank_molotov_chance = 50
-tank_throw_survivors_mindistance = 260
-witch_autocrown = 0";
-
-		Left4Utils.StringToFileCRLF("left4bots2/cfg/settings_impossible.txt", defaultText);
-		Logger.Info("Settings override file for 'Expert' difficulty was not found and has been recreated");
-	}
-
-	// Default convars.txt file
-	if (!Left4Utils.FileExists("left4bots2/cfg/convars.txt"))
-	{
-		// using array instead of table to keep the order
-		local defaultValues =
-		[
-			"allow_all_bot_survivor_team 1",
-			"sb_all_bot_game 1",
-			"sb_debug_apoproach_wait_time 0.5" // This is how long the bot will jiggle on the destination spot of a MOVE command before returning the control to the vanilla AI (default: 5)
-			// "sb_unstick 0" // TODO: unstick logic
-		];
-
-		Left4Utils.StringListToFile("left4bots2/cfg/convars.txt", defaultValues, false);
-
-		Logger.Info("Convars file was not found and has been recreated");
-	}
-
-	// Default itemstoavoid.txt file
-	if (!Left4Utils.FileExists("left4bots2/cfg/itemstoavoid.txt"))
-	{
-		// using array instead of table to keep the order
-		local defaultValues =
-		[
-			"weapon_ammo",
-			"weapon_upgrade_item",
-			"upgrade_ammo_explosive",
-			"upgrade_ammo_incendiary",
-			"upgrade_laser_sight",
-			"pain_pills",
-			"adrenaline"
-		];
-
-		Left4Utils.StringListToFile("left4bots2/cfg/itemstoavoid.txt", defaultValues, false);
-
-		Logger.Info("Itemstoavoid file was not found and has been recreated");
-	}
-
-	// Default vocalizer.txt file
-	if (!Left4Utils.FileExists("left4bots2/cfg/vocalizer.txt"))
-	{
-		// using array instead of table to keep the order
-		local defaultValues =
-		[
-			"PlayerLeadOn = bots lead,botname lead",
-			"PlayerWaitHere = bots wait,botname wait",
-			"PlayerEmphaticGo = bots goto,botname goto",
-			"PlayerWarnWitch = bot witch,botname witch",
-			"PlayerMoveOn = bot use,botname use",
-			"PlayerStayTogether = bots cancel,botname cancel",
-			"PlayerFollowMe = bot follow me,botname follow me",
-			"iMT_PlayerSuggestHealth = bots heal,botname heal",
-			"PlayerHurryUp = bots hurry,botname hurry",
-			"AskForHealth2 = bot heal me,botname heal me"
-			"PlayerAnswerLostCall = bot give,botname give",
-			"iMT_PlayerHello = bot swap,botname swap",
-			"PlayerImWithYou = bots automation all,botname automation all"
-			//"PlayerYellRun = ?",
-			//"TODO = bots warp,botname warp",
-			//"TODO = bot tempheal,botname tempheal",
-			//"TODO = bot deploy,botname deploy",
-			//"TODO = bot throw,botname throw",
-			//"TODO = bots die,botname die",
-		];
-
-		Left4Utils.StringListToFile("left4bots2/cfg/vocalizer.txt", defaultValues, false);
-
-		Logger.Info("Vocalizer orders mapping file was not found and has been recreated");
-	}
-
-	// Default weapon preference file for Bill
-	if (!Left4Utils.FileExists("left4bots2/cfg/weapons/bill.txt"))
-	{
-		// using array instead of table to keep the order
-		local defaultValues =
-		[
-			"rifle_ak47,rifle_sg552,rifle_desert,rifle,autoshotgun,shotgun_spas,sniper_military,hunting_rifle,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,smg_mp5,smg_silenced,shotgun_chrome,smg,pumpshotgun",
-			"*,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,riotshield,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw",
-			"pipe_bomb,molotov,vomitjar",
-			"first_aid_kit,defibrillator,upgradepack_explosive,upgradepack_incendiary",
-			"pain_pills,adrenaline"
-		];
-
-		Left4Utils.StringListToFile("left4bots2/cfg/weapons/bill.txt", defaultValues, false);
-
-		Logger.Info("Weapon preference file for Bill was not found and has been recreated");
-	}
-
-	// Default weapon preference file for Coach
-	if (!Left4Utils.FileExists("left4bots2/cfg/weapons/coach.txt"))
-	{
-		// using array instead of table to keep the order
-		local defaultValues =
-		[
-			"autoshotgun,shotgun_spas,rifle_ak47,rifle_sg552,rifle_desert,rifle,sniper_military,hunting_rifle,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,shotgun_chrome,smg_mp5,pumpshotgun,smg_silenced,smg",
-			"*,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw,riotshield",
-			"pipe_bomb,molotov,vomitjar",
-			"first_aid_kit,defibrillator,upgradepack_explosive,upgradepack_incendiary",
-			"pain_pills,adrenaline"
-		];
-
-		Left4Utils.StringListToFile("left4bots2/cfg/weapons/coach.txt", defaultValues, false);
-
-		Logger.Info("Weapon preference file for Coach was not found and has been recreated");
-	}
-
-	// Default weapon preference file for Ellis
-	if (!Left4Utils.FileExists("left4bots2/cfg/weapons/ellis.txt"))
-	{
-		// using array instead of table to keep the order
-		local defaultValues =
-		[
-			"sniper_military,hunting_rifle,rifle_ak47,rifle_sg552,rifle_desert,rifle,shotgun_spas,autoshotgun,sniper_scout,sniper_awp,rifle_m60,grenade_launcher,smg_mp5,smg_silenced,shotgun_chrome,smg,pumpshotgun",
-			"pistol_magnum,pistol,chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,riotshield",
-			"molotov,pipe_bomb,vomitjar",
-			"first_aid_kit,defibrillator,upgradepack_incendiary,upgradepack_explosive",
-			"pain_pills,adrenaline"
-		];
-
-		Left4Utils.StringListToFile("left4bots2/cfg/weapons/ellis.txt", defaultValues, false);
-
-		Logger.Info("Weapon preference file for Ellis was not found and has been recreated");
-	}
-
-	// Default weapon preference file for Francis
-	if (!Left4Utils.FileExists("left4bots2/cfg/weapons/francis.txt"))
-	{
-		// using array instead of table to keep the order
-		local defaultValues =
-		[
-			"autoshotgun,shotgun_spas,rifle_ak47,rifle_sg552,rifle_desert,rifle,sniper_military,hunting_rifle,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,shotgun_chrome,smg_mp5,pumpshotgun,smg_silenced,smg",
-			"riotshield,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,pistol_magnum,pistol,chainsaw",
-			"molotov,pipe_bomb,vomitjar",
-			"first_aid_kit,defibrillator,upgradepack_explosive,upgradepack_incendiary",
-			"*,pain_pills,adrenaline"
-		];
-
-		Left4Utils.StringListToFile("left4bots2/cfg/weapons/francis.txt", defaultValues, false);
-
-		Logger.Info("Weapon preference file for Francis was not found and has been recreated");
-	}
-
-	// Default weapon preference file for Louis
-	if (!Left4Utils.FileExists("left4bots2/cfg/weapons/louis.txt"))
-	{
-		// using array instead of table to keep the order
-		local defaultValues =
-		[
-			"shotgun_spas,autoshotgun,rifle_ak47,rifle_sg552,rifle_desert,rifle,sniper_military,hunting_rifle,sniper_scout,sniper_awp,rifle_m60,grenade_launcher,smg_mp5,smg_silenced,shotgun_chrome,smg,pumpshotgun",
-			"pistol_magnum,pistol,chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,riotshield",
-			"molotov,pipe_bomb,vomitjar",
-			"first_aid_kit,defibrillator,upgradepack_incendiary,upgradepack_explosive",
-			"pain_pills,adrenaline"
-		];
-
-		Left4Utils.StringListToFile("left4bots2/cfg/weapons/louis.txt", defaultValues, false);
-
-		Logger.Info("Weapon preference file for Louis was not found and has been recreated");
-	}
-
-	// Default weapon preference file for Nick
-	if (!Left4Utils.FileExists("left4bots2/cfg/weapons/nick.txt"))
-	{
-		// using array instead of table to keep the order
-		local defaultValues =
-		[
-			"rifle_ak47,rifle_sg552,rifle_desert,rifle,autoshotgun,shotgun_spas,sniper_military,hunting_rifle,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,smg_mp5,smg_silenced,shotgun_chrome,smg,pumpshotgun",
-			"machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,riotshield,pistol_magnum,pistol,chainsaw",
-			"molotov,pipe_bomb,vomitjar",
-			"first_aid_kit,defibrillator,upgradepack_explosive,upgradepack_incendiary",
-			"*,pain_pills,adrenaline"
-		];
-
-		Left4Utils.StringListToFile("left4bots2/cfg/weapons/nick.txt", defaultValues, false);
-
-		Logger.Info("Weapon preference file for Nick was not found and has been recreated");
-	}
-
-	// Default weapon preference file for Rochelle
-	if (!Left4Utils.FileExists("left4bots2/cfg/weapons/rochelle.txt"))
-	{
-		// using array instead of table to keep the order
-		local defaultValues =
-		[
-			"rifle_sg552,rifle_desert,rifle_ak47,rifle,shotgun_spas,autoshotgun,sniper_military,hunting_rifle,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,smg_mp5,smg_silenced,smg,shotgun_chrome,pumpshotgun",
-			"chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,riotshield,pistol_magnum,pistol",
-			"molotov,pipe_bomb,vomitjar",
-			"first_aid_kit,defibrillator,upgradepack_incendiary,upgradepack_explosive",
-			"*,pain_pills,adrenaline"
-		];
-
-		Left4Utils.StringListToFile("left4bots2/cfg/weapons/rochelle.txt", defaultValues, false);
-
-		Logger.Info("Weapon preference file for Rochelle was not found and has been recreated");
-	}
-
-	// Default weapon preference file for Zoey
-	if (!Left4Utils.FileExists("left4bots2/cfg/weapons/zoey.txt"))
-	{
-		// using array instead of table to keep the order
-		local defaultValues =
-		[
-			"sniper_military,hunting_rifle,rifle_sg552,rifle_desert,rifle_ak47,rifle,shotgun_spas,autoshotgun,rifle_m60,grenade_launcher,sniper_scout,sniper_awp,smg_mp5,smg_silenced,smg,shotgun_chrome,pumpshotgun",
-			"chainsaw,machete,golfclub,katana,fireaxe,crowbar,cricket_bat,baseball_bat,tonfa,shovel,electric_guitar,knife,frying_pan,pitchfork,riotshield,pistol_magnum,pistol",
-			"molotov,pipe_bomb,vomitjar",
-			"first_aid_kit,defibrillator,upgradepack_incendiary,upgradepack_explosive",
-			"*,pain_pills,adrenaline"
-		];
-
-		Left4Utils.StringListToFile("left4bots2/cfg/weapons/zoey.txt", defaultValues, false);
-
-		Logger.Info("Weapon preference file for Zoey was not found and has been recreated");
-	}
-}
-
 ::Left4Bots.LoadSettingsOverride <- function ()
 {
 	// 1. settings_[map]_[difficulty]_[mode].txt
@@ -2724,23 +2466,23 @@ if (activator && isWorthPickingUp)
 // Returns the list of scavenge items of type 'Left4Bots.ScavengeUseType'
 ::Left4Bots.GetAvailableScavengeItems <- function ()
 {
+	local t = {};
+	if (!ScavengeUseTarget || !ScavengeUseTarget.IsValid())
+		return t;
+	
 	//	- Spawned gascans have class "weapon_gascan" when they have been picked up by players; after spawn too but i'm not 100% sure.
 	//	  They can have different m_nSkin (default is 0).
 	//	  In scavenge maps (regardless the gamemode) they are spawned by weapon_scavenge_item_spawn
 	//
 	//	- cola's class can be "prop_physics" after spawn but it becomes "weapon_cola_bottles" after being picked up by a player; model should be always the same.
 
-	local model = "models/props_junk/gascan001a.mdl";
-	if (ScavengeUseType == SCAV_TYPE_COLA)
-		model = "models/w_models/weapons/w_cola.mdl";
-
-	local t = {};
+	local model = ScavengeUseType == SCAV_TYPE_COLA ? "models/w_models/weapons/w_cola.mdl" : "models/props_junk/gascan001a.mdl";
 	local ent = null;
 	local i = -1;
 	while (ent = Entities.FindByModel(ent, model))
 	{
 		if (ent.IsValid() && (Settings.scavenge_pour || (ent.GetOrigin() - ScavengeUseTarget.GetOrigin()).Length() >= Settings.scavenge_drop_radius) && IsValidPickup(ent) && !BotsHaveOrderDestEnt(ent))
-			t[++i] <- ent;
+			t[++i] <- { ent = ent, flow = GetFlowDistanceForPosition(ent.GetOrigin()) };
 	}
 	return t;
 }
@@ -3558,6 +3300,27 @@ if (activator && isWorthPickingUp)
 	return ret;
 }
 
+// Returns the nearest aggroed visible tank whithin 'min' and 'max' units from 'origin'
+::Left4Bots.GetNearestAggroedVisibleTankWithin <- function (player, origin, min = 80, max = 1000)
+{
+	local ret = null;
+	local minDist = max;
+	local tracemask_others = Settings.tracemask_others;
+	foreach (tank in Tanks)
+	{
+		if (tank && tank.IsValid() && NetProps.GetPropInt(tank, "m_lifeState") == 0 /* is alive? */ && !tank.IsIncapacitated() && NetProps.GetPropInt(tank, "m_lookatPlayer") >= 0 && Left4Utils.CanTraceTo(player, tank, tracemask_others))
+		{
+			local dist = (origin - tank.GetOrigin()).Length();
+			if (dist >= min && dist < minDist)
+			{
+				ret = tank;
+				minDist = dist;
+			}
+		}
+	}
+	return ret;
+}
+
 // Handles the dodging of the spitter's acid dropped upon spitter's death
 ::Left4Bots.FindSpitterDeathPool <- function (spitterpos)
 {
@@ -3642,6 +3405,25 @@ if (activator && isWorthPickingUp)
 	return true;
 }
 
+// https://github.com/smilz0/Left4Bots/issues/86
+::Left4Bots.DropItem <- function (player, weapon, weaponClass)
+{
+	local ammoType = NetProps.GetPropInt(weapon, "m_iPrimaryAmmoType");
+	local extraAmmo = NetProps.GetPropIntArray(player, "m_iAmmo", ammoType);
+	//printl(extraAmmo);
+	
+	player.DropItem(weaponClass);
+	
+	//'DropItem()' not set these steps
+	NetProps.SetPropInt(weapon, "m_iExtraPrimaryAmmo", extraAmmo); //set weapon's backup ammo
+	NetProps.SetPropIntArray(player, "m_iAmmo", 0, ammoType); //without this, if the player picks up the weapon again, will get more backup ammo
+	if (weaponClass == "weapon_defibrillator")
+	{
+		//set the correct index //https://forums.alliedmods.net/showthread.php?p=1621340#post1621340
+		NetProps.SetPropInt(weapon, "m_iWorldModelIndex", GetModelIndex(weapon.GetModelName()));
+	}
+}
+
 // Helps update the COMMANDS.md file on the github repo
 ::Left4Bots.PrintCommandsMarkdown <- function ()
 {
@@ -3697,6 +3479,7 @@ if (activator && isWorthPickingUp)
 ::Left4Bots.Difficulty = Convars.GetStr("z_difficulty").tolower();
 ::Left4Bots.SurvivorSet = Director.GetSurvivorSet();
 
+IncludeScript("left4bots_defaults");
 IncludeScript("left4bots_ai");
 IncludeScript("left4bots_events");
 IncludeScript("left4bots_commands");
