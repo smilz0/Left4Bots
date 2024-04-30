@@ -192,6 +192,8 @@
 	hurry_time = 15
 
 	// [1/0] 1 = Reverse itemstoavoid logics (tells the vanilla AI to avoid all the items except the ones in the itemstoavoid.txt file). 0 = Normal logics (vanilla AI should avoid only the items in the file)
+	// NOTE: Itemstoavoid logics only affect the VANILLA items pick-up behavior, it has no effect on the L4B2 items pick-up defined via weapon preference files and team_min* settings.
+	//       An incorrect configuration of itemstoavoid and weapon preference files may result in the bots picking weapons from the ground over and over again.
 	items_not_to_avoid = 1
 
 	// If >0, when a survivor bot shoots a teammate who is being ridden by a jockey, the damage to the teammate is removed and the jockey receives this amount of damage instead. 0 = disabled
@@ -289,6 +291,9 @@
 	// High priority MOVEs will be automatically terminated after this time, regardless the destination position was reached or not (likely unreachable position)
 	move_hipri_timeout = 5.0
 
+	// If >= 0, 'sb_debug_apoproach_wait_time' cvar will be set with this value after the convars.txt file finished loading, overriding any sb_debug_apoproach_wait_time value set in the file. Set a value < 0 to disable.
+	move_wait_time = 0.5
+
 	// >0 = BotMoveTo area and move pos are drawn on screen for this amount of time (only the host can see it). 0 = Disable
 	moveto_debug_duration = 0
 	
@@ -323,6 +328,9 @@
 
 	// Pick up the item we are looking for when within this range
 	pickups_pick_range = 90
+
+	// [1/0] 1 = Always pick up another pistol for the dual version. 0 = Only go for the single pistol
+	pickups_pistol_dual = 0
 
 	// Items to pick up must be within this radius (and be visible to the bot)
 	pickups_scan_radius = 400
