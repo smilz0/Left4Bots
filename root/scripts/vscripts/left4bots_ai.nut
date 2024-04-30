@@ -1062,7 +1062,10 @@ enum AI_AIM_TYPE {
 
 	if (L4B.Settings.fall_velocity_warp != 0 && self.GetVelocity().z <= (-L4B.Settings.fall_velocity_warp))
 	{
-		local others = L4B.GetOtherAliveSurvivors(UserId);
+		// https://github.com/smilz0/Left4Bots/issues/90
+		local others = [];
+		foreach (surv in L4B.GetOtherAliveSurvivors(UserId))
+			others.append(surv);
 		if (others.len() > 0)
 		{
 			local to = others[RandomInt(0, others.len() - 1)];
@@ -2314,7 +2317,7 @@ enum AI_AIM_TYPE {
 		}
 
 		// Handle Dual Pistols
-		if (hasPistol && !hasDualPistol)
+		if (hasPistol && !hasDualPistol && L4B.Settings.pickups_pistol_dual)
 		{
 			// We have a pistol, it's not dual, we likely aren't searching another one due to how priorities work... so add it again to get a dual
 			WeaponsToSearch[Left4Utils.WeaponId.weapon_pistol] <- 0;

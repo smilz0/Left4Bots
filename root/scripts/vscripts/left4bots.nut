@@ -190,6 +190,9 @@ IncludeScript("left4bots_settings");
 	else
 		Logger.Info("Convars file was not loaded due to settings.load_convars and settings.file_convars");
 
+	if (Settings.move_wait_time >= 0)
+		Convars.SetValue("sb_debug_apoproach_wait_time", Settings.move_wait_time);
+
 	if (Settings.file_itemstoavoid != "")
 	{
 		Logger.Info("Loading items to avoid from file: " + Settings.file_itemstoavoid);
