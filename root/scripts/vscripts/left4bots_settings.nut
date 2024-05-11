@@ -330,7 +330,7 @@
 	pickups_pick_range = 90
 
 	// [1/0] 1 = Always pick up another pistol for the dual version. 0 = Only go for the single pistol
-	pickups_pistol_dual = 0
+	pickups_pistol_dual = 1
 
 	// Items to pick up must be within this radius (and be visible to the bot)
 	pickups_scan_radius = 400
