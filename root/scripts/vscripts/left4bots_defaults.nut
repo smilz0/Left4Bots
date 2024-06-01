@@ -36,6 +36,43 @@ witch_autocrown = 0";
 	
 	// -------------------------------------------------------
 	
+	// Default settings overrides for 'c1m4_atrium' in 'Advanced' difficulty
+	defaults["left4bots2/cfg/settings_c1m4_atrium_hard.txt"] <- @"close_saferoom_door_highres = 1
+heal_interrupt_minhealth = 40
+horde_nades_chance = 35
+jockey_redirect_damage = 45
+manual_attack_mindot = 0.90
+manual_attack_skill = 2
+shove_deadstop_chance = 100
+spit_block_nav = 1
+tank_molotov_chance = 50
+tank_throw_survivors_mindistance = 250
+throw_molotov = 0";
+	
+	// Default settings overrides for 'c1m4_atrium' in 'Expert' difficulty
+	defaults["left4bots2/cfg/settings_c1m4_atrium_impossible.txt"] <- @"automation_autostart = 0
+close_saferoom_door_all_chance = 0
+close_saferoom_door_highres = 1
+heal_interrupt_minhealth = 30
+horde_nades_chance = 35
+jockey_redirect_damage = 50
+manual_attack_always = 1
+manual_attack_mindot = 0.90
+manual_attack_skill = 3
+scavenge_max_bots = 1
+shove_deadstop_chance = 100
+signal_chat = 1
+spit_block_nav = 1
+tank_molotov_chance = 50
+tank_throw_survivors_mindistance = 260
+throw_molotov = 0
+witch_autocrown = 0";
+	
+	// Default settings overrides for 'c1m4_atrium' in the other difficulties
+	defaults["left4bots2/cfg/settings_c1m4_atrium.txt"] <- @"throw_molotov = 0";
+	
+	// -------------------------------------------------------
+	
 	// Default settings overrides for 'c6m3_port' in 'Advanced' difficulty
 	defaults["left4bots2/cfg/settings_c6m3_port_hard.txt"] <- @"close_saferoom_door_highres = 1
 file_weapons_prefix = ""left4bots2/cfg/weapons/c6m3_port/""

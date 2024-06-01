@@ -849,52 +849,140 @@ IncludeScript("left4bots_settings");
 // Valid enemies are common and special infected (including tank), witch excluded
 ::Left4Bots.FindBotNearestEnemy <- function (bot, orig, radius, minDot = 0.96)
 {
+	local ret_array = [];
+	
 	local botFacing = bot.EyeAngles().Forward();
-	local ret = null;
-	local minDist = radius;
 	local tracemask_others = Settings.tracemask_others;
+	
+	// [NEW] Perhaps we could add `foreach (ent in Dominators)` here so SurvivorBots can prioritize killing special infected that are grabbing survivors if they are within radius.
+	
 	foreach (ent in Specials)
 	{
 		if (ent.IsValid() && !ent.IsGhost())
 		{
 			local toEnt = ent.GetOrigin() - orig;
-			local dist = toEnt.Length();
-			toEnt.Norm();
-			if (dist < minDist && botFacing.Dot(toEnt) >= minDot && Left4Utils.CanTraceTo(bot, ent, tracemask_others))
+			local dist = toEnt.Norm();
+			
+			if (dist < radius && botFacing.Dot(toEnt) >= minDot)
 			{
-				ret = ent;
-				minDist = dist;
+				ret_array.append([dist, ent]);
 			}
 		}
 	}
-	if (ret) // TODO: Just return the special if it's within a certain range?
-		return ret;
-
+	
+	// [NEW] Sort the array from closest to farthest special infected so the `CanTraceTo` function doesn't have to perform as many traces.
+	
+	ret_array.sort(function (a, b) {return a[0] - b[0]});
+	
+	foreach (ret_data in ret_array)
+	{
+		local ret = ret_data[1];
+		
+		if (ret && Left4Utils.CanTraceTo(bot, ret, tracemask_others))
+		{
+			return ret;
+		}
+	}
+	
+	ret_array.clear();
+	
 	//lxc kill raged Witch if no Specials nearby
+	
 	foreach (witch in Witches)
 	{
 		// fix for https://github.com/smilz0/Left4Bots/issues/84
-		if (witch.IsValid() && NetProps.GetPropFloat(witch, "m_rage") >= 1.0 && (witch.GetOrigin() - orig).Length() <= radius && Left4Utils.CanTraceTo(bot, witch, tracemask_others))
-			return witch;
+		if (witch.IsValid() && NetProps.GetPropFloat(witch, "m_rage") >= 1.0)
+		{
+			local dist = (witch.GetOrigin() - orig).Length();
+			if (dist < radius)
+			{
+				ret_array.append([dist, witch]);
+			}
+		}
 	}
-
+	
+	// [NEW] Sort the array from closest to farthest Witch so the `CanTraceTo` function doesn't have to perform as many traces.
+	
+	ret_array.sort(function (a, b) {return a[0] - b[0]});
+	
+	foreach (ret_data in ret_array)
+	{
+		local ret = ret_data[1];
+		
+		if (ret && Left4Utils.CanTraceTo(bot, ret, tracemask_others))
+		{
+			return ret;
+		}
+	}
+	
+	ret_array.clear();
+	
+	foreach (tank in Tanks)
+	{
+		if (tank.IsValid() && !tank.IsIncapacitated() && NetProps.GetPropInt(tank, "m_lookatPlayer") >= 0) //Aggroed
+		{
+			local dist = (tank.GetOrigin() - orig).Length();
+			if (dist < radius)
+			{
+				ret_array.append([dist, tank]);
+			}
+		}
+	}
+	
+	local tank = null;
+	local newRadius = radius;
+	
+	// [NEW] Sort the array from closest to farthest common infected so the `CanTraceTo` function doesn't have to perform as many traces.
+	
+	ret_array.sort(function (a, b) {return a[0] - b[0]});
+	
+	foreach (ret_data in ret_array)
+	{
+		local ret = ret_data[1];
+		
+		if (ret && Left4Utils.CanTraceTo(bot, ret, tracemask_others))
+		{
+			tank = ret;
+			//newRadius = radius < 120 ? radius : 120;
+			newRadius = ret_data[0];
+			break;
+		}
+	}
+	
+	ret_array.clear();
+	
+	// [NEW] Added Tanks to the list of targets for SurvivorBots to shoot so they don't take too long to react to its presence.
+	
 	local ent = null;
-	while (ent = Entities.FindByClassnameWithin(ent, "infected", orig, minDist)) // If only we had a infected_spawned event for the commons...
+	while (ent = Entities.FindByClassnameWithin(ent, "infected", orig, newRadius)) // If only we had a infected_spawned event for the commons...
 	{
 		if (ent.IsValid() && NetProps.GetPropInt(ent, "m_lifeState") == 0)
 		{
 			local toEnt = ent.GetOrigin() - orig;
-			local dist = toEnt.Length();
-			toEnt.Norm();
+			local dist = toEnt.Norm();
 																	//lxc ignore wandering infected
-			if (dist < minDist && botFacing.Dot(toEnt) >= minDot && (Settings.manual_attack_skill >= 3 || IsInfectedAngry(ent)) && Left4Utils.CanTraceTo(bot, ent, tracemask_others))
+			if (botFacing.Dot(toEnt) >= minDot && (Settings.manual_attack_skill >= 3 || IsInfectedAngry(ent)))
 			{
-				ret = ent;
-				minDist = dist;
+				ret_array.append([dist, ent]);
 			}
 		}
 	}
-	return ret;
+	
+	// [NEW] Sort the array from closest to farthest Tank so the `CanTraceTo` function doesn't have to perform as many traces.
+	
+	ret_array.sort(function (a, b) {return a[0] - b[0]});
+	
+	foreach (ret_data in ret_array)
+	{
+		local ret = ret_data[1];
+		
+		if (ret && Left4Utils.CanTraceTo(bot, ret, tracemask_others))
+		{
+			return ret;
+		}
+	}
+	
+	return tank;
 }
 
 // Called when the bot's pick-up algorithm decides to pick the item up

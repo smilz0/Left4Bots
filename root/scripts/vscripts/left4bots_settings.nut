@@ -200,7 +200,7 @@
 	jockey_redirect_damage = 40
 
 	// Bots will pause their current 'lead' order if they are at least this distance behind a human survivor. 0 = No pause
-	lead_pause_behind_dist = 180
+	lead_pause_behind_dist = 250
 
 	// [1/0] Enable/Disable the additional trace check on the ground when calculating the 'lead' path
 	lead_check_ground = 0
