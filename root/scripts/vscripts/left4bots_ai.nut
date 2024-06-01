@@ -3455,6 +3455,10 @@ enum AI_AIM_TYPE {
 	if (L4B.Settings.pause_debug)
 		Say(self, "[->]", false);
 
+	// https://github.com/smilz0/Left4Bots/issues/91
+	if (MovePos)
+		NeedMove = 2; // Refresh previous MOVE
+
 	if (MoveType == AI_MOVE_TYPE.Order && CurrentOrder.OrderType == "lead")
 	{
 		if (CurrentOrder.DestPos)
@@ -3462,8 +3466,9 @@ enum AI_AIM_TYPE {
 			// If we are executing a "lead" order and, during the pause, we moved ahead of the next position, the last MOVE will take us backwards. Better finalize the order to re-calc the next position from here
 			BotFinalizeCurrentOrder();
 		}
-		else if (MovePos)
-			NeedMove = 2; // Refresh previous MOVE
+// https://github.com/smilz0/Left4Bots/issues/91
+//		else if (MovePos)
+//			NeedMove = 2; // Refresh previous MOVE
 
 		if ((CurTime - L4B.LastLeadStartVocalize) >= L4B.Settings.lead_vocalize_interval)
 		{
@@ -3471,8 +3476,9 @@ enum AI_AIM_TYPE {
 			L4B.LastLeadStartVocalize = CurTime;
 		}
 	}
-	else if (MovePos)
-		NeedMove = 2; // Refresh previous MOVE
+// https://github.com/smilz0/Left4Bots/issues/91
+//	else if (MovePos)
+//		NeedMove = 2; // Refresh previous MOVE
 }
 
 //lxc
