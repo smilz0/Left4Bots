@@ -65,7 +65,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c13m3_memorialbridge automat
 
 ::Left4Bots.Automation.Events.OnGameEvent_round_start <- function (params)
 {
-	printl("::Left4Bots.Automation.Events.OnGameEvent_round_start");
+	::Left4Bots.Logger.Debug("::Left4Bots.Automation.Events.OnGameEvent_round_start");
 	
 	// This nav_blocker blocks the area behind the open saferoom door so the bots don't get stuck there and, at the same time,
 	// triggers a nav flow recomputation taking into account the nav areas blocked earlier ^

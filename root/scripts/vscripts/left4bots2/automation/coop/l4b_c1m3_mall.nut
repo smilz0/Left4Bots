@@ -7,7 +7,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m3_mall automation script.
 
 ::Left4Bots.Automation.SetElevatorPath <- function(num)
 {
-	printl("SetElevatorPath(" + num + ")");
+	::Left4Bots.Logger.Debug("SetElevatorPath(" + num + ")");
 	
 	// Navblockers that are meant to be unblocked for each path
 	local paths = {};
@@ -22,7 +22,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m3_mall automation script.
 	
 	if (!(num in paths))
 	{
-		printl("Error: " + num + " is not a valid path number");
+		::Left4Bots.Logger.Error(num + " is not a valid path number");
 		return;
 	}
 	
@@ -36,7 +36,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m3_mall automation script.
 			if (paths[num].find(name) == null)
 			{
 				DoEntFire("!self", "BlockNav", "", 1, ent, ent);
-				printl(name + " blocked");
+				::Left4Bots.Logger.Debug(name + " blocked");
 			}
 		}
 	}
@@ -134,7 +134,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c1m3_mall automation script.
 
 ::Left4Bots.Automation.Events.OnGameEvent_round_start <- function (params)
 {
-	printl("::Left4Bots.Automation.Events.OnGameEvent_round_start");
+	::Left4Bots.Logger.Debug("::Left4Bots.Automation.Events.OnGameEvent_round_start");
 
 	local ent = null;
 	while (ent = Entities.FindByClassname(ent, "func_nav_blocker"))
@@ -158,7 +158,7 @@ for (local i = 1; i <= 8; i++)
 /*
 local compare_minifinale = Entities.FindByName(null, "compare_minifinale");
 //local m_flInValue = NetProps.GetPropFloat(compare_minifinale, "m_flInValue"); // 6
-//printl("m_flInValue: " + m_flInValue);
+//::Left4Bots.Logger.Debug("m_flInValue: " + m_flInValue);
 
 // Do no call this, it is automatically triggered when the survivors pass the one way barricade at the beginning of the corridor that leads to the 2 dynamic paths
 //DoEntFire("!self", "SetCompareValue", "6", 0, compare_minifinale, compare_minifinale);
