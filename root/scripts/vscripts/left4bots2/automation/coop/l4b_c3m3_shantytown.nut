@@ -71,7 +71,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c3m3_shantytown automation s
 
 ::Left4Bots.Automation.Events.OnGameEvent_round_start <- function (params)
 {
-	printl("::Left4Bots.Automation.Events.OnGameEvent_round_start");
+	::Left4Bots.Logger.Debug("::Left4Bots.Automation.Events.OnGameEvent_round_start");
 	
 	// bridge_minifinale.OnFullyClosed = bridge is down
 	EntityOutputs.AddOutput(Entities.FindByName(null, "bridge_minifinale"), "OnFullyClosed", "worldspawn", "RunScriptCode", "if (::Left4Bots.Automation.step < 3) ::Left4Bots.Automation.step = 3", 0, -1);

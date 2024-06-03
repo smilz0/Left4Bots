@@ -237,7 +237,7 @@ class ::Left4Bots.Automation.C14M1Generators extends ::Left4Bots.Automation.Task
 
 ::Left4Bots.Automation.Events.OnGameEvent_round_start <- function (params)
 {
-	printl("::Left4Bots.Automation.Events.OnGameEvent_round_start");
+	::Left4Bots.Logger.Debug("::Left4Bots.Automation.Events.OnGameEvent_round_start");
 
 	// This new nav area on the crane is needed to allow the bots go press the button, but it must start as blocked and be unblocked only when the crane is ready
 	local newcranearea = Entities.FindByName(null, "newcranearea");

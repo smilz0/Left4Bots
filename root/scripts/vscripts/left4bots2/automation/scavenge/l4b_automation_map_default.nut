@@ -6,14 +6,6 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_automation_map_default autom
 	
 	switch (concept)
 	{
-		case "SurvivorLeavingCheckpoint":
-			if (!::Left4Bots.Automation.TaskExists("bots", "Scavenge"))
-			{
-				::Left4Bots.Automation.ResetTasks();
-				::Left4Bots.Automation.AddCustomTask(::Left4Bots.Automation.Scavenge()).Start();
-			}
-			break;
-			
 		case "PlayerPourFinished":
 			local score = null;
 			local towin = null;
@@ -32,5 +24,16 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_automation_map_default autom
 				::Left4Bots.Automation.ResetTasks();
 			}
 			break;
+	}
+}
+
+::Left4Bots.Automation.Events.OnGameEvent_scavenge_round_start <- function (params)
+{
+	::Left4Bots.Logger.Debug("::Left4Bots.Automation.Events.OnGameEvent_scavenge_round_start");
+	
+	if (!::Left4Bots.Automation.TaskExists("bots", "Scavenge"))
+	{
+		::Left4Bots.Automation.ResetTasks();
+		::Left4Bots.Automation.AddCustomTask(::Left4Bots.Automation.Scavenge()).Start();
 	}
 }

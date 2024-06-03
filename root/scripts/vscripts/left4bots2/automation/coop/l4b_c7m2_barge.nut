@@ -45,7 +45,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c7m2_barge automation script
 
 ::Left4Bots.Automation.Events.OnGameEvent_round_start <- function (params)
 {
-	printl("::Left4Bots.Automation.Events.OnGameEvent_round_start");
+	::Left4Bots.Logger.Debug("::Left4Bots.Automation.Events.OnGameEvent_round_start");
 	
 	// What is this ladder for? There is another one for the infected next to this and this one doesn't seem to be usable by the survivors anyway. It only f*** the flow up
 	local area = NavMesh.GetNavAreaByID(103491);

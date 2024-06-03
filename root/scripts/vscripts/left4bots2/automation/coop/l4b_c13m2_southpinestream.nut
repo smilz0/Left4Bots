@@ -90,7 +90,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c13m2_southpinestream automa
 
 ::Left4Bots.Automation.Events.OnGameEvent_round_start <- function (params)
 {
-	printl("::Left4Bots.Automation.Events.OnGameEvent_round_start");
+	::Left4Bots.Logger.Debug("::Left4Bots.Automation.Events.OnGameEvent_round_start");
 
 	// Survivors can't walk through this. Force a nav flow rebuild avoiding these areas
 	local l4bbetternavflow = Entities.FindByName(null, "l4bbetternavflow");
