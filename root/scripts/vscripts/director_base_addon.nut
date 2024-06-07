@@ -1,3 +1,5 @@
+IncludeScript("left4bots");
+
 //if (!("ShouldAvoidItem" in DirectorScript.GetDirectorOptions()))
 {
 	DirectorScript.GetDirectorOptions().ShouldAvoidItem <- function (classname)
