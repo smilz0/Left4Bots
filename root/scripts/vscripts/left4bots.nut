@@ -3564,9 +3564,9 @@ if (activator && isWorthPickingUp)
 
 //
 
-::Left4Bots.ModeName = SessionState.ModeName;
+::Left4Bots.ModeName = Director.GetGameMode();
 ::Left4Bots.BaseModeName = Director.GetGameModeBase();
-::Left4Bots.MapName = SessionState.MapName;
+::Left4Bots.MapName = Director.GetMapName();
 ::Left4Bots.Difficulty = Convars.GetStr("z_difficulty").tolower();
 ::Left4Bots.SurvivorSet = Director.GetSurvivorSet();
 
