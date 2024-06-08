@@ -1,3 +1,6 @@
+IncludeScript("left4bots");
+::Left4Bots.Initialize(Director.GetGameMode(), Director.GetMapName());
+
 if (!("ShouldAvoidItem" in DirectorScript.GetDirectorOptions()))
 {
 	DirectorScript.GetDirectorOptions().ShouldAvoidItem <- function (classname)

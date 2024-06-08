@@ -4,7 +4,7 @@
 //------------------------------------------------------
 
 Msg("Including left4bots...\n");
-
+/*
 if (!IncludeScript("left4lib_consts"))
 	error("[L4B][ERROR] Failed to include 'left4lib_consts', please make sure the 'Left 4 Lib' addon is installed and enabled!\n");
 if (!IncludeScript("left4lib_utils"))
@@ -15,6 +15,17 @@ if (!IncludeScript("left4lib_concepts"))
 	error("[L4B][ERROR] Failed to include 'left4lib_concepts', please make sure the 'Left 4 Lib' addon is installed and enabled!\n");
 if (!IncludeScript("left4lib_hooks"))
 	error("[L4B][ERROR] Failed to include 'left4lib_hooks', please make sure the 'Left 4 Lib' addon is installed and enabled!\n");
+*/
+if (!IncludeScript("left4lib_users"))
+	error("[L4B][ERROR] Failed to include 'left4lib_users', please make sure the 'Left 4 Lib' addon is installed and enabled!\n");
+if (!IncludeScript("left4lib_timers"))
+	error("[L4B][ERROR] Failed to include 'left4lib_timers', please make sure the 'Left 4 Lib' addon is installed and enabled!\n");
+if (!IncludeScript("left4lib_concepts"))
+	error("[L4B][ERROR] Failed to include 'left4lib_concepts', please make sure the 'Left 4 Lib' addon is installed and enabled!\n");
+if (!IncludeScript("left4lib_simplehud"))
+	error("[L4F][ERROR] Failed to include 'left4lib_simplehud', please make sure the 'Left 4 Lib' addon is installed and enabled!\n");
+if (!IncludeScript("left4lib_logger"))
+	error("[L4F][ERROR] Failed to include 'left4lib_logger', please make sure the 'Left 4 Lib' addon is installed and enabled!\n");
 
 IncludeScript("left4bots_requirements");
 
