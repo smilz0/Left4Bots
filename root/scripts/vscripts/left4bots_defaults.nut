@@ -114,8 +114,7 @@ scavenge_items_flow_distance = 0";
 	// -------------------------------------------------------
 	
 	// Default convars.txt file
-	defaults["left4bots2/cfg/convars.txt"] <- @"allow_all_bot_survivor_team 1
-sb_all_bot_game 1"; // "sb_unstick 0" // TODO: unstick logic
+	defaults["left4bots2/cfg/convars.txt"] <- @"allow_all_bot_survivor_team 1"; // "sb_unstick 0" // TODO: unstick logic
 
 	// Default itemstoavoid.txt file
 	defaults["left4bots2/cfg/itemstoavoid.txt"] <- @"weapon_ammo

@@ -962,6 +962,9 @@ class ::Left4Bots.Automation.GotoAndIdle extends ::Left4Bots.Automation.Task
 
 ::Left4Bots.Automation.OnTaskManager <- function (params)
 {
+	if (!Settings.automation)
+		return;
+	
 	local newFlow = GetFlowPercent();
 	Automation.OnFlow(Automation.PrevFlow, newFlow);
 	Automation.PrevFlow = newFlow;

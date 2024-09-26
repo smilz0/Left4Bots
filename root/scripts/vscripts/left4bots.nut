@@ -46,6 +46,7 @@ IncludeScript("left4bots_requirements");
 		goto = 1
 		wait = 1
 		deploy = 2
+		tempheal = 2
 		heal = 2
 		use = 2
 		destroy = 2
@@ -404,7 +405,10 @@ IncludeScript("left4bots_settings");
 {
 	// This prevents the crash
 	foreach (bot in Bots)
-		CarryItemStop(bot);
+	{
+		if (bot.IsValid())
+			CarryItemStop(bot);
+	}
 
 	// Stop the thinker
 	Left4Timers.RemoveThinker("L4BThinker");
@@ -428,7 +432,6 @@ IncludeScript("left4bots_settings");
 
 	// Stop any pending automation task
 	Automation.ResetTasks();
-
 
 	// Clear the lists
 	Survivors.clear();

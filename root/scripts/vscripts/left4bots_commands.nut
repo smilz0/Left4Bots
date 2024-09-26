@@ -940,8 +940,9 @@ Msg("Including left4bots_commands...\n");
 			local item = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_PILLS);
 			if (item && item.IsValid())
 			{
-				bot.SwitchToItem(item.GetClassname());
-				Left4Timers.AddTimer(null, 1.2, @(params) ::Left4Bots.PlayerPressButton.bindenv(::Left4Bots)(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = bot, button = BUTTON_ATTACK, holdTime = 1, destination = null, deltaPitch = 0, deltaYaw = 0, lockLook = true });
+				//bot.SwitchToItem(item.GetClassname());
+				//Left4Timers.AddTimer(null, 1.2, @(params) ::Left4Bots.PlayerPressButton.bindenv(::Left4Bots)(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = bot, button = BUTTON_ATTACK, holdTime = 1, destination = null, deltaPitch = 0, deltaYaw = 0, lockLook = true });
+				BotOrderAdd(bot, "tempheal", player, null, null, null, 0, false);
 			}
 		}
 	}
@@ -955,8 +956,9 @@ Msg("Including left4bots_commands...\n");
 			local item = Left4Utils.GetInventoryItemInSlot(tgtBot, INV_SLOT_PILLS);
 			if (item && item.IsValid())
 			{
-				tgtBot.SwitchToItem(item.GetClassname());
-				Left4Timers.AddTimer(null, 1.2, @(params) ::Left4Bots.PlayerPressButton.bindenv(::Left4Bots)(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = tgtBot, button = BUTTON_ATTACK, holdTime = 1, destination = null, deltaPitch = 0, deltaYaw = 0, lockLook = true });
+				//tgtBot.SwitchToItem(item.GetClassname());
+				//Left4Timers.AddTimer(null, 1.2, @(params) ::Left4Bots.PlayerPressButton.bindenv(::Left4Bots)(params.bot, params.button, params.holdTime, params.destination, params.deltaPitch, params.deltaYaw, params.lockLook), { bot = tgtBot, button = BUTTON_ATTACK, holdTime = 1, destination = null, deltaPitch = 0, deltaYaw = 0, lockLook = true });
+				BotOrderAdd(tgtBot, "tempheal", player, null, null, null, 0, false);
 			}
 		}
 		else
@@ -967,7 +969,8 @@ Msg("Including left4bots_commands...\n");
 ::Left4Bots.CmdHelp_tempheal <- function ()
 {
 	return PRINTCOLOR_NORMAL + "<" + PRINTCOLOR_CYAN + "botsource" + PRINTCOLOR_NORMAL + "> " + PRINTCOLOR_GREEN + "tempheal" + PRINTCOLOR_NORMAL + "\n"
-		 + PRINTCOLOR_NORMAL + "The order is executed immediately.\n"
+		 //+ PRINTCOLOR_NORMAL + "The order is executed immediately.\n"
+		 + PRINTCOLOR_NORMAL + "The order is added to the given bot(s) orders queue.\n"
 		 + PRINTCOLOR_NORMAL + "The bot(s) will use their pain pils/adrenaline.\n"
 		 + PRINTCOLOR_NORMAL + "If '" + PRINTCOLOR_CYAN + "bot" + PRINTCOLOR_NORMAL + "' botsource is used, the selected bot will be the bot you are looking at.";
 }

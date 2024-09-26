@@ -39,7 +39,7 @@ Msg("Including left4bots_events...\n");
 
 	DirectorScript.GetDirectorOptions().cm_ShouldHurry <- Left4Bots.Settings.should_hurry;
 	
-	if (::Left4Bots.Settings.automation_autostart)
+	if (::Left4Bots.Settings.automation && ::Left4Bots.Settings.automation_autostart)
 		::Left4Bots.Automation.StartTasks(true);
 }
 
@@ -70,6 +70,10 @@ Msg("Including left4bots_events...\n");
 
 ::Left4Bots.Events.OnGameEvent_server_pre_shutdown <- function (params)
 {
+	Left4Bots.Logger.Debug("OnGameEvent_server_pre_shutdown");
+	
+	Convars.SetValue("sb_all_bot_game", 0);
+	
 	//local reason = params["reason"];
 
 	if (Left4Bots.Settings.anti_pipebomb_bug)
@@ -692,11 +696,19 @@ Msg("Including left4bots_events...\n");
 			else
 				Left4Bots.Logger.Debug("OnGameEvent_player_entered_checkpoint - area is null! - DoorZ: " + doorZ);
 
+			if (Left4Bots.IsHandledBot(player))
+			{
+				local scope = player.GetScriptScope();
+				scope.DoorAct = AI_DOOR_ACTION.Saferoom;
+				scope.DoorEnt = door; // This tells the bot to close the door. From now on, the bot will start looking for the best moment to close the door without locking himself out (will try at least)
+				scope.DoorZ = doorZ;
+			}
+			
 			if (allBots)
 			{
 				foreach (bot in Left4Bots.Bots)
 				{
-					if (::Left4Bots.IsSurvivorInCheckpoint(bot))
+					if (bot != player && ::Left4Bots.IsSurvivorInCheckpoint(bot))
 					{
 						local scope = bot.GetScriptScope();
 						scope.DoorAct = AI_DOOR_ACTION.Saferoom;
@@ -704,13 +716,6 @@ Msg("Including left4bots_events...\n");
 						scope.DoorZ = doorZ;
 					}
 				}
-			}
-			else
-			{
-				local scope = player.GetScriptScope();
-				scope.DoorAct = AI_DOOR_ACTION.Saferoom;
-				scope.DoorEnt = door; // This tells the bot to close the door. From now on, the bot will start looking for the best moment to close the door without locking himself out (will try at least)
-				scope.DoorZ = doorZ;
 			}
 		}
 	}
@@ -1678,7 +1683,7 @@ Msg("Including left4bots_events...\n");
 			}
 		}
 	}
-	
+
 	if (Settings.automation_debug)
 		RefreshAutomationDebugHudText();
 	

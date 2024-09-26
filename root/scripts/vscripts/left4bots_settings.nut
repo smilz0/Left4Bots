@@ -3,6 +3,9 @@
 	// [1/0] 1 = Prevents (at least will try) the infamous bug of the pipe bomb thrown right before transitioning to the next chapter, the bots will bug out and do nothing for the entire next chapter
 	anti_pipebomb_bug = 1
 
+	// [1/0] Enable/Disable the automation
+	automation = 1
+
 	// [1/0] Enable/Disable the autostart of the automation tasks when humans are in the team
 	automation_autostart = 0
 

@@ -41,7 +41,7 @@ enum AI_AIM_TYPE {
 	Shove, //shove
 	Order, //normal order
 	Throw, //grenade
-	Rock, //we can dodge it, so put it in front of the witch
+	Rock,  //we can dodge it, so put it in front of the witch
 	Witch
 }
 
@@ -284,6 +284,15 @@ enum AI_AIM_TYPE {
 			//	SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
 
 			order.DestRadius <- Settings.move_end_radius_heal;
+			order.MaxSeparation <- 0;
+			break;
+		}
+		case "tempheal":
+		{
+			//if (from)
+			//	SpeakRandomVocalize(bot, VocalizerYes, RandomFloat(0.5, 1.0));
+
+			order.DestRadius <- Settings.move_end_radius;
 			order.MaxSeparation <- 0;
 			break;
 		}
@@ -2752,6 +2761,26 @@ enum AI_AIM_TYPE {
 		else
 			BotMoveTo(CurrentOrder.DestEnt.GetOrigin(), true);
 	}
+	else if (CurrentOrder.OrderType == "tempheal")
+	{
+		// But do we have pills/adrenaline?
+		local item = ::Left4Utils.GetInventoryItemInSlot(self, INV_SLOT_PILLS);
+		if (!item || !item.IsValid())
+		{
+			// Nope, nothing to do then
+			//L4B.Logger.Warning("[AI]" + self.GetPlayerName() + " can't execute 'tempheal' order; no pills/adrenaline in inventory");
+
+			BotFinalizeCurrentOrder();
+			return;
+		}
+
+		self.SwitchToItem(item.GetClassname());
+
+		// We have to heal ourselves, we don't really need to move
+		MovePos = Origin; // Set this or BotThink_Orders will call BotInitializeCurrentOrder again
+
+		BotFinalizeCurrentOrder();
+	}
 	else
 	{
 		// If the order has a DestPos, we'll move there, otherwise we'll move to DestEnt's origin
@@ -3017,6 +3046,35 @@ enum AI_AIM_TYPE {
 			}
 			else
 				L4B.Logger.Warning("[AI]" + self.GetPlayerName() + " can't execute 'heal' order; no medkit in inventory");
+
+			break;
+		}
+		case "tempheal":
+		{
+			local item = ::Left4Utils.GetInventoryItemInSlot(self, INV_SLOT_PILLS);
+			if (item && item.IsValid())
+			{
+				if (ActiveWeapon && ActiveWeapon.GetClassname() == item.GetClassname())
+				{
+					// Are we ready to use the pills/adrenaline?
+					if (CurTime > NetProps.GetPropFloat(ActiveWeapon, "m_flNextPrimaryAttack") + 0.1) // <- Add a little delay or the animation will be bugged
+					{
+						// Yes
+						L4B.Logger.Info("[AI]" + self.GetPlayerName() + " is temphealing");
+
+						L4B.PlayerPressButton(self, BUTTON_ATTACK, CurrentOrder.HoldTime, null, 0, 0, true); // <- NOTE: Vanilla AI will likely interrupt the healing if lockLook is false
+					}
+					else
+						orderComplete = false; // must wait
+				}
+				else
+				{
+					orderComplete = false; // must wait
+					self.SwitchToItem(item.GetClassname());
+				}
+			}
+			else
+				L4B.Logger.Warning("[AI]" + self.GetPlayerName() + " can't execute 'tempheal' order; no pills/adrenaline in inventory");
 
 			break;
 		}
