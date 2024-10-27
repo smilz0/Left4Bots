@@ -1,6 +1,5 @@
 Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c7m2_barge automation script...\n");
 
-::Left4Bots.Automation.step <- 0;
 ::Left4Bots.Automation.checkpointleft <- false;
 
 ::Left4Bots.Automation.OnConcept <- function(who, subject, concept, query)
@@ -18,12 +17,6 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c7m2_barge automation script
 			// *** TASK 2. Wait for the first survivor to leave the start saferoom, then start leading
 			
 			::Left4Bots.Automation.DoLead("bots");
-			break;
-
-		case "SurvivorBotReachedCheckpoint":
-			// *** TASK 3. Saferoom reached. Remove all the task and let the given orders (lead) complete
-			
-			CurrentTasks.clear();
 			break;
 	}
 }

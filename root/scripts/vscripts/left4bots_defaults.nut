@@ -73,10 +73,17 @@ witch_autocrown = 0";
 	
 	// -------------------------------------------------------
 	
+	// Default settings overrides for 'c6m1_riverbank'
+	defaults["left4bots2/cfg/settings_c6m1_riverbank.txt"] <- @"handle_l4d1_survivors = 1";
+	
+	// Default settings overrides for 'c6m2_bedlam'
+	defaults["left4bots2/cfg/settings_c6m2_bedlam.txt"] <- @"handle_l4d1_survivors = 1";
+	
 	// Default settings overrides for 'c6m3_port' in 'Advanced' difficulty
 	defaults["left4bots2/cfg/settings_c6m3_port_hard.txt"] <- @"close_saferoom_door_highres = 1
 file_weapons_prefix = ""left4bots2/cfg/weapons/c6m3_port/""
 heal_interrupt_minhealth = 40
+handle_l4d1_survivors = 1
 horde_nades_chance = 35
 jockey_redirect_damage = 45
 manual_attack_mindot = 0.90
@@ -92,6 +99,7 @@ tank_throw_survivors_mindistance = 250";
 close_saferoom_door_all_chance = 0
 close_saferoom_door_highres = 1
 file_weapons_prefix = ""left4bots2/cfg/weapons/c6m3_port/""
+handle_l4d1_survivors = 1
 heal_interrupt_minhealth = 30
 horde_nades_chance = 35
 jockey_redirect_damage = 50
@@ -108,7 +116,8 @@ tank_throw_survivors_mindistance = 260
 witch_autocrown = 0";
 	
 	// Default settings overrides for 'c6m3_port' in the other difficulties
-	defaults["left4bots2/cfg/settings_c6m3_port.txt"] <- @"file_weapons_prefix = ""left4bots2/cfg/weapons/c6m3_port/""
+	defaults["left4bots2/cfg/settings_c6m3_port.txt"] <- @"handle_l4d1_survivors = 1
+file_weapons_prefix = ""left4bots2/cfg/weapons/c6m3_port/""
 scavenge_items_flow_distance = 0";
 	
 	// -------------------------------------------------------

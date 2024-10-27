@@ -1,6 +1,5 @@
 Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c7m3_port automation script...\n");
 
-::Left4Bots.Automation.step <- 0;
 ::Left4Bots.Automation.checkpointleft <- false;
 
 // Handles the entire startup process of the generators, trying to make it synchronized for the CHAOS GENERATOR achievement

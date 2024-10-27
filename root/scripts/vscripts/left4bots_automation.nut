@@ -11,6 +11,7 @@ Msg("Including left4bots_automation...\n");
 	CurrentTasks = {}
 	Events = {}
 	PrevFlow = 0
+	step = 0
 }
 
 // Base Task. Assigns a single 'order' to the 'target' bot(s)
@@ -1032,5 +1033,32 @@ if (!IncludeScript(path + ::Left4Bots.MapName))
 	{
 		if (!IncludeScript(path + "automation_map_default"))
 			IncludeScript(path + "l4b_automation_map_default");
+	}
+}
+
+::Left4Bots.Automation.Events.OnGameEvent_player_entered_checkpoint <- function (params)
+{
+	local player = null;
+	if ("userid" in params)
+		player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+	if (!player || !player.IsValid() || GetCurrentFlowPercentForPlayer(player) < 80)
+		return;
+	
+	if (::Left4Bots.Automation.step == 999999)
+		return; // Already did it
+	
+	::Left4Bots.Logger.Debug("::Left4Bots.Automation.Events.OnGameEvent_player_entered_checkpoint");
+	
+	::Left4Bots.Automation.step = 999999;
+	::Left4Bots.Automation.CurrentTasks.clear();
+	if (!::Left4Bots.Settings.automation_stay_in_end_saferoom)
+		return;
+	
+	local mapAreas = {};
+	::Left4Utils.FindMapAreas(mapAreas);
+	if (mapAreas["checkpointB_in"])
+	{
+		::Left4Bots.Settings.move_end_radius_wait = 30;
+		::Left4Bots.Automation.DoWait("bots", mapAreas["checkpointB_in"].GetCenter());
 	}
 }

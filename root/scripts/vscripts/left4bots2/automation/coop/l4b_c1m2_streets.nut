@@ -87,7 +87,10 @@ class ::Left4Bots.Automation.C1M2ColaDelivery extends ::Left4Bots.Automation.Tas
 
 			if (!_l4b.ScavengeUseTarget)
 			{
-				_l4b.ScavengeUseTarget = Entities.FindByName(null, "cola_delivered");
+				// https://steamcommunity.com/workshop/filedetails/discussion/3022416274/3805032265614332990/?ctp=19#c4848777451361531788
+				// ^ For some reason that mod removes the name of the point_prop_use_target
+				//_l4b.ScavengeUseTarget = Entities.FindByName(null, "cola_delivered");
+				_l4b.ScavengeUseTarget = Entities.FindByClassname(null, "point_prop_use_target");
 				if (!_l4b.ScavengeUseTarget)
 				{
 					_l4b.Logger.Error("C1M2ColaDelivery.Think - point_prop_use_target not found!!!");

@@ -12,6 +12,9 @@
 	// [1/0] Enable/Disable the automation debug text overlay (only visible to the host)
 	automation_debug = 0
 
+	// [1/0] 1 = Once the bots reach the end saferoom, a wait inside the saferoom order is automatically given to all the bots (useful in Tank Run mutation)
+	automation_stay_in_end_saferoom = 0
+
 	// Interval of the main bot Think function (default is 0.1 which means 10 ticks per second)
 	// Set the max i can get even though the think functions can go up to 30 ticks per second (interval 0.0333) and the CTerrorPlayer entities limit their think functions to max 15 ticks per second (0.06666)
 	// -1 automatically sets the fastest interval possible
@@ -167,7 +170,7 @@
 	// 1 = Yes but for the items pickup/throw only (can be useful considering that the itemstoavoid logics also affect the L4D1 bots and will likely make them not pickup any weapon with vanilla AI)
 	// 2 = Yes (full AI like the main bots)
 	// NOTE: This does only apply when the main team is the L4D2 one, it has no effect when the L4D1 survivors are spawned as the main team
-	handle_l4d1_survivors = 1
+	handle_l4d1_survivors = 2
 
 	// When the bot tries to heal with health >= this (usually they do it in the start saferoom) the addon will interrupt it, unless there is no human in the team
 	// or there are enough spare medkits around for the bot and the teammates who also need it
