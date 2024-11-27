@@ -1,0 +1,3 @@
+allow_all_bot_survivor_team 1
+sb_enforce_proximity_range 999999
+spec_lockedchasecam 0 
