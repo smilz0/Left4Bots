@@ -100,6 +100,7 @@ IncludeScript("left4bots_requirements");
 	L4F = false
 	LastSignalType = ""
 	LastSignalTime = 0
+	AntiPipebombBugSetup = false
 	OnTankSettings = {}
 	OnTankSettingsBak = {}
 	OnTankCvars = {}
@@ -3515,6 +3516,84 @@ if (activator && isWorthPickingUp)
 	{
 		//set the correct index //https://forums.alliedmods.net/showthread.php?p=1621340#post1621340
 		NetProps.SetPropInt(weapon, "m_iWorldModelIndex", GetModelIndex(weapon.GetModelName()));
+	}
+}
+
+// Removes any active pipe bomb from the map, if needed
+::Left4Bots.HandleAntiPipebombBug <- function ()
+{
+	Logger.Debug("HandleAntiPipebombBug");
+	
+	if (!::Left4Bots.Settings.anti_pipebomb_bug || !::Left4Bots.OtherSurvivorsInCheckpoint(-1)) // -1 is like: is everyone in checkpoint?
+		return;
+
+	::Left4Bots.ClearPipeBombs();
+
+	// If someone is holding a pipe bomb we'll also force them to switch to another weapon to make sure they don't throw the bomb while the door is closing
+	foreach (surv in ::Left4Bots.Survivors)
+	{
+		local activeWeapon = surv.GetActiveWeapon();
+		if (activeWeapon && activeWeapon.GetClassname() == "weapon_pipe_bomb")
+			::Left4Bots.BotSwitchToAnotherWeapon(surv);
+	}
+}
+
+// Handles the logics for sending survivor bots to close the door
+// player is the survivor that triggered it (the one who is entering the saferoom or speaking the close the door vocalizer line)
+::Left4Bots.HandleCloseDoor <- function (player, door = null, area = null)
+{
+	if (!Left4Bots.IsHandledSurvivor(player) || !Left4Bots.Settings.close_saferoom_door)
+		return;
+
+	if (!door)
+		door = Entities.FindByClassnameNearest("prop_door_rotating_checkpoint", player.GetOrigin(), 1000);
+	if (!door || !door.IsValid())
+	{
+		Logger.Debug("HandleCloseDoor - No door!");
+		return;
+	}
+	
+	if (!area)
+		area = NavMesh.GetNearestNavArea(door.GetOrigin(), 200, false, false);
+
+	local allBots = RandomInt(1, 100) <= Left4Bots.Settings.close_saferoom_door_all_chance;
+	if ((!allBots && !Left4Bots.IsHandledBot(player)) || !::Left4Bots.ShouldCloseSaferoomDoor(player.GetPlayerUserId(), ::Left4Bots.Settings.close_saferoom_door_behind_range))
+		return;
+
+	local state = NetProps.GetPropInt(door, "m_eDoorState"); // 0 = closed - 1 = opening - 2 = open - 3 = closing
+	if (state == 0 || state == 3)
+		return;
+
+	local doorZ = player.GetOrigin().z;
+	if (area)
+	{
+		doorZ = area.GetCenter().z;
+			
+		Left4Bots.Logger.Debug("OnGameEvent_player_entered_checkpoint - area: " + area.GetID() + " - DoorZ: " + doorZ);
+	}
+	else
+		Left4Bots.Logger.Debug("OnGameEvent_player_entered_checkpoint - area is null! - DoorZ: " + doorZ);
+
+	if (Left4Bots.IsHandledBot(player))
+	{
+		local scope = player.GetScriptScope();
+		scope.DoorAct = AI_DOOR_ACTION.Saferoom;
+		scope.DoorEnt = door; // This tells the bot to close the door. From now on, the bot will start looking for the best moment to close the door without locking himself out (will try at least)
+		scope.DoorZ = doorZ;
+	}
+
+	if (allBots)
+	{
+		foreach (bot in Left4Bots.Bots)
+		{
+			if (bot != player && ::Left4Bots.IsSurvivorInCheckpoint(bot))
+			{
+				local scope = bot.GetScriptScope();
+				scope.DoorAct = AI_DOOR_ACTION.Saferoom;
+				scope.DoorEnt = door; // This tells the bot to close the door. From now on, the bot will start looking for the best moment to close the door without locking himself out (will try at least)
+				scope.DoorZ = doorZ;
+			}
+		}
 	}
 }
 

@@ -1144,7 +1144,7 @@ enum AI_AIM_TYPE {
 		}
 		case 2:
 		{
-			BotThink_Defib();
+			BotThink_Defib(); // TODO: turn this into an order
 			break;
 		}
 		case 3:

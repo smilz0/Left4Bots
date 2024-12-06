@@ -666,59 +666,22 @@ Msg("Including left4bots_events...\n");
 	if ("userid" in params)
 		player = g_MapScript.GetPlayerFromUserID(params["userid"]);
 
-	if (!Left4Bots.IsHandledSurvivor(player))
-		return;
-
 	local door = null;
 	if ("door" in params)
 		door = EntIndexToHScript(params["door"]);
 
-	local allBots = RandomInt(1, 100) <= Left4Bots.Settings.close_saferoom_door_all_chance;
+	local area = null;
+	if ("area" in params)
+		area = NavMesh.GetNavAreaByID(params["area"]);
 
-	if (Left4Bots.Settings.close_saferoom_door && door && door.IsValid() && (allBots || Left4Bots.IsHandledBot(player)) && ::Left4Bots.ShouldCloseSaferoomDoor(player.GetPlayerUserId(), ::Left4Bots.Settings.close_saferoom_door_behind_range))
+	if (!::Left4Bots.AntiPipebombBugSetup && player && door && player.IsValid() && door.IsValid() && GetCurrentFlowPercentForPlayer(player) >= 85)
 	{
-		local state = NetProps.GetPropInt(door, "m_eDoorState"); // 0 = closed - 1 = opening - 2 = open - 3 = closing
-		if (state != 0 && state != 3)
-		{
-			local area = null;
-			if ("area" in params)
-				area = NavMesh.GetNavAreaByID(params["area"]);
-			else
-				area = NavMesh.GetNearestNavArea(door.GetOrigin(), 200, false, false);
-
-			local doorZ = player.GetOrigin().z;
-			if (area)
-			{
-				doorZ = area.GetCenter().z;
-
-				Left4Bots.Logger.Debug("OnGameEvent_player_entered_checkpoint - area: " + area.GetID() + " - DoorZ: " + doorZ);
-			}
-			else
-				Left4Bots.Logger.Debug("OnGameEvent_player_entered_checkpoint - area is null! - DoorZ: " + doorZ);
-
-			if (Left4Bots.IsHandledBot(player))
-			{
-				local scope = player.GetScriptScope();
-				scope.DoorAct = AI_DOOR_ACTION.Saferoom;
-				scope.DoorEnt = door; // This tells the bot to close the door. From now on, the bot will start looking for the best moment to close the door without locking himself out (will try at least)
-				scope.DoorZ = doorZ;
-			}
-			
-			if (allBots)
-			{
-				foreach (bot in Left4Bots.Bots)
-				{
-					if (bot != player && ::Left4Bots.IsSurvivorInCheckpoint(bot))
-					{
-						local scope = bot.GetScriptScope();
-						scope.DoorAct = AI_DOOR_ACTION.Saferoom;
-						scope.DoorEnt = door; // This tells the bot to close the door. From now on, the bot will start looking for the best moment to close the door without locking himself out (will try at least)
-						scope.DoorZ = doorZ;
-					}
-				}
-			}
-		}
+		::Left4Bots.Logger.Debug("OnGameEvent_player_entered_checkpoint - Exit checkpoint door: " + door.GetName());
+		EntityOutputs.AddOutput(door, "OnClose", "worldspawn", "RunScriptCode", "::Left4Bots.HandleAntiPipebombBug()", 0, -1);
+		::Left4Bots.AntiPipebombBugSetup = true;
 	}
+
+	::Left4Bots.HandleCloseDoor(player, door, area);
 }
 
 ::Left4Bots.Events.OnGameEvent_revive_begin <- function (params)
@@ -758,24 +721,6 @@ Msg("Including left4bots_events...\n");
 	Left4Bots.Logger.Debug("OnGameEvent_finale_vehicle_ready");
 
 	Left4Bots.EscapeStarted = true;
-}
-
-::Left4Bots.Events.OnGameEvent_door_close <- function (params)
-{
-	local checkpoint = params["checkpoint"];
-	// TODO: is there any other way to know if we are in the exit checkpoint? Director.IsAnySurvivorInExitCheckpoint() doesn't even work. It returns true for the starting checkpoint too
-	if (checkpoint && Left4Bots.Settings.anti_pipebomb_bug /*&& Director.IsAnySurvivorInExitCheckpoint()*/ && Left4Bots.OtherSurvivorsInCheckpoint(-1)) // -1 is like: is everyone in checkpoint?
-	{
-		Left4Bots.ClearPipeBombs();
-
-		// If someone is holding a pipe bomb we'll also force them to switch to another weapon to make sure they don't throw the bomb while the door is closing
-		foreach (surv in ::Left4Bots.Survivors)
-		{
-			local activeWeapon = surv.GetActiveWeapon();
-			if (activeWeapon && activeWeapon.GetClassname() == "weapon_pipe_bomb")
-				Left4Bots.BotSwitchToAnotherWeapon(surv);
-		}
-	}
 }
 
 ::Left4Bots.FriendlyFireDebug <- function (attacker, victim, guilty)
@@ -2333,6 +2278,11 @@ settings
 				
 				Logger.Debug("FinalVehicleArrived");
 			}
+			
+			break;
+		
+		case "PlayerLockTheDoorCheckPoint":
+			::Left4Bots.HandleCloseDoor(who);
 			
 			break;
 		
