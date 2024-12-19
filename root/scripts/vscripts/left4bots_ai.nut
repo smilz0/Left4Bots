@@ -1630,6 +1630,13 @@ enum AI_AIM_TYPE {
 	
 	if (CurrentOrder.OrderType == "follow")
 	{
+		if (CurrentOrder.DestEnt.IsDead())
+		{
+			// no sense in "following" dead player, cancel order
+			BotCancelCurrentOrder();
+			return;
+		}
+		
 		if (BotIsInPause(CurrentOrder.CanPause, false, false, CurrentOrder.MaxSeparation, CurrentOrder.DestEnt, L4B.Settings.follow_pause_radius))
 			return;
 	}
