@@ -43,6 +43,9 @@
 		}
 	}
 	
+	//lxc Move from BotThink_Main to here, almost no difference about kill infected, and it can also save performance
+	BotManualAttack();
+	
 	//lxc lock func
 	BotLockShoot();
 }
