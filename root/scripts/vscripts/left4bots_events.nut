@@ -505,11 +505,8 @@ Msg("Including left4bots_events...\n");
 		//lxc if not gun or melee, skip
 		if (scope.ActiveWeaponSlot == 0 || scope.ActiveWeaponSlot == 1)
 		{
-			//lxc
 			scope.LastFireTime = Time();
-			if (scope.BotAim())
-				//lxc Full Automatic Weapon, so we don't need release attack button
-				NetProps.SetPropInt(player.GetActiveWeapon(), "m_isHoldingFireButton", 0);
+			scope.BotAim();
 		}
 	}
 }
@@ -816,37 +813,26 @@ Msg("Including left4bots_events...\n");
 ::Left4Bots.Events.OnGameEvent_player_hurt <- function (params)
 {
 	local player = g_MapScript.GetPlayerFromUserID(params["userid"]);
-
-	/*
-	local attacker = g_MapScript.GetPlayerFromUserID(params["attacker"]);
-	if (!attacker && ("attackerentid" in params))
-		attacker = EntIndexToHScript(params["attackerentid"]);
-
-	local weapon = "";
-	if ("weapon" in params)
-		weapon = params["weapon"];
-	local type = -1;
-	if ("type" in params)
-		type = params["type"]; // commons do DMG_CLUB
-
-	if (attacker)
-		Left4Bots.Logger.Debug("OnGameEvent_player_hurt - player: " + player.GetPlayerName() + " - attacker: " + attacker + " - weapon: " + weapon + " - type: " + type);
-	else
-		Left4Bots.Logger.Debug("OnGameEvent_player_hurt - player: " + player.GetPlayerName() + " - weapon: " + weapon + " - type: " + type);
-	*/
-
+	
 	if (Left4Bots.IsHandledBot(player))
 	{
 		local weapon = "";
 		if ("weapon" in params)
 			weapon = params["weapon"];
-
+		
 		if (weapon == "insect_swarm" || weapon == "inferno")
 		{
 			// Pause the 'wait' order if the bot is being damaged by the spitter's spit or the fire
 			local scope = player.GetScriptScope();
 			if (scope.Waiting && !scope.Paused)
 				scope.BotPause();
+		}
+		else if ((weapon == "tank_rock" || weapon == "tank_claw") && !player.IsIncapacitated())
+		{
+			local scope = player.GetScriptScope();
+			if (scope.Waiting && !scope.Paused)
+				scope.BotPause();
+			scope.Airborne = true;
 		}
 	}
 }
@@ -1085,6 +1071,20 @@ Msg("Including left4bots_events...\n");
 	local victim = g_MapScript.GetPlayerFromUserID(params["victim"]);
 
 	Left4Bots.SpecialGotSurvivor(player, victim, "lunge_pounce");
+}
+
+// fix bots hit by tank, rock or charger, sometimes not fire after getting up.
+::Left4Bots.Events.OnGameEvent_charger_impact <- function (params)
+{
+	local player = g_MapScript.GetPlayerFromUserID(params["victim"]);
+	
+	if (Left4Bots.IsHandledBot(player))
+	{
+		local scope = player.GetScriptScope();
+		if (scope.Waiting && !scope.Paused)
+			scope.BotPause();
+		scope.Airborne = true;
+	}
 }
 
 // -----

@@ -135,17 +135,21 @@ enum AI_AIM_TYPE {
 
 	//lxc add
 	scope.AimType <- AI_AIM_TYPE.None;
+	scope.AimHead <- true;
 	scope.AimEnt <- null; //if target is moving, we can follow it current pos each time
 	scope.AimPos <- null; //for fixed pos
 	//↑ only set one of this.
 	scope.AimPitch <- 0;
 	scope.AimYaw <- 0;
+	scope.LastAimTime <- 0;
+	scope.LastAimAngles <- null;
 	scope.Aim_StartTime <- 0;
 	scope.Aim_Duration <- 0;
 	scope.Aim_TimeStamp <- 0; //if not update target until this time, close func
 	scope["BotAim"] <- AIFuncs.BotAim;
 	scope["BotSetAim"] <- AIFuncs.BotSetAim;
 	scope["BotUnSetAim"] <- AIFuncs.BotUnSetAim;
+	scope["BotLookAt"] <- AIFuncs.BotLookAt;
 	//lxc don't send move command until
 	scope.NextMoveTime <- 0;
 	//lxc lock func
@@ -155,6 +159,8 @@ enum AI_AIM_TYPE {
 	
 	//lxc add
 	scope.LastFireTime <- 0;
+	scope.Airborne <- false;
+	scope.AttackButtonForced <- false;
 	
 	AddThinkToEnt(bot, "BotThink_Main");
 }
@@ -217,22 +223,28 @@ enum AI_AIM_TYPE {
 
 	//lxc add
 	scope.AimType <- AI_AIM_TYPE.None;
+	scope.AimHead <- true;
 	scope.AimEnt <- null; //if target is moving, we can follow it current pos each time
 	scope.AimPos <- null; //for fixed pos
 	//↑ only set one of this.
 	scope.AimPitch <- 0;
 	scope.AimYaw <- 0;
+	scope.LastAimTime <- 0;
+	scope.LastAimAngles <- null;
 	scope.Aim_StartTime <- 0;
 	scope.Aim_Duration <- 0;
 	scope.Aim_TimeStamp <- 0; //if not update target until this time, close func
 	scope["BotAim"] <- AIFuncs.BotAim;
 	scope["BotSetAim"] <- AIFuncs.BotSetAim;
 	scope["BotUnSetAim"] <- AIFuncs.BotUnSetAim;
+	scope["BotLookAt"] <- AIFuncs.BotLookAt;
 	//lxc don't send move command until
 	scope.NextMoveTime <- 0;
 	
 	//lxc add
 	scope.LastFireTime <- 0;
+	scope.Airborne <- false;
+	scope.AttackButtonForced <- false;
 	
 	AddThinkToEnt(bot, "BotThink_Main");
 }
@@ -1048,9 +1060,22 @@ enum AI_AIM_TYPE {
 			if (DelayedReset)
 				BotReset(true);
 		}
+		if (AimType != AI_AIM_TYPE.None)
+			BotUnSetAim();
+		
 		return L4B.Settings.bot_think_interval;
 	}
-
+	
+	if (Airborne) // look at foot, simple way to fix the not fire bug
+	{
+		if (NetProps.GetPropEntity(self, "m_hGroundEntity"))
+		{
+			Left4Utils.BotLookAt(self, Origin);
+			Airborne = false;
+		}
+		return L4B.Settings.bot_think_interval;
+	}
+	
 	// Don't do anything if the bot is on a ladder or the mode hasn't started yet
 	if (NetProps.GetPropInt(self, "movetype") == 9 /* MOVETYPE_LADDER */ || !L4B.ModeStarted)
 		return L4B.Settings.bot_think_interval;
@@ -1081,6 +1106,8 @@ enum AI_AIM_TYPE {
 			if (to && to.IsValid())
 			{
 				self.SetVelocity(Vector(0,0,0));
+				// need more step to avoid fall damage
+				NetProps.SetPropInt(self, "m_fFlags", NetProps.GetPropInt(self, "m_fFlags") | 1); // 1 = FL_ONGROUND
 				//lxc fix "warp" pos
 				self.SetOrigin(to.IsHangingFromLedge() ? NetProps.GetPropVector(to, "m_hangStandPos") : to.GetOrigin());
 
@@ -1128,7 +1155,8 @@ enum AI_AIM_TYPE {
 	if (CurTime < HurryUntil) // TODO: Maybe we should also stop high priority moves
 	{
 		// "hurry" command was used
-		BotThink_Misc(); // Still need to trigger car alarms
+		if (FuncI == 5)
+			BotThink_Misc(); // Still need to trigger car alarms
 		return L4B.Settings.bot_think_interval;
 	}
 
@@ -1139,12 +1167,15 @@ enum AI_AIM_TYPE {
 	{
 		case 1:
 		{
-			BotThink_Pickup();
+			//lxc avoid interrupt other order
+			// in test, although bot are throwing a grenade, he also turn to pickup item, then throw the grenade at feet.
+			if (AimType <= AI_AIM_TYPE.Shoot)
+				BotThink_Pickup();
 			break;
 		}
 		case 2:
 		{
-			BotThink_Defib(); // TODO: turn this into an order
+			BotThink_Defib();
 			break;
 		}
 		case 3:
@@ -1166,9 +1197,7 @@ enum AI_AIM_TYPE {
 			break;
 		}
 	}
-
-	BotManualAttack();
-
+	
 	return L4B.Settings.bot_think_interval;
 }
 
@@ -1203,9 +1232,22 @@ enum AI_AIM_TYPE {
 			if (DelayedReset)
 				BotReset(true);
 		}
+		if (AimType != AI_AIM_TYPE.None)
+			BotUnSetAim();
+		
 		return L4B.Settings.bot_think_interval;
 	}
-
+	
+	if (Airborne) // look at foot, simple way to fix the not fire bug
+	{
+		if (NetProps.GetPropEntity(self, "m_hGroundEntity"))
+		{
+			Left4Utils.BotLookAt(self, Origin);
+			Airborne = false;
+		}
+		return L4B.Settings.bot_think_interval;
+	}
+	
 	// Don't do anything if the bot is on a ladder or the mode hasn't started yet
 	if (NetProps.GetPropInt(self, "movetype") == 9 /* MOVETYPE_LADDER */ || !L4B.ModeStarted)
 		return L4B.Settings.bot_think_interval;
@@ -1231,10 +1273,9 @@ enum AI_AIM_TYPE {
 	{
 		case 1:
 		{
-			if (AimType >= AI_AIM_TYPE.Throw) //lxc don't do anything if Throw
-				return L4B.Settings.bot_think_interval;
-			
-			BotThink_Pickup();
+			//lxc avoid interrupt other order
+			if (AimType <= AI_AIM_TYPE.Shoot)
+				BotThink_Pickup();
 			break;
 		}
 		case 3:
@@ -1242,10 +1283,13 @@ enum AI_AIM_TYPE {
 			BotThink_Throw();
 			break;
 		}
+		case 5:
+		{
+			BotManualAttack();
+			break;
+		}
 	}
-
-	BotManualAttack();
-
+	
 	return L4B.Settings.bot_think_interval;
 }
 
@@ -1797,6 +1841,9 @@ enum AI_AIM_TYPE {
 			L4B.TriggerCarAlarm(self, groundEnt);
 	}
 	
+	//lxc Move from BotThink_Main to here, almost no difference about kill infected, and it can also save performance
+	BotManualAttack();
+	
 	//lxc lock func
 	BotLockShoot();
 }
@@ -1850,14 +1897,17 @@ enum AI_AIM_TYPE {
 	else if (((MovePos && Paused == 0) || L4B.Settings.manual_attack_always) /*&& NetProps.GetPropInt(self, "m_hasVisibleThreats")*/) // m_hasVisibleThreats indicates that a threat is in the bot's current field of view. An infected behind the bot won't set this
 	{
 		// If no close target or we cannot melee or shove it at the moment, then handle manual shooting to targets in our field of view
-		if (ActiveWeapon && !NetProps.GetPropInt(ActiveWeapon, "m_bInReload"))
+		if (ActiveWeapon && (ActiveWeaponSlot == 0 || ActiveWeaponSlot == 1) && !NetProps.GetPropInt(ActiveWeapon, "m_bInReload"))
 		{
-			if (ActiveWeaponSlot == 0 || ActiveWeaponSlot == 1)
+			// This check fixes weapon can't fire when holding the ATTACK btton during deploy, any reason for switching weapons may cause it.
+			if (self.IsFiringWeapon() || CurTime >= NetProps.GetPropFloat(ActiveWeapon, "m_flNextPrimaryAttack"))
 			{
 				local tgt = L4B.FindBotNearestEnemy(self, Origin, L4B.GetWeaponRangeById(ActiveWeaponId), L4B.Settings.manual_attack_mindot);
 				if (tgt)
 				{
-					BotSetAim(AI_AIM_TYPE.Shoot, tgt, 0.1); //need refresh target next time
+					// grenade_launcher may fly overhead, so aim the foot
+					local target = ActiveWeaponId != Left4Utils.WeaponId.weapon_grenade_launcher ? tgt.ent : tgt.ent.GetOrigin();
+					BotSetAim(AI_AIM_TYPE.Shoot, target, 0.166, 0, 0, tgt.head); //need refresh target next time
 					Left4Utils.PlayerForceButton(self, BUTTON_ATTACK);
 				}
 				// Bots always reload for no reason while executing a MOVE command. Don't let them if there are visible threats and still rounds in the magazine
@@ -3611,16 +3661,19 @@ enum AI_AIM_TYPE {
 }
 
 //lxc
-::Left4Bots.AIFuncs.BotSetAim <- function (type, target, duration, pitch = 0, yaw = 0)
+::Left4Bots.AIFuncs.BotSetAim <- function (type, target, duration, pitch = 0, yaw = 0, head = true)
 {
 	if (target) //lxc if no target, cancel aim (for "heal self","tempheal","deploy" order)
 	{
-		Aim_StartTime = Time();
 		AimType = type;
+		AimHead = head;
+		Aim_StartTime = CurTime;
 		Aim_Duration = duration;
 		Aim_TimeStamp = Aim_StartTime + Aim_Duration;
 		AimPitch = pitch;
 		AimYaw = yaw;
+		if (LastAimTime != Time())
+			LastAimAngles = null;
 		
 		if (typeof(target) == "instance")
 		{
@@ -3640,6 +3693,7 @@ enum AI_AIM_TYPE {
 ::Left4Bots.AIFuncs.BotUnSetAim <- function ()
 {
 	AimType = AI_AIM_TYPE.None;
+	AimHead = true;
 	Aim_Duration = 0;
 	Aim_TimeStamp = 0;
 	AimEnt = null;
@@ -3647,8 +3701,9 @@ enum AI_AIM_TYPE {
 	AimPitch = 0;
 	AimYaw = 0;
 	
-	//lxc release attack button //TODO find a better way to release button
-	Left4Utils.PlayerUnForceButton(self, BUTTON_ATTACK);
+	//lxc release attack button and don't stop other order //TODO find a better way to do this
+	if (!AttackButtonForced)
+		Left4Utils.PlayerUnForceButton(self, BUTTON_ATTACK);
 }
 
 //lxc if only aim in "weapon_fire" event, bots will keep shaking their head, which will also cause them to slow down, so need to always set the eye angles.
@@ -3657,7 +3712,7 @@ enum AI_AIM_TYPE {
 	if (AimType != AI_AIM_TYPE.None)
 	{
 		// Aim at the last tick, then close
-		if (Time() >= Aim_TimeStamp && (Time() - Aim_TimeStamp > fixtime || !(close = true)))
+		if (CurTime >= Aim_TimeStamp && (CurTime - Aim_TimeStamp > fixtime || !(close = true)))
 		{
 			close = true;
 		}
@@ -3666,26 +3721,120 @@ enum AI_AIM_TYPE {
 			// if target is invalid or dead, delete it
 			if (AimEnt.IsValid() && NetProps.GetPropInt(AimEnt, "m_lifeState") <= 0)
 			{
-				Left4Utils.BotLookAt(self, L4B.GetHitPos(AimEnt, (L4B.Settings.manual_attack_skill > 1 || AimType > AI_AIM_TYPE.Melee)), AimPitch, AimYaw);
+				BotLookAt(L4B.GetHitPos(AimEnt, AimHead), AimPitch, AimYaw);
 			}
 			else
 				close = true;
 		}
 		else if (AimPos)
 		{
-			Left4Utils.BotLookAt(self, AimPos, AimPitch, AimYaw);
+			BotLookAt(AimPos, AimPitch, AimYaw);
 		}
 		else
 		{
 			close = true;
 		}
-		if (close)
-			BotUnSetAim();
 		
-		//lxc for "weapon_fire" event
-		//limit dual pistol dps
-		return !close && (L4B.Settings.manual_attack_skill > 2 || ActiveWeaponId != Left4Utils.WeaponId.weapon_pistol || (CurTime - LastFireTime >= 0.19 && NetProps.SetPropInt(ActiveWeapon, "m_isHoldingFireButton", 0)));
+		if (close)
+		{
+			BotUnSetAim();
+		}
+		else //lxc for "weapon_fire" event
+		{
+			//limit dual pistol dps
+			if (L4B.Settings.manual_attack_dual_pistol_nerf && ActiveWeaponId == Left4Utils.WeaponId.weapon_pistol && NetProps.GetPropInt(ActiveWeapon, "m_hasDualWeapons") > 0 && LastFireTime > 0)
+			{
+				local NextFireTime = NetProps.GetPropFloat(ActiveWeapon, "m_flNextPrimaryAttack");
+				if (NextFireTime > LastFireTime)
+				{
+					LastFireTime = 0;
+					if (ActiveWeapon.Clip1() > 0)
+						NetProps.SetPropFloat(ActiveWeapon, "m_flNextPrimaryAttack", NextFireTime + 0.1);
+				}
+			}
+			
+			// Full Automatic Weapon, so we don't need release attack button
+			NetProps.SetPropInt(ActiveWeapon, "m_isHoldingFireButton", 0);
+		}
 	}
+}
+
+::Left4Bots.AIFuncs.BotLookAt <- function (target = null, deltaPitch = 0, deltaYaw = 0)
+{
+	local angles = self.EyeAngles();
+	local position = null;
+	if (target != null)
+	{
+		if ((typeof target) == "instance" && target.IsValid())
+			position = target.GetOrigin();
+		else if ((typeof target) == "Vector")
+			position = target;
+	}
+	
+	local dist = 0;
+	if (position != null)
+	{
+		local v = position - self.EyePosition();
+		dist = v.Norm();
+		angles = Left4Utils.VectorAngles(v);
+	}
+	
+	if (deltaPitch != 0 || deltaYaw != 0)
+		angles = RotateOrientation(angles, QAngle(deltaPitch, deltaYaw, 0));
+	
+	if (AimType == AI_AIM_TYPE.Low || AimType == AI_AIM_TYPE.Shoot || AimType == AI_AIM_TYPE.Rock)
+	{
+		// when "weapon_fire" event trigger, thinkfunc has not exec, if use 'CurTime', will roate camera twice at the same time
+		if (LastAimTime == Time())
+			return;
+		
+		function DecayAngle(Angle, v = Vector(), tick = 1.0/30.0)
+		{
+			local decay_rate = L4B.Settings.manual_attack_saccade_speed;
+			
+			v.x = Angle.x;
+			v.y = Angle.y;
+			v.z = 0;
+			
+			// Calculate the minimum diffs
+			while (v.x <= -180) v.x += 360;
+			while (v.x > 180) v.x -= 360;
+			while (v.y <= -180) v.y += 360;
+			while (v.y > 180) v.y -= 360;
+			
+			local len = v.Norm();
+			local decay = decay_rate * tick;
+			
+			// Slow down the speed when approaching the target
+			// The code is deduced based on the test results, I don't know how the Valve's code is
+			local slow = 33; //tick * 1000.0;
+			decay = decay * ((len >= slow) ? 1.0 : (len / slow));
+			
+			len -= decay;
+			// The target has been aimed at and it's time to fire
+			if (len <= pow(0.97, dist * 0.01) * 2)
+				NetProps.SetPropInt(ActiveWeapon, "m_releasedFireButton", 1);
+			else
+				NetProps.SetPropInt(ActiveWeapon, "m_releasedFireButton", 0);
+			
+			// Smoother when stop
+			if (len <= decay_rate * 0.001)
+				return Angle;
+			
+			v *= decay;
+			return QAngle(v.x, v.y, 0);
+		}
+		
+		// bot will look around, so the eye angle may not be the value we last changed.
+		local eyeang = !LastAimAngles ? self.EyeAngles() : LastAimAngles;
+		local diff = angles - eyeang;
+		angles = eyeang + DecayAngle(diff);
+	}
+	
+	LastAimTime = Time();
+	LastAimAngles = angles;
+	
+	self.SnapEyeAngles(angles);
 }
 
 //...

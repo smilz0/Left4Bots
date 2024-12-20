@@ -884,14 +884,13 @@ IncludeScript("left4bots_settings");
 		
 		if (ret && Left4Utils.CanTraceTo(bot, ret, tracemask_others))
 		{
-			return ret;
+			return { ent = ret, head = ret_data[0] <= Settings.manual_attack_special_head_radius };
 		}
 	}
 	
 	ret_array.clear();
 	
 	//lxc kill raged Witch if no Specials nearby
-	
 	foreach (witch in Witches)
 	{
 		// fix for https://github.com/smilz0/Left4Bots/issues/84
@@ -915,11 +914,13 @@ IncludeScript("left4bots_settings");
 		
 		if (ret && Left4Utils.CanTraceTo(bot, ret, tracemask_others))
 		{
-			return ret;
+			return { ent = ret, head = true };
 		}
 	}
 	
 	ret_array.clear();
+	
+	// [NEW] Added Tanks to the list of targets for SurvivorBots to shoot so they don't take too long to react to its presence.
 	
 	foreach (tank in Tanks)
 	{
@@ -936,7 +937,7 @@ IncludeScript("left4bots_settings");
 	local tank = null;
 	local newRadius = radius;
 	
-	// [NEW] Sort the array from closest to farthest common infected so the `CanTraceTo` function doesn't have to perform as many traces.
+	// [NEW] Sort the array from closest to farthest Tank so the `CanTraceTo` function doesn't have to perform as many traces.
 	
 	ret_array.sort(function (a, b) {return a[0] - b[0]});
 	
@@ -955,8 +956,6 @@ IncludeScript("left4bots_settings");
 	
 	ret_array.clear();
 	
-	// [NEW] Added Tanks to the list of targets for SurvivorBots to shoot so they don't take too long to react to its presence.
-	
 	local ent = null;
 	while (ent = Entities.FindByClassnameWithin(ent, "infected", orig, newRadius)) // If only we had a infected_spawned event for the commons...
 	{
@@ -964,15 +963,15 @@ IncludeScript("left4bots_settings");
 		{
 			local toEnt = ent.GetOrigin() - orig;
 			local dist = toEnt.Norm();
-																	//lxc ignore wandering infected
-			if (botFacing.Dot(toEnt) >= minDot && (Settings.manual_attack_skill >= 3 || IsInfectedAngry(ent)))
+			
+			if (botFacing.Dot(toEnt) >= minDot && !IsRiotPolice(ent, toEnt) && (Settings.manual_attack_wandering || IsInfectedAngry(ent)))
 			{
 				ret_array.append([dist, ent]);
 			}
 		}
 	}
 	
-	// [NEW] Sort the array from closest to farthest Tank so the `CanTraceTo` function doesn't have to perform as many traces.
+	// [NEW] Sort the array from closest to farthest common infected so the `CanTraceTo` function doesn't have to perform as many traces.
 	
 	ret_array.sort(function (a, b) {return a[0] - b[0]});
 	
@@ -982,11 +981,11 @@ IncludeScript("left4bots_settings");
 		
 		if (ret && Left4Utils.CanTraceTo(bot, ret, tracemask_others))
 		{
-			return ret;
+			return { ent = ret, head = ret_data[0] <= Settings.manual_attack_common_head_radius };
 		}
 	}
 	
-	return tank;
+	return tank ? { ent = tank, head = true } : tank;
 }
 
 // Called when the bot's pick-up algorithm decides to pick the item up
@@ -2503,8 +2502,12 @@ if (activator && isWorthPickingUp)
 ::Left4Bots.GetWeaponRangeById <- function (weaponId)
 {
 	if (weaponId > Left4Utils.MeleeWeaponId.none || weaponId == Left4Utils.WeaponId.weapon_chainsaw)
-		return Settings.manual_attack_radius < 100 ? Settings.manual_attack_radius : 100; // TODO: maybe we should make it a setting
-
+	{
+		//lxc use "melee_range", otherwise the bots might just swing melee and hit nothing.
+		local melee_range = Convars.GetFloat("melee_range");
+		return Settings.manual_attack_radius < melee_range ? Settings.manual_attack_radius : melee_range; // TODO: maybe we should make it a setting
+	}
+	
 	if (weaponId == Left4Utils.WeaponId.weapon_pumpshotgun || weaponId == Left4Utils.WeaponId.weapon_autoshotgun || weaponId == Left4Utils.WeaponId.weapon_shotgun_chrome || weaponId == Left4Utils.WeaponId.weapon_shotgun_spas)
 		return Settings.manual_attack_radius < 600 ? Settings.manual_attack_radius : 600;
 
@@ -3254,6 +3257,11 @@ if (activator && isWorthPickingUp)
 	}
 	else
 	{
+		if (button == BUTTON_ATTACK)
+		{
+			local scope = bot.GetScriptScope();
+			scope.AttackButtonForced = false;
+		}
 		Left4Utils.PlayerUnForceButton(bot, button);
 		if (lockLook)
 			Left4Utils.UnfreezePlayer(bot);
@@ -3274,6 +3282,11 @@ if (activator && isWorthPickingUp)
 	}
 	else
 	{
+		if (button == BUTTON_ATTACK)
+		{
+			local scope = bot.GetScriptScope();
+			scope.AttackButtonForced = false;
+		}
 		Left4Utils.PlayerUnForceButton(bot, button);
 		if (lockLook)
 			Left4Utils.UnfreezePlayer(bot);
@@ -3283,7 +3296,6 @@ if (activator && isWorthPickingUp)
 // get head, otherwise return center pos
 ::Left4Bots.GetHitPos <- function (victim, head = true)
 {
-	//lxc use "GetLastKnownArea" replace "LookupBone"
 	if ("GetLastKnownArea" in victim)
 	{
 		if (head)
@@ -3302,6 +3314,9 @@ if (activator && isWorthPickingUp)
 			if (BoneId != -1 || (BoneId = victim.LookupBone("bip_spine_1")) != -1)
 				return victim.GetBoneOrigin(BoneId);
 		}
+		// Fast Headcrab (Jockey) https://steamcommunity.com/sharedfiles/filedetails/?id=3121830019
+		// this model use custom named bone, and cannot hit Center pos
+		return victim.GetBoneOrigin(0);
 	}
 	
 	//lxc center should be better
@@ -3345,6 +3360,13 @@ if (activator && isWorthPickingUp)
 	
 	if (destination != null || deltaPitch != 0 || deltaYaw != 0)
 		Left4Utils.BotLookAt(player, destination, deltaPitch, deltaYaw);
+	
+	// prevent release the button in wrong way
+	if (button == BUTTON_ATTACK)
+	{
+		local scope = player.GetScriptScope();
+		scope.AttackButtonForced = true;
+	}
 	
 	Left4Utils.PlayerForceButton(player, button);
 	
@@ -3595,6 +3617,26 @@ if (activator && isWorthPickingUp)
 			}
 		}
 	}
+}
+
+// Only shoot the riot police if i can see his back.
+::Left4Bots.IsRiotPolice <- function (ent, toEnt)
+{
+	//(NetProps.GetPropInt(ent, "m_Gender") == 15)
+	local model = ent.GetModelName();
+	if (model == "models/infected/common_male_riot.mdl" || model == "models/infected/common_male_riot_l4d1.mdl")
+	{
+		local chest = ent.LookupAttachment("chest");
+		if (chest != 0) // if custom model not has this attachment, don't shoot
+		{
+			local forward = QAngle(0, ent.GetAttachmentAngles(chest).y, 0).Forward();
+			local dot = toEnt.Dot(forward);
+			//printl("dot: " + dot + ", back: " + (dot > 0));
+			return dot <= 0;
+		}
+		return true;
+	}
+	return false;
 }
 
 // Helps update the COMMANDS.md file on the github repo

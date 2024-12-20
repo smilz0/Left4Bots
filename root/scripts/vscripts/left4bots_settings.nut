@@ -248,6 +248,13 @@
 	// [1/0] Enable/Disable the vscripted manual attack while not executing any MOVE command. 0 = Manual attack only while executing MOVE commands, 1 = Always
 	manual_attack_always = 0
 
+	// max distance of the bot will shoot enemies head, recommended short than "manual_attack_radius", so bots won't waste much ammo when shooting at far target.
+	// 0 = always shoot body
+	manual_attack_common_head_radius = 180
+
+	// 0 = like a machine gun, 1 = reduce dual pistol firing speed to 0.2s, like vanilla bot did.
+	manual_attack_dual_pistol_nerf = 1
+
 	// [0.0 - 1.0] While executing MOVE commands (or always if manual_attack_always = 1), this is how straight the bot should be looking at the enemy in order to shoot it
 	// 0.0 (or -1) = Even the enemies behind will be shoot (CSGO spinbot style)
 	// 0.6 Kill everything in sight
@@ -258,11 +265,19 @@
 	// While executing MOVE commands (or always if manual_attack_always = 1), this is the max distance of the enemies that the bot will shoot
 	manual_attack_radius = 950
 	
-	// Skill level for the vscripted manual attack
-	// 1: Aim & Shoot infected body (few skeeting hunter) & limit dual pistol dps to vanilla level (no more machine pistol)
-	// 2: + shoot head
-	// 3: + max dps + kill wandering infected
-	manual_attack_skill = 1
+	// Smooth camera rotation, turn a part of angles at a time instead of looking at the target immediately, only apply to shoot command.
+	// Depending on the set value, can easily adjust the bot's aiming speed, observer the bots at first person to check the difference.
+	// Valve use these Cvars 'sb_normal_saccade_speed = 350', 'sb_combat_saccade_speed = 1000' to contronl the default AI.
+	// 500 means bots need 0.36(180/500) seconds to turn 180 degrees.
+	// Advanced 1000, Expert 1000
+	manual_attack_saccade_speed = 500
+
+	// max distance of the bot will shoot enemies head, recommended short than "manual_attack_radius", so bots won't waste much ammo when shooting at far target.
+	// 0 = always shoot body
+	manual_attack_special_head_radius = 120
+
+	// 0 = only kill angry common incected, 1 = also wandering infected.
+	manual_attack_wandering = 0
 
 	// Maximum distance from a generic destination position for setting the travel done
 	move_end_radius = 30

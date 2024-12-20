@@ -785,7 +785,7 @@ Msg("Including left4bots_commands...\n");
 
 	if (allBots)
 	{
-		foreach (bot in ::Bots)
+		foreach (bot in Bots)
 			bot.GetScriptScope().BotCancelAll();
 
 		// With 'bots cancel all' we also stop the scavenge
