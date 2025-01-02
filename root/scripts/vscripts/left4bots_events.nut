@@ -830,8 +830,7 @@ Msg("Including left4bots_events...\n");
 		else if ((weapon == "tank_rock" || weapon == "tank_claw") && !player.IsIncapacitated())
 		{
 			local scope = player.GetScriptScope();
-			if (scope.Waiting && !scope.Paused)
-				scope.BotPause();
+			scope.BotPause();
 			scope.Airborne = true;
 		}
 	}
@@ -1081,9 +1080,31 @@ Msg("Including left4bots_events...\n");
 	if (Left4Bots.IsHandledBot(player))
 	{
 		local scope = player.GetScriptScope();
-		if (scope.Waiting && !scope.Paused)
-			scope.BotPause();
+		scope.BotPause();
 		scope.Airborne = true;
+	}
+}
+
+// fix bot dont shoot when executing move command
+::Left4Bots.Events.OnGameEvent_player_incapacitated <- function (params)
+{
+	local player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+	
+	if (Left4Bots.IsHandledBot(player))
+	{
+		local scope = player.GetScriptScope();
+		scope.BotPause();
+	}
+}
+
+::Left4Bots.Events.OnGameEvent_player_ledge_grab <- function (params)
+{
+	local player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+	
+	if (Left4Bots.IsHandledBot(player))
+	{
+		local scope = player.GetScriptScope();
+		scope.BotPause();
 	}
 }
 
