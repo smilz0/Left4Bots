@@ -260,7 +260,7 @@
 	// 0.6 Kill everything in sight
 	// 0.99 Almost never actively looking for new targets
 	// 1.0 = The bot will probably never shoot
-	manual_attack_mindot = 0.94
+	manual_attack_mindot = 0.7
 
 	// While executing MOVE commands (or always if manual_attack_always = 1), this is the max distance of the enemies that the bot will shoot
 	manual_attack_radius = 950
