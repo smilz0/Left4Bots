@@ -1898,7 +1898,7 @@ enum AI_AIM_TYPE {
 	else if (target && canShove) // TODO: add dot?
 	{
 		//lxc z_gun_swing_duration: 0.2 ** How long shove attack is active (can shove an entities)
-		BotSetAim(AI_AIM_TYPE.Shove, L4B.GetHitPos(target), 0.233);
+		BotSetAim(AI_AIM_TYPE.Shove, L4B.GetHitPos(target), 0.3);
 		L4B.PlayerPressButton(self, BUTTON_SHOVE);
 	}												// depending on manual_attack_mindot, the desired FOV might be larger than the m_hasVisibleThreats FOV, so this condition has to be removed (thx MutinCholer)
 	else if (((MovePos && Paused == 0) || L4B.Settings.manual_attack_always) /*&& NetProps.GetPropInt(self, "m_hasVisibleThreats")*/) // m_hasVisibleThreats indicates that a threat is in the bot's current field of view. An infected behind the bot won't set this
@@ -1912,13 +1912,14 @@ enum AI_AIM_TYPE {
 				local tgt = L4B.FindBotNearestEnemy(self, Origin, L4B.GetWeaponRangeById(ActiveWeaponId), L4B.Settings.manual_attack_mindot);
 				if (tgt)
 				{
-					// grenade_launcher may fly overhead, so aim the foot
-					local target = ActiveWeaponId != Left4Utils.WeaponId.weapon_grenade_launcher ? tgt.ent : tgt.ent.GetOrigin();
-					BotSetAim(AI_AIM_TYPE.Shoot, target, 0.166, 0, 0, tgt.head); //need refresh target next time
+					// grenade launcher may fly overhead, so aim the foot
+					if (ActiveWeaponId == Left4Utils.WeaponId.weapon_grenade_launcher)
+						tgt.head = null;
+					BotSetAim(AI_AIM_TYPE.Shoot, tgt.ent, 0.2, 0, 0, tgt.head); //need refresh target next time
 					Left4Utils.PlayerForceButton(self, BUTTON_ATTACK);
 				}
 				// Bots always reload for no reason while executing a MOVE command. Don't let them if there are visible threats and still rounds in the magazine
-				if (ActiveWeapon.Clip1() >= 5)
+				if ((tgt || !NetProps.GetPropInt(self, "m_isCalm")) && ActiveWeapon.Clip1() >= 5)
 				{
 					Left4Utils.PlayerDisableButton(self, BUTTON_RELOAD);
 					return;
@@ -3674,12 +3675,13 @@ enum AI_AIM_TYPE {
 	{
 		AimType = type;
 		AimHead = head;
-		Aim_StartTime = CurTime;
+		if (target != AimEnt) // keep Aim_StartTime if target not changed, so we can calculate the past time.
+			Aim_StartTime = CurTime;
 		Aim_Duration = duration;
-		Aim_TimeStamp = Aim_StartTime + Aim_Duration;
+		Aim_TimeStamp = CurTime + Aim_Duration;
 		AimPitch = pitch;
 		AimYaw = yaw;
-		if (LastAimTime != Time())
+		if (LastAimTime != CurTime)
 			LastAimAngles = null;
 		
 		if (typeof(target) == "instance")
@@ -3709,8 +3711,13 @@ enum AI_AIM_TYPE {
 	AimYaw = 0;
 	
 	//lxc release attack button and don't stop other order //TODO find a better way to do this
-	if (!AttackButtonForced)
-		Left4Utils.PlayerUnForceButton(self, BUTTON_ATTACK);
+	if (Left4Utils.IsButtonForced(self, BUTTON_ATTACK))
+	{
+		if (!AttackButtonForced)
+			Left4Utils.PlayerUnForceButton(self, BUTTON_ATTACK);
+		// not cause problem in testing, but who knows?
+		NetProps.SetPropInt(ActiveWeapon, "m_releasedFireButton", 1);
+	}
 }
 
 //lxc if only aim in "weapon_fire" event, bots will keep shaking their head, which will also cause them to slow down, so need to always set the eye angles.
@@ -3726,9 +3733,15 @@ enum AI_AIM_TYPE {
 		else if (AimEnt)
 		{
 			// if target is invalid or dead, delete it
-			if (AimEnt.IsValid() && NetProps.GetPropInt(AimEnt, "m_lifeState") <= 0)
+			if (AimEnt.IsValid() && NetProps.GetPropInt(AimEnt, "m_lifeState") <= 1) // 1 - dying, 2 - dead
 			{
 				BotLookAt(L4B.GetHitPos(AimEnt, AimHead), AimPitch, AimYaw);
+				// if target is about to die, hold fire and wait timeout
+				if (Left4Utils.IsButtonForced(self, BUTTON_ATTACK) && NetProps.GetPropInt(AimEnt, "m_lifeState") > 0)
+				{
+					Left4Utils.PlayerUnForceButton(self, BUTTON_ATTACK);
+					NetProps.SetPropInt(ActiveWeapon, "m_releasedFireButton", 1);
+				}
 			}
 			else
 				close = true;
@@ -3752,7 +3765,7 @@ enum AI_AIM_TYPE {
 			if (L4B.Settings.manual_attack_dual_pistol_nerf && ActiveWeaponId == Left4Utils.WeaponId.weapon_pistol && NetProps.GetPropInt(ActiveWeapon, "m_hasDualWeapons") > 0 && LastFireTime > 0)
 			{
 				local NextFireTime = NetProps.GetPropFloat(ActiveWeapon, "m_flNextPrimaryAttack");
-				if (NextFireTime > LastFireTime)
+				if (NextFireTime > LastFireTime) // the bullet has been fired
 				{
 					LastFireTime = 0;
 					if (ActiveWeapon.Clip1() > 0)
@@ -3789,16 +3802,15 @@ enum AI_AIM_TYPE {
 	if (deltaPitch != 0 || deltaYaw != 0)
 		angles = RotateOrientation(angles, QAngle(deltaPitch, deltaYaw, 0));
 	
-	if (AimType == AI_AIM_TYPE.Low || AimType == AI_AIM_TYPE.Shoot || AimType == AI_AIM_TYPE.Rock)
+	local OpenFire = Left4Utils.IsButtonForced(self, BUTTON_ATTACK);
+	if (OpenFire) // allow bots fire
+		NetProps.SetPropInt(ActiveWeapon, "m_releasedFireButton", 1);
+	
+	// don't smooth the camera if bot is not aiming at an entity
+	if ((AimType == AI_AIM_TYPE.Shoot || AimType == AI_AIM_TYPE.Rock) && AimEnt && L4B.Settings.manual_attack_saccade_speed > 0)
 	{
-		// when "weapon_fire" event trigger, thinkfunc has not exec, if use 'CurTime', will roate camera twice at the same time
-		if (LastAimTime == Time())
-			return;
-		
-		function DecayAngle(Angle, v = Vector(), tick = 1.0/30.0)
+		local function SmoothEyeAngle(Angle, v = Vector(), tick = 1.0 / 30.0, Deg2Rad = 3.14159265359 / 180)
 		{
-			local decay_rate = L4B.Settings.manual_attack_saccade_speed;
-			
 			v.x = Angle.x;
 			v.y = Angle.y;
 			v.z = 0;
@@ -3809,36 +3821,77 @@ enum AI_AIM_TYPE {
 			while (v.y <= -180) v.y += 360;
 			while (v.y > 180) v.y -= 360;
 			
-			local len = v.Norm();
-			local decay = decay_rate * tick;
+			local Pitch = Vector(v.x, 0, 0);
+			local PitchDiff = Pitch.Norm();
+			local Yaw = Vector(0, v.y, 0);
+			local YawDiff = Yaw.Norm();
+			
+			local degrees = v.Norm();
+			//calculate arc length
+			local l = degrees * dist * Deg2Rad;
+			// not change the eye angles within this tolerance.
+			if (l <= 3)
+			{
+				return QAngle();
+			}
+			
+			// These code is deduced based on the test results, I don't know how the Valve's code is
+			
+			local function SmoothStep(start, end, x)
+			{
+				x = (x - start) / (end - start);
+				x = x < 0 ? 0 : (x > 1 ? 1 : x);
+				return x*x*(3 - 2*x);
+			}
+			
+			local deltaTime = LastAimAngles ? CurTime - LastAimTime : tick;
+			local pastTime = CurTime - Aim_StartTime;
+			
+			local max = L4B.Settings.manual_attack_saccade_speed * deltaTime;
+			local min = max * deltaTime;
+			
+			// gradually increase to the maximum value
+			local saccade_speed = max * (pastTime * 4.0);
+			if (saccade_speed > max)
+				saccade_speed = max;
 			
 			// Slow down the speed when approaching the target
-			// The code is deduced based on the test results, I don't know how the Valve's code is
-			local slow = 33; //tick * 1000.0;
-			decay = decay * ((len >= slow) ? 1.0 : (len / slow));
+			local easeOut = 45;
+			local t = SmoothStep(0, easeOut, YawDiff);
+			local decayY = YawDiff > easeOut ? saccade_speed : saccade_speed * t + min * (1-t); // make sure the speed is not too low
+			if (decayY > saccade_speed)
+				decayY = saccade_speed;
 			
-			len -= decay;
-			// The target has been aimed at and it's time to fire
-			if (len <= pow(0.97, dist * 0.01) * 2)
-				NetProps.SetPropInt(ActiveWeapon, "m_releasedFireButton", 1);
-			else
+			local decayP = PitchDiff > saccade_speed ? saccade_speed : PitchDiff;
+			
+			local decay = Vector(decayP, decayY, 0).Norm();
+			degrees -= decay;
+			// calculate arc length after rotated
+			l = degrees * dist * Deg2Rad;
+			// don't fire until the target is aimed
+			if (l > 16 && OpenFire)
 				NetProps.SetPropInt(ActiveWeapon, "m_releasedFireButton", 0);
 			
 			// Smoother when stop
-			if (len <= decay_rate * 0.001)
+			if (degrees <= L4B.Settings.manual_attack_saccade_speed * 0.001)
 				return Angle;
 			
-			v *= decay;
-			return QAngle(v.x, v.y, 0);
+			return QAngle(Pitch.x * decayP, Yaw.y * decayY, 0);
 		}
 		
-		// bot will look around, so the eye angle may not be the value we last changed.
-		local eyeang = !LastAimAngles ? self.EyeAngles() : LastAimAngles;
-		local diff = angles - eyeang;
-		angles = eyeang + DecayAngle(diff);
+		// keep eye angles if already rotated
+		if (LastAimTime == CurTime)
+			angles = LastAimAngles;
+		else
+		{
+			// bot always look around and the eye angles always changed even we cover it
+			local eyeang = !LastAimAngles ? self.EyeAngles() : LastAimAngles;
+			local diff = angles - eyeang;
+			angles = eyeang + SmoothEyeAngle(diff);
+		}
 	}
 	
-	LastAimTime = Time();
+	LastAimTime = CurTime;
 	LastAimAngles = angles;
 	
 	self.SnapEyeAngles(angles);

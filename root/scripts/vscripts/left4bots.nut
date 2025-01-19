@@ -964,7 +964,7 @@ IncludeScript("left4bots_settings");
 			local toEnt = ent.GetOrigin() - orig;
 			local dist = toEnt.Norm();
 			
-			if (botFacing.Dot(toEnt) >= minDot && !IsRiotPolice(ent, toEnt) && (Settings.manual_attack_wandering || IsInfectedAngry(ent)))
+			if (botFacing.Dot(toEnt) >= minDot)
 			{
 				ret_array.append([dist, ent]);
 			}
@@ -979,7 +979,7 @@ IncludeScript("left4bots_settings");
 	{
 		local ret = ret_data[1];
 		
-		if (ret && Left4Utils.CanTraceTo(bot, ret, tracemask_others))
+		if (ret && (Settings.manual_attack_wandering || IsInfectedAngry(ret)) && !IsRiotPolice(ret, orig) && Left4Utils.CanTraceTo(bot, ret, tracemask_others))
 		{
 			return { ent = ret, head = ret_data[0] <= Settings.manual_attack_common_head_radius };
 		}
@@ -2154,7 +2154,7 @@ if (activator && isWorthPickingUp)
 				if (l4b.Settings.shoot_rock && self.GetHealth() > 0 && a >= -l4b.Settings.shoot_rock_diffangle && a <= l4b.Settings.shoot_rock_diffangle)
 				{
 					local aw = bot.GetActiveWeapon();
-					if (aw && aw.IsValid() && Time() >= NetProps.GetPropFloat(aw, "m_flNextPrimaryAttack") && distance <= l4b.GetWeaponRangeById(Left4Utils.GetWeaponId(aw)))
+					if (aw && aw.IsValid() && (bot.IsFiringWeapon() || Time() >= NetProps.GetPropFloat(aw, "m_flNextPrimaryAttack")) && distance <= l4b.GetWeaponRangeById(Left4Utils.GetWeaponId(aw)))
 					{
 						//l4b.PlayerPressButton(bot, BUTTON_ATTACK, 0.0, self.GetCenter() + (fwd * l4b.Settings.shoot_rock_ahead), 0, 0, true); // Try to shoot slightly in front of the rock
 						
@@ -3298,7 +3298,7 @@ if (activator && isWorthPickingUp)
 {
 	if ("GetLastKnownArea" in victim)
 	{
-		if (head)
+		if (head == true) // head
 		{
 			//survivor, common infected, smoker, boomer, hunter, witch
 			local BoneId = victim.LookupBone("ValveBiped.Bip01_Head1");
@@ -3306,7 +3306,7 @@ if (activator && isWorthPickingUp)
 			if (BoneId != -1 || (BoneId = victim.LookupBone("bip_head")) != -1 || (BoneId = victim.LookupBone("ValveBiped.Bip01_Head")) != -1)
 				return victim.GetBoneOrigin(BoneId);
 		}
-		else //body
+		else if (head == false) // chest
 		{
 			//survivor, common infected, smoker, boomer, hunter, witch, tank
 			local BoneId = victim.LookupBone("ValveBiped.Bip01_Spine1");
@@ -3314,6 +3314,9 @@ if (activator && isWorthPickingUp)
 			if (BoneId != -1 || (BoneId = victim.LookupBone("bip_spine_1")) != -1)
 				return victim.GetBoneOrigin(BoneId);
 		}
+		else if (head == null) // foot, use for weapons like grenade launcher
+			return victim.GetOrigin();
+		
 		// Fast Headcrab (Jockey) https://steamcommunity.com/sharedfiles/filedetails/?id=3121830019
 		// this model use custom named bone, and cannot hit Center pos
 		return victim.GetBoneOrigin(0);
@@ -3620,7 +3623,7 @@ if (activator && isWorthPickingUp)
 }
 
 // Only shoot the riot police if i can see his back.
-::Left4Bots.IsRiotPolice <- function (ent, toEnt)
+::Left4Bots.IsRiotPolice <- function (ent, start)
 {
 	//(NetProps.GetPropInt(ent, "m_Gender") == 15)
 	local model = ent.GetModelName();
@@ -3629,6 +3632,8 @@ if (activator && isWorthPickingUp)
 		local chest = ent.LookupAttachment("chest");
 		if (chest != 0) // if custom model not has this attachment, don't shoot
 		{
+			local toEnt = ent.GetOrigin() - start;
+			toEnt.Norm();
 			local forward = QAngle(0, ent.GetAttachmentAngles(chest).y, 0).Forward();
 			local dot = toEnt.Dot(forward);
 			//printl("dot: " + dot + ", back: " + (dot > 0));

@@ -268,8 +268,9 @@
 	// Smooth camera rotation, turn a part of angles at a time instead of looking at the target immediately, only apply to shoot command.
 	// Depending on the set value, can easily adjust the bot's aiming speed, observer the bots at first person to check the difference.
 	// Valve use these Cvars 'sb_normal_saccade_speed = 350', 'sb_combat_saccade_speed = 1000' to contronl the default AI.
-	// 500 means bots need 0.36(180/500) seconds to turn 180 degrees.
-	// Advanced 1000, Expert 1000
+	// 500 means bots needs at least 0.36(180/500) seconds to turn 180 degrees.
+	// Advanced 1000, Expert 2000.
+	// set 0 to disable.
 	manual_attack_saccade_speed = 500
 
 	// max distance of the bot will shoot enemies head, recommended short than "manual_attack_radius", so bots won't waste much ammo when shooting at far target.
