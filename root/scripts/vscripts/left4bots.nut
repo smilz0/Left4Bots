@@ -84,6 +84,7 @@ IncludeScript("left4bots_requirements");
 	LastLeadStartVocalize = 0
 	NiceShootSurv = null
 	NiceShootTime = 0
+	IncapBlockNavs = {}
 	ItemsToAvoid = []
 	TeamShotguns = 0
 	TeamMolotovs = 0
@@ -2654,7 +2655,7 @@ if (activator && isWorthPickingUp)
 	local kvs = { classname = "script_nav_blocker", origin = spit.GetOrigin(), extent = Vector(Settings.dodge_spit_radius, Settings.dodge_spit_radius, Settings.dodge_spit_radius), teamToBlock = "2", affectsFlow = "0" };
 	local ent = g_ModeScript.CreateSingleSimpleEntityFromTable(kvs);
 	ent.ValidateScriptScope();
-	Logger.Debug("Created script_nav_blocker: " + ent.GetName());
+	Logger.Debug("Created script_nav_blocker (spit): " + ent.GetName());
 
 	DoEntFire("!self", "SetParent", "!activator", 0, spit, ent); // I parent the nav blocker to the spit entity so it is automatically killed when the spit is gone
 	DoEntFire("!self", "BlockNav", "", 0, null, ent);
@@ -3400,6 +3401,23 @@ if (activator && isWorthPickingUp)
 	return ret;
 }
 
+// Returns whether the there is at least one aggroed tank whithin 'min' and 'max' units from 'origin'
+::Left4Bots.HasAggroedTankWithin <- function (origin, min = 80, max = 1000)
+{
+	foreach (tank in Tanks)
+	{
+		if (tank && tank.IsValid() && NetProps.GetPropInt(tank, "m_lifeState") == 0 /* is alive? */ && !tank.IsIncapacitated() && NetProps.GetPropInt(tank, "m_lookatPlayer") >= 0)
+		{
+			local dist = (origin - tank.GetOrigin()).Length();
+			if (dist >= min && dist <= max)
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 // Returns the nearest aggroed tank whithin 'min' and 'max' units from 'origin'
 ::Left4Bots.GetNearestAggroedTankWithin <- function (origin, min = 80, max = 1000)
 {
@@ -3642,6 +3660,27 @@ if (activator && isWorthPickingUp)
 		return true;
 	}
 	return false;
+}
+
+::Left4Bots.IncappedBlockNav <- function (survivor)
+{
+	local kvs = { classname = "script_nav_blocker", origin = survivor.GetOrigin(), extent = Vector(Settings.incap_block_nav_radius, Settings.incap_block_nav_radius, Settings.incap_block_nav_radius), teamToBlock = "2", affectsFlow = "0" };
+	local ent = g_ModeScript.CreateSingleSimpleEntityFromTable(kvs);
+	ent.ValidateScriptScope();
+	Logger.Debug("Created script_nav_blocker (incapped): " + ent.GetName());
+
+	DoEntFire("!self", "SetParent", "!activator", 0, survivor, ent); // I parent the nav blocker to the survivor entity so it follows him if incap crawling is enabled (not sure the nav areas are updated, though)
+	DoEntFire("!self", "BlockNav", "", 0, null, ent);
+	return ent;
+}
+
+::Left4Bots.IncappedUnblockNav <- function (blocker)
+{
+	if (!blocker || !blocker.IsValid())
+		return;
+
+	DoEntFire("!self", "UnblockNav", "", 0, null, blocker);
+	DoEntFire("!self", "Kill", "", 0.1, null, blocker);
 }
 
 // Helps update the COMMANDS.md file on the github repo

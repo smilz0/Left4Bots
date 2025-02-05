@@ -1598,11 +1598,48 @@ Msg("Including left4bots_events...\n");
 // Does various stuff
 ::Left4Bots.OnThinker <- function (params)
 {
+	// Handle the spawned block navs for the incapped survivors
+	if (Settings.incap_block_nav_radius > 0)
+	{
+		// Enabled. Remove the nav blockers that are no longer needed
+		foreach (surv, blocker in IncapBlockNavs)
+		{
+			if (!surv || !surv.IsValid() || surv.IsDead() || surv.IsDying() || !surv.IsIncapacitated() || !HasAggroedTankWithin(surv.GetOrigin(), 0, Settings.incap_block_nav_tank_range))
+			{
+				Logger.Debug("Removing incap nav blocker (" + blocker + ") for survivor: " + surv);
+				
+				IncappedUnblockNav(blocker);
+				delete IncapBlockNavs[surv];
+			}
+		}
+	}
+	else
+	{
+		// Disabled. Clear any previously spawned blocker
+		foreach (surv, blocker in IncapBlockNavs)
+		{
+			Logger.Debug("Removing incap nav blocker (" + blocker + ") for survivor: " + surv);
+			
+			IncappedUnblockNav(blocker);
+			IncapBlockNavs.clear();
+		}
+	}
+	
 	// Listen for human survivors BUTTON_SHOVE press
 	foreach (surv in Survivors)
 	{
 		if (surv.IsValid())
 		{
+			if (Settings.incap_block_nav_radius > 0)
+			{
+				// Spawn a new nav blocker for the incapped survivor (if needed)
+				if (!surv.IsDead() && !surv.IsDying() && surv.IsIncapacitated() && !(surv in IncapBlockNavs) && HasAggroedTankWithin(surv.GetOrigin(), 0, Settings.incap_block_nav_tank_range))
+				{
+					IncapBlockNavs[surv] <- IncappedBlockNav(surv);
+					Logger.Debug("Added incap nav blocker (" + IncapBlockNavs[surv] + ") for survivor: " + surv);
+				}
+			}
+			
 			local userid = surv.GetPlayerUserId();
 			
 			SurvivorFlow[userid].inCheckpoint = IsSurvivorInCheckpoint(surv);
