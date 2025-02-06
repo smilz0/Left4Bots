@@ -1619,10 +1619,9 @@ Msg("Including left4bots_events...\n");
 		foreach (surv, blocker in IncapBlockNavs)
 		{
 			Logger.Debug("Removing incap nav blocker (" + blocker + ") for survivor: " + surv);
-			
 			IncappedUnblockNav(blocker);
-			IncapBlockNavs.clear();
 		}
+		IncapBlockNavs.clear();
 	}
 	
 	// Listen for human survivors BUTTON_SHOVE press
@@ -1630,14 +1629,11 @@ Msg("Including left4bots_events...\n");
 	{
 		if (surv.IsValid())
 		{
-			if (Settings.incap_block_nav_radius > 0)
+			// Spawn a new nav blocker for the incapped survivor (if needed)
+			if (Settings.incap_block_nav_radius > 0 && surv.IsIncapacitated() && !(surv in IncapBlockNavs) && !surv.IsDead() && !surv.IsDying() && HasAggroedTankWithin(surv.GetOrigin(), 0, Settings.incap_block_nav_tank_range))
 			{
-				// Spawn a new nav blocker for the incapped survivor (if needed)
-				if (!surv.IsDead() && !surv.IsDying() && surv.IsIncapacitated() && !(surv in IncapBlockNavs) && HasAggroedTankWithin(surv.GetOrigin(), 0, Settings.incap_block_nav_tank_range))
-				{
-					IncapBlockNavs[surv] <- IncappedBlockNav(surv);
-					Logger.Debug("Added incap nav blocker (" + IncapBlockNavs[surv] + ") for survivor: " + surv);
-				}
+				IncapBlockNavs[surv] <- IncappedBlockNav(surv);
+				Logger.Debug("Added incap nav blocker (" + IncapBlockNavs[surv] + ") for survivor: " + surv);
 			}
 			
 			local userid = surv.GetPlayerUserId();
