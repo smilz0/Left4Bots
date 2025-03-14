@@ -2179,16 +2179,23 @@ if (activator && isWorthPickingUp)
 
 // Loads the given survivor weapon preference file and returns an array with 5 elements (one for each inventory slot)
 // Each element is a sub-array with the weapon list from the highest to the lowest priority one for that inventory slot
+/*
+Support vanilla weapon preference.
+		use '*' and '/' split weapon list into each group(Tier)，each group has a priority.
+		flag for single group:
+			*: no priority, bot will just pick up any one of them.
+			/: have priority.
+	
+	Without any flag or only at the beginning of each line, it is still l4b2 style (all weapons are at the same group, and have priority (determined by *))
+	https://github.com/smilz0/Left4Bots/issues/104
+*/
 ::Left4Bots.LoadWeaponPreferences <- function (survivor, scope)
 {
 	// WeapPref array has one sub-array for each inventory slot
 	// Each sub-array contains the weapons from the highest to the lowest priority one for that inventory slot
-	scope.WeapPref <- [[], [], [], [], []];
+	scope.WeapPref <- [[], [], [], [], []]; 
+	//new format like this: [[[],[]...], [], [], [], []];
 	
-	// WeapNoPref array contains a flag for each inventory slot
-	// The flag indicates whether the priority of the weapons in WeapPref for that slot must be ignored
-	scope.WeapNoPref <- [false, false, false, false, false];
-
 	if (!survivor || !survivor.IsValid() || !scope)
 		return;
 
@@ -2209,30 +2216,43 @@ if (activator && isWorthPickingUp)
 		local line = Left4Utils.StripComments(lines[i]);
 		if (line != "")
 		{
+			local Tier = -1;
 			local weaps = split(line, ",");
 			for (local x = 0; x < weaps.len(); x++)
 			{
 				//delete space characters which cause bug
 				local wp = strip(weaps[x]);
 				
-				if (x == 0 && wp == "*")
-					scope.WeapNoPref[i] = true;
-				else
+				// Start a new line when find a flag
+				if (wp == "*" || wp == "/" || x == 0)
 				{
-					local id = Left4Utils.GetWeaponIdByName(wp);
+					Tier++;
+					local arr = [(wp == "*")] // set NoPref flag into first
+					scope.WeapPref[i].append(arr);
+				}
+				
+				local id = Left4Utils.GetWeaponIdByName(wp);
 
-					//Logger.Debug("LoadWeaponPreferences - i: " + i + " - w: " + wp + " - id: " + id);
+				//Logger.Debug("LoadWeaponPreferences - i: " + i + " - w: " + wp + " - id: " + id);
 
-					if (id > Left4Utils.WeaponId.none && id != Left4Utils.MeleeWeaponId.none && id != Left4Utils.UpgradeWeaponId.none)
-					{
-						scope.WeapPref[i].append(id); // valid weapon
-						c++;
-					}
+				if (id > Left4Utils.WeaponId.none && id != Left4Utils.MeleeWeaponId.none && id != Left4Utils.UpgradeWeaponId.none)
+				{
+					scope.WeapPref[i][Tier].append(id); // valid weapon
+					c++;
 				}
 			}
 		}
 	}
-
+	
+	/*
+	printl(filename);
+	foreach(slot, list in scope.WeapPref)
+	{
+		printl("slot" + slot)
+		__DumpScope(4, list);
+	}
+	*/
+	
 	Logger.Debug("LoadWeaponPreferences - Loaded " + c + " preferences for survivor: " + survivor.GetPlayerName() + " from file: " + filename);
 }
 

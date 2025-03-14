@@ -38,12 +38,6 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c5m5_bridge automation scrip
 			
 			::Left4Bots.Automation.DoLead("bots");
 			break;
-
-		case "FinalVehicleArrived":
-			// *** TASK 7. The flow is broken here (maybe it can be fixed with the same technique used in l4b_c3m3_shantytown.nut ?), let's 'goto' to the chopper
-			
-			::Left4Bots.Automation.DoGotoAndIdle(Vector(7479.217773, 3353.315430, 168.031250));
-			break;
 	}
 }
 
@@ -69,4 +63,33 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c5m5_bridge automation scrip
 				::Left4Bots.Automation.step++;
 			break;
 	}
+}
+
+
+::Left4Bots.Automation.Events.OnGameEvent_round_start <- function (params)
+{
+	::Left4Bots.Logger.Debug("::Left4Bots.Automation.Events.OnGameEvent_round_start");
+	
+	// *** NAV FLOW OPTIMIZATIONS ***
+
+	// Move the nav_flow_target from the fence (why it was put there btw?) to the chopper
+	local nav_flow_target = Entities.FindByName(null, "nav_flow_target");
+	if (nav_flow_target)
+	{
+		local area = NavMesh.GetNavAreaByID(593109);
+		if (area && area.IsValid())
+		{
+			nav_flow_target.SetOrigin(area.GetCenter());
+			::Left4Bots.Logger.Debug("Nav Flow Optimization: nav_flow_target moved to: " + nav_flow_target.GetOrigin());
+		}
+		else
+			::Left4Bots.Logger.Error("Nav Flow Optimization: nav_flow_target not moved (goal area not found!)");
+	}
+	else
+		::Left4Bots.Logger.Error("Nav Flow Optimization: nav_flow_target not nav_flow_target!");
+	
+	// Recompute the nav flow (area is not accessible anyway)
+	::Left4Utils.SpawnNavBlockerOnNavArea(57396, 2);
+	
+	// ******************************
 }
