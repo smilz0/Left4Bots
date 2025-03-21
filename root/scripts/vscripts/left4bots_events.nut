@@ -1103,9 +1103,19 @@ Msg("Including left4bots_events...\n");
 	
 	if (Left4Bots.IsHandledBot(player))
 	{
+		Left4Bots.AllowSecondaryWeaponSwitch(player, true);
+		
 		local scope = player.GetScriptScope();
 		scope.BotPause();
 	}
+}
+
+::Left4Bots.Events.OnGameEvent_player_incapacitated_start <- function (params)
+{
+	local player = g_MapScript.GetPlayerFromUserID(params["userid"]);
+	
+	if (Left4Bots.IsHandledBot(player))
+		Left4Bots.AllowSecondaryWeaponSwitch(player, true);
 }
 
 // -----

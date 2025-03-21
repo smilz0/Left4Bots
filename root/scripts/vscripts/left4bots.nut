@@ -3685,6 +3685,59 @@ Support vanilla weapon preference.
 	return false;
 }
 
+// Enables/Disables bots switching to secondary weapon by setting/unsetting its m_hOwner property
+::Left4Bots.AllowSecondaryWeaponSwitch <- function(bot, allow)
+{
+	local w = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_SECONDARY);
+	if (w)
+		NetProps.SetPropEntity(w, "m_hOwner", (allow ? bot : null));
+}
+
+// Handles the logics for allowing/not allowing to switch to secondary
+::Left4Bots.EnforcePrimaryWeapon <- function(bot, ActiveWeapon)
+{
+	local canSwitch = true;
+	if (ActiveWeapon && !bot.IsIncapacitated())
+	{
+		local wp = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_PRIMARY);
+		local wp2nd = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_SECONDARY);
+		if (wp && wp2nd && Left4Utils.GetAmmoPercent(wp) > 0)
+		{
+			local id2nd = Left4Utils.GetWeaponId(wp2nd);
+			local flag = id2nd == Left4Utils.WeaponId.weapon_pistol || id2nd == Left4Utils.WeaponId.weapon_pistol_magnum ? 1 : (id2nd > Left4Utils.MeleeWeaponId.none ? 2 : (id2nd == Left4Utils.WeaponId.weapon_chainsaw ? 4 : 0));
+			if (flag)
+			{
+				switch (Left4Utils.GetWeaponId(wp))
+				{
+					case Left4Utils.WeaponId.weapon_pumpshotgun:
+					case Left4Utils.WeaponId.weapon_autoshotgun:
+					case Left4Utils.WeaponId.weapon_shotgun_chrome:
+					case Left4Utils.WeaponId.weapon_shotgun_spas:
+						if ((Settings.enforce_shotgun & flag) == flag)
+							canSwitch = false;
+						break;
+					
+					case Left4Utils.WeaponId.weapon_hunting_rifle:
+					case Left4Utils.WeaponId.weapon_sniper_military:
+					case Left4Utils.WeaponId.weapon_sniper_awp:
+					case Left4Utils.WeaponId.weapon_sniper_scout:
+						if ((Settings.enforce_sniper & flag) == flag)
+							canSwitch = false;
+						break;
+				}
+				
+				if (!canSwitch && ActiveWeapon == wp2nd)
+				{
+					NetProps.SetPropEntity(wp2nd, "m_hOwner", bot);
+					bot.SwitchToItem(wp.GetClassname());
+				}
+			}
+		}
+	}
+	
+	AllowSecondaryWeaponSwitch(bot, canSwitch);
+}
+
 // Helps update the COMMANDS.md file on the github repo
 ::Left4Bots.PrintCommandsMarkdown <- function ()
 {

@@ -908,6 +908,10 @@ enum AI_AIM_TYPE {
 		ActiveWeaponSlot = Left4Utils.GetWeaponSlotById(ActiveWeaponId);
 	}
 
+	// handle switch logic
+	if (L4B.Settings.enforce_sniper || L4B.Settings.enforce_shotgun)
+		L4B.EnforcePrimaryWeapon(self, ActiveWeapon);
+
 	// Basically, all this CarryItem stuff is because some carriable items despawn as prop_physics and respawn as weapon_* and viceversa when picking/dropping them
 	// and also because the game's "dropped" event does not trigger every time
 	if (CarryItem)

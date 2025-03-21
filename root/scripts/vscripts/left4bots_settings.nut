@@ -121,6 +121,18 @@
 	// But if, for some reason, the open/close door fails (too far or something) the door will be forced to open/close by the addon after this delay
 	door_failsafe_delay = 0.15
 
+	// Don't switch to the secondary weapon if the primary is a shotgun and the secondary is
+	// 1 = pistol, 2 = melee, 4 = chainsaw
+	// 6 = pistol + melee + chainsaw
+	// 0 = OFF (Vanilla AI logic)
+	enforce_shotgun = 6
+	
+	// Don't switch to the secondary weapon if the primary is a sniper rifle and the secondary is
+	// 1 = pistol, 2 = melee, 4 = chainsaw
+	// 3 = pistol + melee
+	// 0 = OFF (Vanilla AI logic)
+	enforce_sniper = 3
+
 	// If the bot's falling (vertical) velocity is > than this, he will be safely teleported to a random teammate. 0 = disabled
 	// Can be set to the value of one of the game's cvars "fall_speed_fatal" (default val. 720), "fall_speed_safe" (560) to avoid insta-death or any damage at all respectively
 	fall_velocity_warp = 0

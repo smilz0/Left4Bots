@@ -2,7 +2,7 @@
 {
   addonSteamAppID   	550
   addontitle		"Left 4 Bots 2"
-  addonversion	    	"2.3.2"
+  addonversion	    	"2.3.3"
   addonauthor 	   	"smilzo"
   addonDescription  	"Improvements for the L4D2 survivor bots"
   addonContent_Script 	1
