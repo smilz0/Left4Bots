@@ -3697,39 +3697,34 @@ Support vanilla weapon preference.
 ::Left4Bots.EnforcePrimaryWeapon <- function(bot, ActiveWeapon)
 {
 	local canSwitch = true;
-	if (ActiveWeapon && !bot.IsIncapacitated())
+	if ((Settings.enforce_shotgun || Settings.enforce_sniper_rifle) && ActiveWeapon && !bot.IsIncapacitated())
 	{
 		local wp = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_PRIMARY);
 		local wp2nd = Left4Utils.GetInventoryItemInSlot(bot, INV_SLOT_SECONDARY);
 		if (wp && wp2nd && Left4Utils.GetAmmoPercent(wp) > 0)
 		{
-			local id2nd = Left4Utils.GetWeaponId(wp2nd);
-			local flag = id2nd == Left4Utils.WeaponId.weapon_pistol || id2nd == Left4Utils.WeaponId.weapon_pistol_magnum ? 1 : (id2nd > Left4Utils.MeleeWeaponId.none ? 2 : (id2nd == Left4Utils.WeaponId.weapon_chainsaw ? 4 : 0));
-			if (flag)
+			local type = Left4Utils.GetWeaponTypeById(Left4Utils.GetWeaponId(wp));
+			if (type == "shotgun" || type == "sniper_rifle")
 			{
-				switch (Left4Utils.GetWeaponId(wp))
-				{
-					case Left4Utils.WeaponId.weapon_pumpshotgun:
-					case Left4Utils.WeaponId.weapon_autoshotgun:
-					case Left4Utils.WeaponId.weapon_shotgun_chrome:
-					case Left4Utils.WeaponId.weapon_shotgun_spas:
-						if ((Settings.enforce_shotgun & flag) == flag)
-							canSwitch = false;
-						break;
-					
-					case Left4Utils.WeaponId.weapon_hunting_rifle:
-					case Left4Utils.WeaponId.weapon_sniper_military:
-					case Left4Utils.WeaponId.weapon_sniper_awp:
-					case Left4Utils.WeaponId.weapon_sniper_scout:
-						if ((Settings.enforce_sniper & flag) == flag)
-							canSwitch = false;
-						break;
-				}
+				local type2nd = Left4Utils.GetWeaponTypeById(Left4Utils.GetWeaponId(wp2nd));
+				local flag = type2nd == "pistol" ? (wp2nd.GetClassname() == "weapon_pistol_magnum" ? 2 : 1) : 
+							 type2nd == "melee" ? 4 : 
+							 type2nd == "chainsaw" ? 8 : 
+							 0;
 				
-				if (!canSwitch && ActiveWeapon == wp2nd)
+				if (flag)
 				{
-					NetProps.SetPropEntity(wp2nd, "m_hOwner", bot);
-					bot.SwitchToItem(wp.GetClassname());
+					if ((Settings["enforce_" + type] & flag) == flag)
+						canSwitch = false;
+					
+					if (!canSwitch && ActiveWeapon == wp2nd)
+					{
+						NetProps.SetPropEntity(wp2nd, "m_hOwner", bot);
+						bot.SwitchToItem(wp.GetClassname());
+						
+						//if can not switch to primary weapon, at least we still have one, also fixed chainsaw smoking when pickup and switch at the same time
+						return;
+					}
 				}
 			}
 		}
