@@ -2304,6 +2304,28 @@ enum AI_AIM_TYPE {
 							// Add all the preference weapons that have higher priority than the one we have in the inventory
 							// Or add them all if ammo percent of our primary weapon is < pickups_wep_replace_ammo
 							local prefId = list[x];
+
+							if (
+								((prefId == Left4Utils.WeaponId.weapon_autoshotgun ||
+								  prefId == Left4Utils.WeaponId.weapon_shotgun_spas ||
+								  prefId == Left4Utils.WeaponId.weapon_pumpshotgun ||
+								  prefId == Left4Utils.WeaponId.weapon_shotgun_chrome) &&
+								 L4B.TeamShotguns > L4B.Settings.team_max_shotguns
+								 ||
+								 ((prefId == Left4Utils.WeaponId.weapon_rifle ||
+								   prefId == Left4Utils.WeaponId.weapon_rifle_desert ||
+								   prefId == Left4Utils.WeaponId.weapon_rifle_ak47 ||
+								   prefId == Left4Utils.WeaponId.weapon_rifle_sg552) &&
+								  L4B.TeamAssaultRifles > L4B.Settings.team_max_assault_rifles)
+								 ||
+								 ((prefId == Left4Utils.WeaponId.weapon_hunting_rifle ||
+								   prefId == Left4Utils.WeaponId.weapon_sniper_military ||
+								   prefId == Left4Utils.WeaponId.weapon_sniper_awp ||
+								   prefId == Left4Utils.WeaponId.weapon_sniper_scout) &&
+								  L4B.TeamSniperRifles > L4B.Settings.team_max_sniper_rifles)
+							)
+								continue;
+								
 							if (prefId != currWeps[slotIdx] || priAmmoPercent < L4B.Settings.pickups_wep_replace_ammo)
 								WeaponsToSearch[prefId] <- 0;
 							else
