@@ -590,13 +590,13 @@
 	team_min_sniper_rifles = 1
 
 	// Bots will try to keep this maximum number of shotguns in the entire survivor team, regardless their weapon preference
-	team_max_shotguns = 1
+	team_max_shotguns = 8
 
 	// Bots will try to keep this maximum number of assault rifles in the entire survivor team, regardless their weapon preference
-	team_max_assault_rifles = 1
+	team_max_assault_rifles = 8
 
 	// Bots will try to keep this maximum number of sniper rifles in the entire survivor team, regardless their weapon preference
-	team_max_sniper_rifles = 0
+	team_max_sniper_rifles = 8
 
 	// Interval of the think functions of the various thinkers
 	// -1 automatically sets the fastest interval possible
