@@ -2168,6 +2168,9 @@ enum AI_AIM_TYPE {
 	local currWeps = [Left4Utils.WeaponId.none, Left4Utils.WeaponId.none, Left4Utils.WeaponId.none, Left4Utils.WeaponId.none, Left4Utils.WeaponId.none]; // Will be filled with the weapon ids of the bot's current weapons
 	local hasT1Shotgun = false;
 	local hasT2Shotgun = false;
+	// local hasT1SMG = false;
+	local hasT2AssaultRifle = false;
+	local hasT2SniperRifle = false;
 	local hasT3Weapon = false; // https://github.com/smilz0/Left4Bots/issues/70
 	local priAmmoPercent = 100;
 	local hasAmmoUpgrade = true;
@@ -2208,6 +2211,9 @@ enum AI_AIM_TYPE {
 				case 0:
 					hasT1Shotgun = (currWeps[i] == Left4Utils.WeaponId.weapon_shotgun_chrome) || (currWeps[i] == Left4Utils.WeaponId.weapon_pumpshotgun);
 					hasT2Shotgun = (currWeps[i] == Left4Utils.WeaponId.weapon_autoshotgun) || (currWeps[i] == Left4Utils.WeaponId.weapon_shotgun_spas);
+					// hasT1SMG = (currWeps[i] == Left4Utils.WeaponId.weapon_smg) || (currWeps[i] == Left4Utils.WeaponId.weapon_smg_silenced) || (currWeps[i] == Left4Utils.WeaponId.weapon_smg_mp5);
+					hasT2AssaultRifle = (currWeps[i] == Left4Utils.WeaponId.weapon_rifle) || (currWeps[i] == Left4Utils.WeaponId.weapon_rifle_desert) || (currWeps[i] == Left4Utils.WeaponId.weapon_rifle_ak47) || (currWeps[i] == Left4Utils.WeaponId.weapon_rifle_sg552);
+					hasT2SniperRifle = (currWeps[i] == Left4Utils.WeaponId.weapon_hunting_rifle) || (currWeps[i] == Left4Utils.WeaponId.weapon_sniper_military) || (currWeps[i] == Left4Utils.WeaponId.weapon_sniper_awp) || (currWeps[i] == Left4Utils.WeaponId.weapon_sniper_scout);
 					hasT3Weapon = (currWeps[i] == Left4Utils.WeaponId.weapon_grenade_launcher) || (currWeps[i] == Left4Utils.WeaponId.weapon_rifle_m60);
 					priAmmoPercent = Left4Utils.GetAmmoPercent(inv[slot]);
 					hasAmmoUpgrade = NetProps.GetPropInt(inv[slot], "m_nUpgradedPrimaryAmmoLoaded") >= L4B.Settings.pickups_wep_upgraded_ammo;
@@ -2267,9 +2273,9 @@ enum AI_AIM_TYPE {
 					WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_spas] <- 0;
 				}
 			}
-			else
+			else if (!(L4B.TeamAssaultRifles <= L4B.Settings.team_min_assault_rifles && (hasT2AssaultRifle)) || !(L4B.TeamSniperRifles <= L4B.Settings.team_min_sniper_rifles && (hasT2SniperRifle)))
 			{
-				// We either don't have a shotgun or TeamShotguns > team_min_shotguns so we can follow our preference and try to get an higher priority weapon
+				// If none of the minimum weapon requirements are met, we can follow our preference and try to get an higher priority weapon
 				
 				local stop = false; // If find weapon in the current Tier, stop add weapons.
 				foreach (Tier, list in WeapPref[slotIdx])
@@ -2321,6 +2327,20 @@ enum AI_AIM_TYPE {
 					WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_spas] <- 0;
 					WeaponsToSearch[Left4Utils.WeaponId.weapon_pumpshotgun] <- 0;
 					WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_chrome] <- 0;
+				}
+				if (L4B.TeamAssaultRifles < L4B.Settings.team_min_assault_rifles)
+				{
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_rifle] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_rifle_desert] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_rifle_ak47] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_rifle_sg552] <- 0;
+				}
+				if (L4B.TeamSniperRifles < L4B.Settings.team_min_sniper_rifles)
+				{
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_hunting_rifle] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_sniper_military] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_sniper_awp] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_sniper_scout] <- 0;
 				}
 			}
 		}
