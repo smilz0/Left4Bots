@@ -3733,6 +3733,146 @@ Support vanilla weapon preference.
 	AllowSecondaryWeaponSwitch(bot, canSwitch);
 }
 
+// CONTENTS_MONSTER also hits the survivors, ignore all survivors if needed
+::Left4Bots.TraceLineIgnoreSurvivors <- function (player, traceTable)
+{
+	local Owners = {};
+	foreach (surv in Survivors)
+	{
+		if (surv != player && surv && surv.IsValid())
+		{
+			Owners[surv] <- surv.GetOwnerEntity();
+			NetProps.SetPropEntity(surv, "m_hOwnerEntity", player);
+		}
+	}
+	foreach (surv in L4D1Survivors)
+	{
+		if (surv != player && surv && surv.IsValid())
+		{
+			Owners[surv] <- surv.GetOwnerEntity();
+			NetProps.SetPropEntity(surv, "m_hOwnerEntity", player);
+		}
+	}
+	
+	TraceLine(traceTable);
+	
+	foreach (surv, owner in Owners)
+	{
+		NetProps.SetPropEntity(surv, "m_hOwnerEntity", owner);
+	}
+	Owners.clear();
+}
+
+// Get the distance from the world point to the entity's bounding box
+::Left4Bots.GetDistanceToEntityAABB <- function (worldPt, ent)
+{
+	local entOrigin = ent.GetOrigin();
+	local entAngles = ent.GetClassname() == "player" ? QAngle() : ent.GetAngles(); // always 0 degrees if target is "player" //TODO Test infected
+	local mins = NetProps.GetPropVector(ent, "m_Collision.m_vecMins");
+	local maxs = NetProps.GetPropVector(ent, "m_Collision.m_vecMaxs");
+	
+	// aligns to the ent's axis-aligned bounding box
+	local point = worldPt - entOrigin;
+	if (entAngles.y != 0) point = RotatePosition(entOrigin, QAngle(0, entAngles.y * -1.0, 0), point);
+	if (entAngles.x != 0) point = RotatePosition(entOrigin, QAngle(entAngles.x * -1.0, 0, 0), point);
+	if (entAngles.z != 0) point = RotatePosition(entOrigin, QAngle(0, 0, entAngles.z * -1.0), point);
+	
+	// calc closest point on AABB
+	local closestPt = Vector();
+	closestPt.x = point.x < mins.x ? mins.x : (point.x > maxs.x ? maxs.x : point.x);
+	closestPt.y = point.y < mins.y ? mins.y : (point.y > maxs.y ? maxs.y : point.y);
+	closestPt.z = point.z < mins.z ? mins.z : (point.z > maxs.z ? maxs.z : point.z);
+	
+	return (closestPt - point).Length();
+}
+
+// Bot use weapon/item/button/door/radio/props
+// The distance from bot to target must no more than "player_use_radius"
+// Can be blocked by other entities, except for survivors
+::Left4Bots.CanUseTo <- function (bot, ent, trace = true)
+{
+	local eyePos = bot.EyePosition();
+	local useRadius = Convars.GetFloat("player_use_radius");
+	
+	if (GetDistanceToEntityAABB(eyePos, ent) > useRadius)
+		return false;
+	
+	if (!trace)
+		return true;
+	
+	//mask = CONTENTS_SOLID | CONTENTS_MOVEABLE | CONTENTS_MONSTER | CONTENTS_WINDOW | CONTENTS_GRATE
+	local traceTable = { start = eyePos, end = ent.GetCenter(), ignore = bot, mask = 33570827 };
+	TraceLineIgnoreSurvivors(bot, traceTable);
+	
+	return traceTable.fraction == 1 || traceTable.enthit == ent;
+}
+
+// Gascan and Cola have different use range
+// Only blocked by world
+::Left4Bots.CanPourTo <- function (bot, ent)
+{
+	local eyePos = bot.EyePosition();
+	local useRange = ScavengeUseType == SCAV_TYPE_GASCAN ? Convars.GetFloat("gascan_use_range") : 
+					 ScavengeUseType == SCAV_TYPE_COLA ? Convars.GetFloat("cola_bottles_use_range") : 
+					 0;
+	
+	if (GetDistanceToEntityAABB(eyePos, ent) > useRange)
+		return false;
+	
+	//mask = CONTENTS_SOLID | CONTENTS_MOVEABLE | CONTENTS_WINDOW | CONTENTS_GRATE
+	local traceTable = { start = eyePos, end = ent.GetCenter(), ignore = bot, mask = 16395 };
+	TraceLine(traceTable);
+	
+	return traceTable.fraction == 1 || traceTable.enthit == ent;
+}
+
+// The distance based on "player_use_radius", but max is 96
+// Will be blocked by other entities
+// The correct position is the point on the target's bounding box that is closest to the bot's eye, for simplicity, use center position for trace
+::Left4Bots.CanHealTo <- function (bot, ent)
+{
+	// return true if target is me
+	if (bot == ent)
+		return true;
+	
+	local eyePos = bot.EyePosition();
+	local useRadius = Convars.GetFloat("player_use_radius");
+	if (useRadius > 96)
+		useRadius = 96;
+	
+	if (GetDistanceToEntityAABB(eyePos, ent) > useRadius)
+		return false;
+	
+	//mask = CONTENTS_SOLID | CONTENTS_MOVEABLE | CONTENTS_MONSTER | CONTENTS_WINDOW | CONTENTS_GRATE
+	local traceTable = { start = eyePos, end = ent.GetCenter(), ignore = bot, mask = 33570827 };
+	TraceLine(traceTable);
+	
+	return traceTable.fraction == 1 || traceTable.enthit == ent;
+}
+
+::Left4Bots.IsBotReachOrderPosition <- function (bot, CurrentOrder)
+{
+	switch (CurrentOrder.OrderType)
+	{
+		case "use":
+		case "carry":
+		case "deploy":
+			return CanUseTo(bot, CurrentOrder.DestEnt);
+		
+		case "scavenge":
+			if (!CurrentOrder.DestPos) // we are going to pickup gascan/cola
+				return CanUseTo(bot, CurrentOrder.DestEnt);
+			else if (Settings.scavenge_pour) // now if we need pour it
+				return CanPourTo(bot, ScavengeUseTarget);
+			break;
+		
+		case "heal":
+			return CanHealTo(bot, CurrentOrder.DestEnt);
+	}
+	
+	return false;
+}
+
 // Helps update the COMMANDS.md file on the github repo
 ::Left4Bots.PrintCommandsMarkdown <- function ()
 {

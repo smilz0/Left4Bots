@@ -1314,7 +1314,7 @@ enum AI_AIM_TYPE {
 	}
 
 	// Is the item close enough?
-	if ((self.GetCenter() - pickup.GetCenter()).Length() <= L4B.Settings.pickups_pick_range) // There is a cvar (player_use_radius 96) but idk how the distance is calculated, seems not to be from the player's origin or center
+	if ((self.GetCenter() - pickup.GetCenter()).Length() <= L4B.Settings.pickups_pick_range || L4B.CanUseTo(self, pickup, false)) // There is a cvar (player_use_radius 96) but idk how the distance is calculated, seems not to be from the player's origin or center
 	{
 		// Yes, pick it up
 		L4B.Logger.Debug("[AI]" + self.GetPlayerName() + " - Picking up: " + pickup);
@@ -1457,7 +1457,8 @@ enum AI_AIM_TYPE {
 	}
 
 	// Destination survivor_death_model is still there and no one is defibbing it, let's see if we reached it
-	if ((Origin - MovePos).Length() <= L4B.Settings.move_end_radius_defib)
+	//if ((Origin - MovePos).Length() <= L4B.Settings.move_end_radius_defib)
+	if ((Origin - MoveEnt.GetOrigin()).Length() <= Convars.GetFloat("player_use_radius")) // Only need check this distance
 	{
 		// We reached the dead survivor, but do we have a defibrillator?
 		if (!Left4Utils.HasDefib(self))
@@ -1488,7 +1489,7 @@ enum AI_AIM_TYPE {
 			{
 				// Yes, but can we use it right now?
 				if (CurTime > NetProps.GetPropFloat(ActiveWeapon, "m_flNextPrimaryAttack") + 0.1) // <- Add a little delay or the animation will be bugged
-					L4B.PlayerPressButton(self, BUTTON_ATTACK, 0, MoveEnt, 0, 0, true); // Yes
+					L4B.PlayerPressButton(self, BUTTON_ATTACK, 0, MoveEnt.GetCenter(), 0, 0, true); // Yes
 			}
 			else if (ActiveWeapon && ActiveWeapon.GetClassname() != "weapon_pain_pills" && ActiveWeapon.GetClassname() != "weapon_adrenaline") // We'll run into an infinite switch loop if the vanilla AI wants to use pills/adrenaline
 			{
@@ -1702,7 +1703,7 @@ enum AI_AIM_TYPE {
 		if (!destPos)
 			destPos = MovePos;
 
-		if ((Origin - destPos).Length() <= CurrentOrder.DestRadius)
+		if ((Origin - destPos).Length() <= CurrentOrder.DestRadius || L4B.IsBotReachOrderPosition(self, CurrentOrder))
 		{
 			// Yes, we did
 			// BotReset(); // No longer needed if we set sb_debug_apoproach_wait_time to something like 0.5 or even 0
@@ -1788,7 +1789,7 @@ enum AI_AIM_TYPE {
 		return; // Likely it's still AI_DOOR_ACTION.Saferoom, we must wait until we can actually close it
 
 	// Are we close enough to the door, yet?
-	if ((Origin - doorPos).Length() <= L4B.Settings.move_end_radius_door)
+	if ((Origin - doorPos).Length() <= L4B.Settings.move_end_radius_door || L4B.CanUseTo(self, DoorEnt))
 	{
 		// Yes, open/close it
 
