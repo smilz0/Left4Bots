@@ -114,7 +114,7 @@ Orders with higher priority are executed first.
 
 Orders with the same priority are executed with the same order as they have been received.
 
-The next order in the queue is not executed until the current order is not finished or cancelled (Example: `coach cancel current`).
+The next order in the queue is not executed until the current order is finished or cancelled (Example: `coach cancel current`).
 
 
 ### Bot selection (for commands via vocalizer)
