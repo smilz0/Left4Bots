@@ -583,8 +583,8 @@
 	// NOTE: This also means that this amount of bots will prefer keeping their tier1 shotguns instead of taking tier2 guns if no tier2 shotgun is found
 	team_min_shotguns = 1
 
-	// Bots will try to keep this minimum number of assault rifles in the entire survivor team, regardless their weapon preference
-	team_min_assault_rifles = 1
+	// Bots will try to keep this minimum number of assault rifles or smgs in the entire survivor team, regardless their weapon preference
+	team_min_assault_rifles_or_smgs = 1
 
 	// Bots will try to keep this minimum number of sniper rifles in the entire survivor team, regardless their weapon preference
 	team_min_sniper_rifles = 1
@@ -592,8 +592,8 @@
 	// Bots will try to keep this maximum number of shotguns in the entire survivor team, regardless their weapon preference
 	team_max_shotguns = 8
 
-	// Bots will try to keep this maximum number of assault rifles in the entire survivor team, regardless their weapon preference
-	team_max_assault_rifles = 8
+	// Bots will try to keep this maximum number of assault rifles or smgs in the entire survivor team, regardless their weapon preference
+	team_max_assault_rifles_or_smgs = 8
 
 	// Bots will try to keep this maximum number of sniper rifles in the entire survivor team, regardless their weapon preference
 	team_max_sniper_rifles = 8
