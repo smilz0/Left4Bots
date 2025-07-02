@@ -158,7 +158,6 @@ enum AI_AIM_TYPE {
 	scope["BotLockShoot"] <- AIFuncs.LockShoot;
 	
 	//lxc add
-	scope.LastFireTime <- 0;
 	scope.Airborne <- false;
 	scope.AttackButtonForced <- false;
 	
@@ -242,7 +241,6 @@ enum AI_AIM_TYPE {
 	scope.NextMoveTime <- 0;
 	
 	//lxc add
-	scope.LastFireTime <- 0;
 	scope.Airborne <- false;
 	scope.AttackButtonForced <- false;
 	
@@ -3839,20 +3837,8 @@ enum AI_AIM_TYPE {
 		{
 			BotUnSetAim();
 		}
-		else //lxc for "weapon_fire" event
+		else
 		{
-			//limit dual pistol dps
-			if (L4B.Settings.manual_attack_dual_pistol_nerf && ActiveWeaponId == Left4Utils.WeaponId.weapon_pistol && NetProps.GetPropInt(ActiveWeapon, "m_hasDualWeapons") > 0 && LastFireTime > 0)
-			{
-				local NextFireTime = NetProps.GetPropFloat(ActiveWeapon, "m_flNextPrimaryAttack");
-				if (NextFireTime > LastFireTime) // the bullet has been fired
-				{
-					LastFireTime = 0;
-					if (ActiveWeapon.Clip1() > 0)
-						NetProps.SetPropFloat(ActiveWeapon, "m_flNextPrimaryAttack", NextFireTime + 0.1);
-				}
-			}
-			
 			// Full Automatic Weapon, so we don't need release attack button
 			NetProps.SetPropInt(ActiveWeapon, "m_isHoldingFireButton", 0);
 		}

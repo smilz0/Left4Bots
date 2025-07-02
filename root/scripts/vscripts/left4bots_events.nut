@@ -505,8 +505,15 @@ Msg("Including left4bots_events...\n");
 		//lxc if not gun or melee, skip
 		if (scope.ActiveWeaponSlot == 0 || scope.ActiveWeaponSlot == 1)
 		{
-			scope.LastFireTime = Time();
 			scope.BotAim();
+			
+			// Increased dual pistol cycle time
+			if (weapon == "pistol" && scope.AimType != AI_AIM_TYPE.None && Left4Bots.Settings.manual_attack_dual_pistol_nerf)
+			{
+				local aw = player.GetActiveWeapon();
+				if (NetProps.GetPropInt(aw, "m_hasDualWeapons") > 0 && aw.Clip1() > 1)
+					NetProps.SetPropFloat(player, "bcc_localdata.m_flNextAttack", Time() + 0.175);
+			}
 		}
 	}
 }
