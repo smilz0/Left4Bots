@@ -1147,6 +1147,13 @@ Msg("Including left4bots_events...\n");
 			SurvivorFlow[userid].isBot = true;
 
 			AddBotThink(player);
+			
+			// fixed new bot ignore exists custom automation task
+			foreach (task in Automation.CurrentTasks)
+			{
+				if (task._allBots && "_ordersSent" in task)
+					task._ordersSent = false;
+			}
 		}
 		else if (Settings.play_sounds)
 		{
