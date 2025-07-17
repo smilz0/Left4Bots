@@ -3459,10 +3459,14 @@ enum AI_AIM_TYPE {
 	CarryItemWeaponId = 0;
 	*/
 	
-	//lxc apply changes
+	// Aim stuff
 	BotUnSetAim();
 	OrderHuman = null;
 	OrderTarget = null;
+	
+	// Minigun
+	if (NetProps.GetPropInt(self, "m_usingMountedWeapon") > 0)
+		L4B.PlayerPressButton(self, BUTTON_USE);
 }
 
 // Check if the bot should pause what he is doing. Handles the Paused flag and the RESET command
