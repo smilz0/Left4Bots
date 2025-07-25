@@ -1547,7 +1547,7 @@ enum AI_AIM_TYPE {
 	if (heldClass && (heldClass == "weapon_molotov" || heldClass == "weapon_pipe_bomb" || heldClass == "weapon_vomitjar"))
 	{
 		// Probably we're about to throw this. Let's see if we can...
-		if (CurTime > NetProps.GetPropFloat(ActiveWeapon, "m_flNextPrimaryAttack"))
+		if (CurTime >= NetProps.GetPropFloat(ActiveWeapon, "m_flNextPrimaryAttack"))
 		{
 			if (ThrowTarget && L4B.ShouldStillThrow(self, UserId, Origin, ThrowType, ThrowTarget, heldClass))
 			{
@@ -1584,7 +1584,7 @@ enum AI_AIM_TYPE {
 				ThrowTarget = null;
 				ThrowStartedOn = 0;
 			}
-			else
+			else if (AimType != AI_AIM_TYPE.Throw) // Don't think invalid if we are throwing, this fixes the switching loop in high tickrate game
 			{
 				// We no longer have a valid throw target
 				ThrowType = AI_THROW_TYPE.None;
