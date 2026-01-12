@@ -1294,7 +1294,7 @@ enum AI_AIM_TYPE {
 	//	return; // Do nothing if there is an ongoing MOVE with higher priority
 
 	local pickup = BotGetNearestPickupWithin(L4B.Settings.pickups_scan_radius);
-	if (!pickup && MoveType == AI_MOVE_TYPE.Pickup && L4B.IsValidPickup(MoveEnt))
+	if (!pickup && MoveType == AI_MOVE_TYPE.Pickup && L4B.IsValidPickup(MoveEnt) && (self.GetCenter() - MoveEnt.GetCenter()).Length() <= L4B.Settings.pickups_scan_radius)
 		pickup = MoveEnt; // We have no visible pickup nearby at the moment but, if we already got a MoveEnt we are moving to and it's still valid, we'll stick to it even if we can't see it
 
 	if (!pickup)
