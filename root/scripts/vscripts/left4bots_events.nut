@@ -1655,6 +1655,8 @@ Msg("Including left4bots_events...\n");
 {
 	// First count how many medkits, defibs, chainsaws and throwables we already have in the team
 	TeamShotguns = 0;
+	TeamAssaultRiflesOrSMGs = 0;
+	TeamSniperRifles = 0;
 	TeamChainsaws = 0;
 	TeamMelee = 0;
 	TeamMolotovs = 0;
@@ -1670,8 +1672,14 @@ Msg("Including left4bots_events...\n");
 			local inv = {};
 			GetInvTable(surv, inv);
 
-			// Strings are a char array -- start the classname search at index 5, which is after "weapon", and the search should go by quicker.
-			TeamShotguns += (INV_SLOT_PRIMARY in inv && inv[INV_SLOT_PRIMARY].GetClassname().find("shotgun", 5) != null).tointeger();
+			if (INV_SLOT_PRIMARY in inv)
+			{
+				local cls = inv[INV_SLOT_PRIMARY].GetClassname();
+
+				TeamShotguns += (cls == "weapon_autoshotgun" || cls == "weapon_shotgun_spas" || cls == "weapon_pumpshotgun" || cls == "weapon_shotgun_chrome").tointeger();
+				TeamAssaultRiflesOrSMGs += (cls == "weapon_rifle" || cls == "weapon_rifle_desert" || cls == "weapon_rifle_ak47" || cls == "weapon_rifle_sg552" || cls == "weapon_smg" || cls == "weapon_smg_silenced" || cls == "weapon_smg_mp5").tointeger();
+		                TeamSniperRifles += (cls == "weapon_hunting_rifle" || cls == "weapon_sniper_military" || cls == "weapon_sniper_awp" || "weapon_sniper_scout").tointeger();
+			}
 
 			if (INV_SLOT_SECONDARY in inv)
 			{
