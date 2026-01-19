@@ -555,10 +555,10 @@ IncludeScript("left4bots_settings");
 ::Left4Bots.GetBotByName <- function (name)
 {
 	local n = name.tolower();
-	foreach (bot in Bots)
+	foreach (surv in Survivors)
 	{
-		if (bot.IsValid() && bot.GetPlayerName().tolower() == n)
-			return bot;
+		if (surv.IsValid() && Left4Utils.GetCharacterName(surv).tolower() == n)
+			return surv;
 	}
 	return null;
 }
