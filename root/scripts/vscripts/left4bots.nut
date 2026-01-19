@@ -853,6 +853,18 @@ IncludeScript("left4bots_settings");
 	PlayerPressButton(bot, BUTTON_ATTACK, 0.0, entity.GetAttachmentOrigin(attachmentid), 0, 0, lockLook, unlockLookDelay);
 }
 
+::Left4Bots.IsBoomerNearToSurvivors <- function (boomer) //z_exploding_splat_radius = 200
+{
+	local exploding_radius = Convars.GetFloat("z_exploding_splat_radius") + 20; // add offset
+	local boomerPos = boomer.GetOrigin();
+	foreach (surv in Survivors)
+	{
+		if (surv && surv.IsValid() && !surv.IsIT() && (boomerPos - surv.GetOrigin()).Length() <= exploding_radius)
+			return true;
+	}
+	return false;
+}
+
 // Returns the closest valid enemy for the given bot within the given radius and minimum dot
 // Valid enemies are common and special infected (including tank), witch excluded
 ::Left4Bots.FindBotNearestEnemy <- function (bot, orig, radius, minDot = 0.96)
@@ -871,7 +883,7 @@ IncludeScript("left4bots_settings");
 			local toEnt = ent.GetOrigin() - orig;
 			local dist = toEnt.Norm();
 			
-			if (dist < radius && botFacing.Dot(toEnt) >= minDot)
+			if (dist < radius && botFacing.Dot(toEnt) >= minDot && (ent.GetZombieType() != Z_BOOMER || !IsBoomerNearToSurvivors(ent)))
 			{
 				ret_array.append([dist, ent]);
 			}
@@ -2154,8 +2166,8 @@ if (activator && isWorthPickingUp)
 				// a must be between -dodge_rock_diffangle and dodge_rock_diffangle. a > 0 -> the bot should run to the rock's left. a < 0 -> the bot should run to the rock's right
 				if (!(id in DodgingBots) && l4b.Settings.dodge_rock && a >= -l4b.Settings.dodge_rock_diffangle && a <= l4b.Settings.dodge_rock_diffangle && l4b.TryDodge(bot, lft, a > 0, l4b.Settings.dodge_rock_mindistance, l4b.Settings.dodge_rock_maxdistance))
 					DodgingBots[id] <- 1;
-				//lxc now we can move and shoot in same time, rock can be destroyed if health > 0, don't waste bullets
-				if (l4b.Settings.shoot_rock && self.GetHealth() > 0 && a >= -l4b.Settings.shoot_rock_diffangle && a <= l4b.Settings.shoot_rock_diffangle)
+				// now we can move and shoot in same time
+				if (l4b.Settings.shoot_rock && a >= -l4b.Settings.shoot_rock_diffangle && a <= l4b.Settings.shoot_rock_diffangle)
 				{
 					local aw = bot.GetActiveWeapon();
 					if (aw && aw.IsValid() && (bot.IsFiringWeapon() || Time() >= NetProps.GetPropFloat(aw, "m_flNextPrimaryAttack")) && distance <= l4b.GetWeaponRangeById(Left4Utils.GetWeaponId(aw)))
@@ -2166,8 +2178,10 @@ if (activator && isWorthPickingUp)
 						local scope = bot.GetScriptScope();
 						if (scope.AimType <= AI_AIM_TYPE.Rock)
 						{
-							scope.BotSetAim(AI_AIM_TYPE.Rock, self, 0.5); //need refresh target, if can't see rock, will pasue aim and shoot after this delay
-							Left4Utils.PlayerForceButton(bot, BUTTON_ATTACK);
+							scope.BotSetAim(AI_AIM_TYPE.Rock, self, 0.3); //need refresh target, if can't see the rock, will pasue aim and shoot after this delay
+							// don't waste bullets if the rock is unbreakable
+							if (self.GetHealth() > 0)
+								Left4Utils.PlayerForceButton(bot, BUTTON_ATTACK);
 							
 							l4b.Logger.Debug(bot.GetPlayerName() + " shooting at rock " + self.GetEntityIndex());
 						}
