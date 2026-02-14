@@ -29,6 +29,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c13m4_cutthroatcreek automat
 		case "FinaleTriggered":
 			// *** TASK 4. Door button used, go idle until the door is fully open
 			
+			::Left4Bots.Automation.DoRegroupAt(Vector(-4070.760742, -8110.492187, 371.031250), 4);
 			::Left4Bots.Automation.ResetTasks();
 			::Left4Bots.Automation.step = 3;
 			
@@ -62,6 +63,7 @@ Msg("Including " + ::Left4Bots.BaseModeName + "/l4b_c13m4_cutthroatcreek automat
 		case 2:
 			// *** TASK 3. Radio used, someone press the door button
 			
+			::Left4Bots.Automation.DoRegroupAt(Vector(-4070.760742, -8110.492187, 371.031250), 4);
 			if (::Left4Bots.Automation.DoUse("bot", "finale", Vector(-4109.222168, -7804.876465, 371.031250)))
 				::Left4Bots.Automation.step++;
 			break;
