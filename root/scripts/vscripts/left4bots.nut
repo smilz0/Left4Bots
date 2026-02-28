@@ -89,6 +89,8 @@ IncludeScript("left4bots_requirements");
 	//IncapBlockNavs = {}
 	ItemsToAvoid = []
 	TeamShotguns = 0
+    	TeamAssaultRiflesOrSMGs = 0
+    	TeamSniperRifles = 0
 	TeamMolotovs = 0
 	TeamPipeBombs = 0
 	TeamVomitJars = 0

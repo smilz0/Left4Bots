@@ -2167,6 +2167,9 @@ enum AI_AIM_TYPE {
 	local currWeps = [Left4Utils.WeaponId.none, Left4Utils.WeaponId.none, Left4Utils.WeaponId.none, Left4Utils.WeaponId.none, Left4Utils.WeaponId.none]; // Will be filled with the weapon ids of the bot's current weapons
 	local hasT1Shotgun = false;
 	local hasT2Shotgun = false;
+	local hasSMG = false;
+	local hasAssaultRifle = false;
+	local hasSniperRifle = false;
 	local hasT3Weapon = false; // https://github.com/smilz0/Left4Bots/issues/70
 	local priAmmoPercent = 100;
 	local hasAmmoUpgrade = true;
@@ -2207,6 +2210,9 @@ enum AI_AIM_TYPE {
 				case 0:
 					hasT1Shotgun = (currWeps[i] == Left4Utils.WeaponId.weapon_shotgun_chrome) || (currWeps[i] == Left4Utils.WeaponId.weapon_pumpshotgun);
 					hasT2Shotgun = (currWeps[i] == Left4Utils.WeaponId.weapon_autoshotgun) || (currWeps[i] == Left4Utils.WeaponId.weapon_shotgun_spas);
+					hasSMG = (currWeps[i] == Left4Utils.WeaponId.weapon_smg) || (currWeps[i] == Left4Utils.WeaponId.weapon_smg_silenced) || (currWeps[i] == Left4Utils.WeaponId.weapon_smg_mp5);
+					hasAssaultRifle = (currWeps[i] == Left4Utils.WeaponId.weapon_rifle) || (currWeps[i] == Left4Utils.WeaponId.weapon_rifle_desert) || (currWeps[i] == Left4Utils.WeaponId.weapon_rifle_ak47) || (currWeps[i] == Left4Utils.WeaponId.weapon_rifle_sg552);
+					hasSniperRifle = (currWeps[i] == Left4Utils.WeaponId.weapon_hunting_rifle) || (currWeps[i] == Left4Utils.WeaponId.weapon_sniper_military) || (currWeps[i] == Left4Utils.WeaponId.weapon_sniper_awp) || (currWeps[i] == Left4Utils.WeaponId.weapon_sniper_scout);
 					hasT3Weapon = (currWeps[i] == Left4Utils.WeaponId.weapon_grenade_launcher) || (currWeps[i] == Left4Utils.WeaponId.weapon_rifle_m60);
 					priAmmoPercent = Left4Utils.GetAmmoPercent(inv[slot]);
 					hasAmmoUpgrade = NetProps.GetPropInt(inv[slot], "m_nUpgradedPrimaryAmmoLoaded") >= L4B.Settings.pickups_wep_upgraded_ammo;
@@ -2266,9 +2272,22 @@ enum AI_AIM_TYPE {
 					WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_spas] <- 0;
 				}
 			}
-			else
+			else if (L4B.TeamAssaultRiflesOrSMGs <= L4B.Settings.team_min_assault_rifles_or_smgs && (hasSMG || hasAssaultRifle))
 			{
-				// We either don't have a shotgun or TeamShotguns > team_min_shotguns so we can follow our preference and try to get an higher priority weapon
+				// We have an assault rifle or smg but TeamAssaultRiflesOrSMGs <= team_min_assault_rifles_or_smgs so we need to make sure to keep it. Just upgrade it if needed
+
+				if (!hasAssaultRifle)
+				{
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_rifle] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_rifle_desert] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_rifle_ak47] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_rifle_sg552] <- 0;
+				}
+			}
+			else if (!(L4B.TeamSniperRifles <= L4B.Settings.team_min_sniper_rifles && hasSniperRifle))
+			// We have a sniper rifle but but TeamAssaultRiflesOrSMGs <= team_min_assault_rifles_or_smgs so we need to make sure to keep it
+			{
+				// Otherwise, if we are not holding a weapon that satisfies a requirement, we can follow our preference and try to get an higher priority weapon
 				
 				local stop = false; // If find weapon in the current Tier, stop add weapons.
 				foreach (Tier, list in WeapPref[slotIdx])
@@ -2297,6 +2316,31 @@ enum AI_AIM_TYPE {
 							// Add all the preference weapons that have higher priority than the one we have in the inventory
 							// Or add them all if ammo percent of our primary weapon is < pickups_wep_replace_ammo
 							local prefId = list[x];
+
+							if (
+								((prefId == Left4Utils.WeaponId.weapon_autoshotgun ||
+								  prefId == Left4Utils.WeaponId.weapon_shotgun_spas ||
+								  prefId == Left4Utils.WeaponId.weapon_pumpshotgun ||
+								  prefId == Left4Utils.WeaponId.weapon_shotgun_chrome) &&
+								 L4B.TeamShotguns > L4B.Settings.team_max_shotguns
+								 ||
+								 ((prefId == Left4Utils.WeaponId.weapon_rifle ||
+								   prefId == Left4Utils.WeaponId.weapon_rifle_desert ||
+								   prefId == Left4Utils.WeaponId.weapon_rifle_ak47 ||
+								   prefId == Left4Utils.WeaponId.weapon_rifle_sg552 ||
+								   prefId == Left4Utils.WeaponId.weapon_smg ||
+								   prefId == Left4Utils.WeaponId.weapon_smg_silenced ||
+								   prefId == Left4Utils.WeaponId.weapon_smg_mp5) &&
+								  L4B.TeamAssaultRifles > L4B.Settings.team_max_assault_rifles_or_smgs)
+								 ||
+								 ((prefId == Left4Utils.WeaponId.weapon_hunting_rifle ||
+								   prefId == Left4Utils.WeaponId.weapon_sniper_military ||
+								   prefId == Left4Utils.WeaponId.weapon_sniper_awp ||
+								   prefId == Left4Utils.WeaponId.weapon_sniper_scout) &&
+								  L4B.TeamSniperRifles > L4B.Settings.team_max_sniper_rifles)
+							)
+								continue;
+								
 							if (prefId != currWeps[slotIdx] || priAmmoPercent < L4B.Settings.pickups_wep_replace_ammo)
 								WeaponsToSearch[prefId] <- 0;
 							else
@@ -2320,6 +2364,23 @@ enum AI_AIM_TYPE {
 					WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_spas] <- 0;
 					WeaponsToSearch[Left4Utils.WeaponId.weapon_pumpshotgun] <- 0;
 					WeaponsToSearch[Left4Utils.WeaponId.weapon_shotgun_chrome] <- 0;
+				}
+				if (L4B.TeamAssaultRifles < L4B.Settings.team_min_assault_rifles_or_smgs)
+				{
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_rifle] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_rifle_desert] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_rifle_ak47] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_rifle_sg552] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_smg] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_smg_silenced] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_smg_mp5] <- 0;
+				}
+				if (L4B.TeamSniperRifles < L4B.Settings.team_min_sniper_rifles)
+				{
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_hunting_rifle] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_sniper_military] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_sniper_awp] <- 0;
+					WeaponsToSearch[Left4Utils.WeaponId.weapon_sniper_scout] <- 0;
 				}
 			}
 		}
